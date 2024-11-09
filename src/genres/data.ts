@@ -1,6 +1,9 @@
-import {sqliteTable, int, text} from 'drizzle-orm/sqlite-core';
+import type { DustDatabase } from "../../database.ts";
 
-export const genresTable = sqliteTable("genres", {
-    id: int().primaryKey({ autoIncrement: true }),
-    name: text().notNull(),
-});
+export const migrate = (database: DustDatabase) => {
+    database.migrate([
+        `CREATE TABLE IF NOT EXISTS dust.genres (
+            name TEXT NOT NULL,
+        )`,
+    ])
+}
