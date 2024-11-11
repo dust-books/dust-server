@@ -1,8 +1,29 @@
 import type { Router } from "@oak/oak";
 
 export const registerRoutes = (router: Router) => {
-    router.get("/book/", (ctx) => {});
-    router.get("/book/:id", (ctx) => {});
-    router.get("/book/:id/progress", (ctx) => {});
-    router.put("/book/:id/progress", (ctx) => {});
+    router.get("/books/", (ctx) => {
+        ctx.response.body = {
+            books: [],
+        };
+    });
+    router.get("/books/:id", (ctx) => {
+        ctx.response.body = {
+            book: {
+                id: ctx.params.id
+            }
+        }
+    });
+    router.get("/books/:id/progress", (ctx) => {
+        ctx.response.body = {
+            book: {
+                id: ctx.params.id,
+            },
+            progress: {
+                page: 0,
+            }
+        };
+    });
+    router.put("/books/:id/progress", (ctx) => {
+        ctx.response.status = 200;
+    });
 }

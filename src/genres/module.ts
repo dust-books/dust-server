@@ -4,7 +4,7 @@ import { Module } from "../../module.ts";
 import { migrate } from "./data.ts";
 import { registerRoutes } from "./routes.ts";
 
-export class BooksModule extends Module {
+export class GenresModule extends Module {
   override registerRoutes(router: Router): void {
     registerRoutes(router);
   }

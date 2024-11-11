@@ -1,6 +1,7 @@
 {
   "tasks": {
-    "dev": "deno serve --watch -R main.ts"
+    "dev_broken": "deno serve --watch -R main.ts",
+    "dev": "deno run main.ts"
   },
   "imports": {
     "@libsql/client": "npm:@libsql/client@^0.14.0",
