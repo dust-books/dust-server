@@ -1,3 +1,5 @@
+<img src="https://avatars.githubusercontent.com/u/184449885?s=400&u=7939c66f87f444b0cde413470336cd84c2b2c052&v=4" style="height: 150px; border-radius: 5px" />
+
 # Dust
 
 Dust is a media server focused around ebooks and comics. Think Plex, but for people who like to read (and more importantly, collect digital books and comics!).
