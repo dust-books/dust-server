@@ -1,7 +1,7 @@
-import type { DustDatabase } from "../../database.ts";
+import type { Database } from "../../database.ts";
 
-export const migrate = (database: DustDatabase) => {
-    database.migrate([
+export const migrate = (database: Database) => {
+    return database.migrate([
         `CREATE TABLE IF NOT EXISTS dust.books (
             name TEXT NOT NULL,
             author INTEGER,
