@@ -28,6 +28,19 @@ export const getUser = (database: Database, id: string) => {
     })
 }
 
+export const getUserByEmail = async (database: Database, email: string) => {
+    const results = await database.execute({
+        sql: "SELECT * FROM users where email = $email",
+        args: { email }
+    });
+
+    return {
+        email: results.rows[0]["email"],
+        password: results.rows[0]["password"],
+        displayName: results.rows[0]["display_name"],
+    } as User;
+}
+
 export const addUser = (database: Database, user: User) => {
     return database.execute({
         sql: `

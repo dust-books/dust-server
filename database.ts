@@ -3,7 +3,7 @@ import { createClient, type InStatement, type ResultSet } from '@libsql/client/n
 
 export interface Database {
     migrate(statements: Array<InStatement>): Promise<Array<ResultSet>>;
-    execute<T>(statement: InStatement): Promise<ResultSet>;
+    execute(statement: InStatement): Promise<ResultSet>;
 }
 export class DustDatabase implements Database {
     // TODO: Make filepath configurable
@@ -17,7 +17,7 @@ export class DustDatabase implements Database {
         return this.db.migrate(statements);
     }
 
-    execute<T>(statement: InStatement): Promise<ResultSet> {
+    execute(statement: InStatement): Promise<ResultSet> {
         return this.db.execute(statement);
     }
 }

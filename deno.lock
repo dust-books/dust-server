@@ -20,6 +20,7 @@
     "jsr:@std/path@1": "1.0.8",
     "jsr:@std/path@^1.0.7": "1.0.8",
     "jsr:@std/streams@^1.0.7": "1.0.8",
+    "jsr:@ts-rex/bcrypt@^1.0.3": "1.0.3",
     "npm:@libsql/client@0.14": "0.14.0",
     "npm:@libsql/core@0.14": "0.14.0",
     "npm:path-to-regexp@6.2.1": "6.2.1"
@@ -103,6 +104,9 @@
     },
     "@std/streams@1.0.8": {
       "integrity": "b41332d93d2cf6a82fe4ac2153b930adf1a859392931e2a19d9fabfb6f154fb3"
+    },
+    "@ts-rex/bcrypt@1.0.3": {
+      "integrity": "1a172769df1a357032e78cc13205dc34cc13f2307a2b81458bf988904ec8db02"
     }
   },
   "npm": {
@@ -245,6 +249,7 @@
       "jsr:@oak/oak@^17.1.3",
       "jsr:@std/assert@1",
       "jsr:@std/http@1",
+      "jsr:@ts-rex/bcrypt@^1.0.3",
       "npm:@libsql/client@0.14",
       "npm:@libsql/core@0.14"
     ]
