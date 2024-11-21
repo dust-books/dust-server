@@ -20,4 +20,7 @@ Dust follows a model similar to Plex. We crawl the file system at the provided D
 Since we are trying to keep Dust simple to ship and simple to run, we'd like to use a Database that does not require a standalone server or service. This leaves us with a couple of interesting options, but given the level of support for those options, the clear winner is SQLite.
 
 <!-- Add additional information here, comparison of options, research, etc -->
-  
+
+### Table Structure
+
+![Dust DB table structure](./assets/dust_db.png)

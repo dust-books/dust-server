@@ -11,4 +11,4 @@ If you need to regenerate this readme without creating a new ADR, please use `ad
 
 - [00000-Use-SQLite](./00000-Use-SQLite.md)
 
-Last generated 2024-11-17T15:24:19.069Z
+Last generated 2024-11-21T02:31:00.245Z
