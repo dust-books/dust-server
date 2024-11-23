@@ -1,5 +1,5 @@
 import type { Router } from "@oak/oak";
-import { UserService } from "./user-service.ts";
+import { InvalidCredentialsError, UserService } from "./user-service.ts";
 import { dustService } from "../../main.ts";
 import { validateSignup } from "./validators/signup-validator.ts";
 import { validateSignIn } from "./validators/signin-validator.ts";
@@ -10,15 +10,16 @@ export const registerRoutes = (router: Router) => {
         try {
             const body = await ctx.request.body.json();
             if (validateSignIn(body)) {
-                if (await userService.handleSignIn(body)) {
+                const userToken = await userService.handleSignIn(body);
+                    ctx.response.headers.set("Authorization", `Bearer: ${userToken}`);
                     ctx.response.status = 200;
-                } else {
-                    ctx.response.status = 401;
-                }
             } else {
                 ctx.response.status = 400;
             }
-        } catch (_e) {
+        } catch (e) {
+            if (e instanceof InvalidCredentialsError) {
+                ctx.response.status = 401;
+            }
             ctx.response.status = 500;
         }
     });
