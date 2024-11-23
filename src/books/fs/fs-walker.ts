@@ -14,7 +14,6 @@ export class FSWalker {
         const foundItems = [];
         for (const dir in this.dirs) {
             for await (const dirEntry of walk(dir, { exts: this.supportedFiletypes })) {
-                console.log("Recursive walking with extension:", dirEntry.path);
                 foundItems.push(dirEntry);
             }
         }
