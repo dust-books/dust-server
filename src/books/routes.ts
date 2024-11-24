@@ -1,7 +1,7 @@
 import type { Router } from "@oak/oak";
 
 export const registerRoutes = (router: Router) => {
-    router.get("/books/", (ctx) => {
+    router.get("/books/", async (ctx) => {
         ctx.response.body = {
             books: [],
         };

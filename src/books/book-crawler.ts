@@ -1,0 +1,46 @@
+import type { Book } from "./book.ts";
+import { type FileSystemWalker } from "./fs/fs-walker.ts";
+
+/**
+ * BookCrawler takes in a fileSystemWalker and collects that walker,
+ * ultimately converting the output into objects that meet the "Book" interface.
+ * 
+ * The crawler is responsible for taking the WalkEntry from the fileSystemWalker and
+ * parsing out the meta-information about the title from the filepath structure.
+ */
+export class BookCrawler {
+    private bookRegex = /(?:.*?)\/([^/]+)\/([^/]+)\/([^/]+)\/([^/]+)/;
+    private fileSystemWalker: FileSystemWalker;
+
+    constructor(fileSystemWalker: FileSystemWalker) {
+        this.fileSystemWalker = fileSystemWalker;
+    }
+
+    /**
+     * crawlForbooks crawls the fileSystemWalker and parses the output into book objects.
+     * @returns array of book objects parsed from the fileSystemWalker results
+     */
+    async crawlForBooks() {
+        const allItems = await this.fileSystemWalker.collect();
+        // TODO: We need to capture author data at some point.
+        const books: Array<Omit<Book, "author">> = [];
+        for (const item of allItems) {
+            const matches = item.path.match(this.bookRegex);
+            if (matches) {
+                const [fullMatch, classification, author, title, file] = matches;
+                console.log('Path:', item.path);
+                console.log('Classification:', classification);
+                console.log('Author:', author);
+                console.log('Title:', title);
+                console.log('File:', file);
+
+                books.push({
+                    name: title,
+                    filepath: item.path
+                });
+            }
+        }
+
+        return books;
+    }
+}

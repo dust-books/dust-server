@@ -1,10 +1,14 @@
 import { walk, type WalkEntry } from "jsr:@std/fs/walk";
 
-export class FSWalker {
+export interface FileSystemWalker {
+    collect(): Promise<Array<WalkEntry>>
+}
+
+export class FSWalker implements FileSystemWalker {
     private dirs: Array<string> = [];
     private supportedFiletypes: Array<string> = [];
 
-    constructor(dirs: Array<string>, config: { supportedFiletypes: Array<string> }) {
+    constructor(dirs: Array<string>, config: Partial<{ supportedFiletypes: Array<string> }>) {
         this.dirs = dirs;
         this.supportedFiletypes = config.supportedFiletypes ?? this.supportedFiletypes;
     }
