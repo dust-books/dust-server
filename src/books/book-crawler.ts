@@ -2,6 +2,13 @@ import type { Book } from "./book.ts";
 import { type FileSystemWalker } from "./fs/fs-walker.ts";
 
 /**
+ * CrawlResult the result of a crawl of the FS and parsing of filepath into book info.
+ * This is similar to a book object at this point, but the author ID has been replaced with
+ * a string for the author name.
+ */
+type CrawlResult = Omit<Book, "author"> & { author: string }
+
+/**
  * BookCrawler takes in a fileSystemWalker and collects that walker,
  * ultimately converting the output into objects that meet the "Book" interface.
  * 
@@ -18,12 +25,13 @@ export class BookCrawler {
 
     /**
      * crawlForbooks crawls the fileSystemWalker and parses the output into book objects.
+     * 
      * @returns array of book objects parsed from the fileSystemWalker results
      */
     async crawlForBooks() {
         const allItems = await this.fileSystemWalker.collect();
         // TODO: We need to capture author data at some point.
-        const books: Array<Omit<Book, "author">> = [];
+        const books: Array<CrawlResult> = [];
         for (const item of allItems) {
             const matches = item.path.match(this.bookRegex);
             if (matches) {
@@ -36,7 +44,8 @@ export class BookCrawler {
 
                 books.push({
                     name: title,
-                    filepath: item.path
+                    filepath: item.path,
+                    author: author,
                 });
             }
         }
