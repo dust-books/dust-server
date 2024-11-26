@@ -36,12 +36,6 @@ export class BookCrawler {
             const matches = item.path.match(this.bookRegex);
             if (matches) {
                 const [fullMatch, classification, author, title, file] = matches;
-                console.log('Path:', item.path);
-                console.log('Classification:', classification);
-                console.log('Author:', author);
-                console.log('Title:', title);
-                console.log('File:', file);
-
                 books.push({
                     name: title,
                     filepath: item.path,
