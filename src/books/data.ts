@@ -1,4 +1,5 @@
 import type { Database } from "../../database.ts";
+import type { AuthorWithId } from "./author.ts";
 import type { Book } from "./book.ts";
 
 export const migrate = (database: Database) => {
@@ -35,7 +36,7 @@ export const getBookByName = (database: Database, name: string) => {
 }
 
 // TODO: Need to ensure author exists when we put the book in the DB.
-export const addBookIfNotExists = async (database: Database, book: Omit<Book, "author">) => {
+export const addBookIfNotExists = async (database: Database, book: Book) => {
     const existing = await getBookByName(database, book.name);
     if (existing.rows) {
         return;
@@ -54,13 +55,21 @@ export const getAuthorByName = (database: Database, name: string) => {
 }
 
 // TODO: Need to ensure author exists when we put the book in the DB.
-export const addAuthorIfNotExists = async (database: Database, authorName: string) => {
+export const addAuthorIfNotExists = async (database: Database, authorName: string): Promise<AuthorWithId> => {
     const existing = await getAuthorByName(database, authorName);
     if (existing.rows) {
-        return;
+        return {
+            id: existing.rows[0]['rowId'] as number,
+            name: existing.rows[0]['name'] as string,
+        };
     }
-    return database.execute({
-        sql: "INSERT INTO authors (name) VALUES($name)", 
+    const resp = await database.execute({
+        sql: "INSERT INTO authors (name) VALUES ($name)", 
         args: {name: authorName}
     });
+
+    return {
+        id: resp.rows[0]['rowId'] as number,
+        name: resp.rows[0]['name'] as string,
+    }
 }

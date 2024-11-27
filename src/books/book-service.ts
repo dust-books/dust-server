@@ -5,6 +5,7 @@ import { addAuthorIfNotExists, addBookIfNotExists } from "./data.ts";
 import { FSWalker } from "./fs/fs-walker.ts";
 
 export class BookService {
+
     async populateBooksDB(dirs: Array<string>) {
         const fsWalker = new FSWalker(dirs, {supportedFiletypes: ['pdf']});
         const crawler = new BookCrawler(fsWalker);
@@ -20,9 +21,11 @@ export class BookService {
         for (const [author, books] of Object.entries(groupedByAuthor)) {
             const _author = await addAuthorIfNotExists(dustService.database, author);
             for (const book of books) {
-                await addBookIfNotExists(dustService.database, {name: book.name, filepath: book.file_path});
+                await addBookIfNotExists(dustService.database, {name: book.name, filepath: book.file_path, author: _author.id});
             }
         }
 
     }
 }
+
+export const bookService: BookService = new BookService();

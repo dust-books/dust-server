@@ -3,14 +3,23 @@ import type { Database } from "../../database.ts";
 import { Module } from "../../module.ts";
 import { migrate } from "./data.ts";
 import { registerRoutes } from "./routes.ts";
+import type { TimerManager } from "../../clock.ts";
+import { bookService } from "./book-service.ts";
+import type { DustConfig } from "../../config.ts";
 
 export class BooksModule extends Module {
-  override registerRoutes(router: Router): void {
+  override registerRoutes(config: DustConfig, router: Router): void {
     registerRoutes(router);
   }
 
-  override async runMigrations(database: Database): Promise<void> {
+  override async runMigrations(config: DustConfig, database: Database): Promise<void> {
     await migrate(database);
     return;
+  }
+
+  override registerTimers(config: DustConfig, timerManager: TimerManager): void {
+    timerManager.registerTimer(() => {
+        bookService.populateBooksDB(config.getLibraryDirectories());
+    }, 1000 * 60 * 60);
   }
 }
