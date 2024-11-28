@@ -19,6 +19,9 @@ export class BooksModule extends Module {
 
   override registerTimers(config: DustConfig, timerManager: TimerManager): void {
     const EVERY_HOUR = 1000 * 60 * 60;
+    setTimeout(() => {
+        bookService.populateBooksDB(config.getLibraryDirectories());
+    }, 1000);
     timerManager.registerTimer(() => {
         bookService.populateBooksDB(config.getLibraryDirectories());
     }, EVERY_HOUR);

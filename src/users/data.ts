@@ -10,7 +10,8 @@ export const migrate = (database: Database) => {
         )`,
         `CREATE TABLE IF NOT EXISTS sessions (
             session_token TEXT NOT NULL,
-            expires_at TEXT NOT NULL
+            expires_at TEXT NOT NULL,
+            user_id INTEGER
         )`,
     ])
 }
@@ -45,6 +46,19 @@ export const addUser = (database: Database, user: User) => {
     return database.execute({
         sql: `
         INSERT INTO users (display_name, email, password) VALUES ($display, $email, $password) 
+    `, args: {
+            display: user.displayName,
+            email: user.email,
+            // This _SHOULD_ be encrypted by this point
+            password: user.password
+        }
+    });
+}
+
+export const createSession = (database: Database, user: User) => {
+    return database.execute({
+        sql: `
+        INSERT INTO sessions (display_name, email, password) VALUES ($display, $email, $password) 
     `, args: {
             display: user.displayName,
             email: user.email,
