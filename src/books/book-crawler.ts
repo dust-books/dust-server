@@ -16,7 +16,7 @@ type CrawlResult = Omit<Book, "author"> & { author: string }
  * parsing out the meta-information about the title from the filepath structure.
  */
 export class BookCrawler {
-    private bookRegex = /(?:.*?)\/([^/]+)\/([^/]+)\/([^/]+)\/([^/]+)/;
+    private bookRegex = /(?:.*?)\/books\/([^/]+)\/([^/]+)/;
     private fileSystemWalker: FileSystemWalker;
 
     constructor(fileSystemWalker: FileSystemWalker) {
@@ -35,7 +35,7 @@ export class BookCrawler {
         for (const item of allItems) {
             const matches = item.path.match(this.bookRegex);
             if (matches) {
-                const [fullMatch, classification, author, title, file] = matches;
+                const [_fullMatch, author, title] = matches;
                 books.push({
                     name: title,
                     filepath: item.path,

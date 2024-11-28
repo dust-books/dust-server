@@ -17,20 +17,20 @@ export const migrate = (database: Database) => {
 
 export const getAllBooks = (database: Database) => {
     return database.execute(`
-        SELECT * FROM books;
+        SELECT rowid, * FROM books;
     `);
 }
 
 export const getBook = (database: Database, id: string) => {
     return database.execute({
-        sql: "SELECT * FROM books where rowId = $id;",
+        sql: "SELECT rowid, * FROM books where rowId = $id;",
         args: { id }
     })
 }
 
 export const getBookByName = (database: Database, name: string) => {
     return database.execute({
-        sql: "SELECT * FROM books WHERE name = $name",
+        sql: "SELECT rowid, * FROM books WHERE name = $name",
         args: {name: name}
     })
 }
@@ -38,18 +38,18 @@ export const getBookByName = (database: Database, name: string) => {
 // TODO: Need to ensure author exists when we put the book in the DB.
 export const addBookIfNotExists = async (database: Database, book: Book) => {
     const existing = await getBookByName(database, book.name);
-    if (existing.rows) {
+    if (existing.rows.length != 0) {
         return;
     }
     return database.execute({
-        sql: "INSERT INTO books (name, filepath) VALUES($name, $filepath)", 
-        args: {name: book.name, filePath: book.filepath}
+        sql: "INSERT INTO books (name, author, file_path) VALUES ($name, $author, $filePath) RETURNING rowId, *", 
+        args: {name: book.name, filePath: book.filepath, author: book.author}
     });
 }
 
 export const getAuthorByName = (database: Database, name: string) => {
     return database.execute({
-        sql: "SELECT * FROM authors WHERE name = $name",
+        sql: "SELECT rowid, * FROM authors WHERE name = $name",
         args: {name: name}
     })
 }
@@ -57,19 +57,20 @@ export const getAuthorByName = (database: Database, name: string) => {
 // TODO: Need to ensure author exists when we put the book in the DB.
 export const addAuthorIfNotExists = async (database: Database, authorName: string): Promise<AuthorWithId> => {
     const existing = await getAuthorByName(database, authorName);
-    if (existing.rows) {
+    if (existing.rows.length != 0) {
         return {
-            id: existing.rows[0]['rowId'] as number,
+            id: existing.rows[0]['rowid'] as number,
             name: existing.rows[0]['name'] as string,
         };
     }
+
     const resp = await database.execute({
-        sql: "INSERT INTO authors (name) VALUES ($name)", 
+        sql: "INSERT INTO authors (name) VALUES ($name) RETURNING rowId, *", 
         args: {name: authorName}
     });
 
     return {
-        id: resp.rows[0]['rowId'] as number,
+        id: resp.rows[0]['rowid'] as number,
         name: resp.rows[0]['name'] as string,
     }
 }

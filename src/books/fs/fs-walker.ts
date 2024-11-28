@@ -16,7 +16,8 @@ export class FSWalker implements FileSystemWalker {
     // Walks the provided dirs and finds files that end in the supported filetype extensions
     async collect(): Promise<Array<WalkEntry>> {
         const foundItems = [];
-        for (const dir in this.dirs) {
+        for (const dir of this.dirs) {
+            // TODO: Support "~" home dirs.
             for await (const dirEntry of walk(dir, { exts: this.supportedFiletypes })) {
                 foundItems.push(dirEntry);
             }

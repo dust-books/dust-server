@@ -18,10 +18,10 @@ export class BookService {
             return acc;
         }, new Map<string, Array<Omit<Book, "author">>>());
 
-        for (const [author, books] of Object.entries(groupedByAuthor)) {
+        for (const [author, books] of groupedByAuthor.entries()) {
             const _author = await addAuthorIfNotExists(dustService.database, author);
             for (const book of books) {
-                await addBookIfNotExists(dustService.database, {name: book.name, filepath: book.file_path, author: _author.id});
+                await addBookIfNotExists(dustService.database, {name: book.name, filepath: book.filepath, author: _author.id});
             }
         }
 
