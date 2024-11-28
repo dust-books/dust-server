@@ -1,6 +1,6 @@
 import { Application, Router } from "@oak/oak";
 import type { Module } from "./module.ts";
-import { DustDatabase, type Database } from "./database.ts";
+import { DustDatabase } from "./database.ts";
 import { UsersModule } from "./src/users/module.ts";
 import { BooksModule } from "./src/books/module.ts";
 import { GenresModule } from "./src/genres/module.ts";
