@@ -29,6 +29,12 @@ class DustService implements Service {
     this.config.collect();
     Deno.addSignalListener('SIGINT', this._abort);
     signal.addEventListener("abort", this.stop);
+    // TODO: We keepin' this?
+    this.router.get("/", (ctx) => {
+      ctx.response.status = 200;
+      ctx.response.type = "text/html";
+      ctx.response.body = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>Dust Server</title></head><body><iframe src="https://giphy.com/embed/2wKbtCMHTVoOY" width="480" height="480" style="" frameBorder="0" class="giphy-embed" allowFullScreen></iframe></body></html>`
+    });
   }
 
   async registerModule(module: Module): Promise<void> {

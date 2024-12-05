@@ -1,5 +1,5 @@
 import type { Database } from "../../database.ts";
-import { addUser, getUserByEmail } from "./data.ts";
+import { addUser, getUserByEmail, createSession } from "./data.ts";
 import type { User } from "./user.ts";
 import { hash, verify } from "@ts-rex/bcrypt";
 import * as jose from "https://deno.land/x/jose@v5.9.6/index.ts";
@@ -18,14 +18,15 @@ export class UserService {
     this.jwtSecretKey = encoder.encode(Deno.env.get("JWT_SECRET"));
   }
 
-  async handleSignUp(user: User) {
+  async handleSignUp(user: User): Promise<SignedJWTToken> {
     const encryptedUser = {
       ...user,
       password: hash(user.password),
     };
 
     await addUser(this.db, encryptedUser);
-    return;
+    const token = await this.handleSignIn(user);
+    return token;
   }
 
   async handleSignIn(user: Pick<User, "email" | "password">): Promise<SignedJWTToken> {
@@ -33,7 +34,9 @@ export class UserService {
     const isValid = verify(user.password, storedUser.password);
 
     if (isValid) {
-        return this.createJWTForUser(storedUser);
+        const token = await this.createJWTForUser(storedUser);
+        await createSession(this.db, storedUser, token);
+        return token;
     } else {
         throw new InvalidCredentialsError();
     }
@@ -58,9 +61,10 @@ export class UserService {
       },
     })
       .setIssuedAt()
-      .setIssuer("dust-server")
-      .setAudience("dust-client")
+      .setIssuer("urn:dust:server")
+      .setAudience("urn:dust:client")
       .setExpirationTime("1 day")
+      .setProtectedHeader({alg: 'HS256'})
       .sign(key);
 
     return token;

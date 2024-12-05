@@ -20,7 +20,7 @@ export const getAllGenres = (database: Database) => {
 
 export const getGenre = (database: Database, id: string) => {
     return database.execute({
-        sql: "SELECT * FROM genres where rowId = $id;",
+        sql: "SELECT * FROM genres where rowid = $id;",
         args: { id }
     })
 }

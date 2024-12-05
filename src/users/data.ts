@@ -25,16 +25,23 @@ export const getAllUsers = (database: Database) => {
     `);
 }
 
-export const getUser = (database: Database, id: string) => {
-    return database.execute({
-        sql: "SELECT * FROM users where rowId = $id",
+export const getUser = async (database: Database, id: string): Promise<UserWithId> => {
+    const results = await database.execute({
+        sql: "SELECT rowid, * FROM users where rowid = $id",
         args: { id }
-    })
+    });
+
+    return {
+        email: results.rows[0]["email"],
+        password: results.rows[0]["password"],
+        displayName: results.rows[0]["display_name"],
+        id: results.rows[0]["rowid"]
+    } as UserWithId;
 }
 
-export const getUserByEmail = async (database: Database, email: string) => {
+export const getUserByEmail = async (database: Database, email: string): Promise<UserWithId> => {
     const results = await database.execute({
-        sql: "SELECT * FROM users where email = $email",
+        sql: "SELECT rowid, * FROM users where email = $email",
         args: { email }
     });
 
@@ -42,7 +49,8 @@ export const getUserByEmail = async (database: Database, email: string) => {
         email: results.rows[0]["email"],
         password: results.rows[0]["password"],
         displayName: results.rows[0]["display_name"],
-    } as User;
+        id: results.rows[0]["rowid"]
+    } as UserWithId;
 }
 
 export const addUser = (database: Database, user: User) => {
