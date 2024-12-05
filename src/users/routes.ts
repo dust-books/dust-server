@@ -6,23 +6,22 @@ import { validateSignIn } from "./validators/signin-validator.ts";
 import { UserWithId } from "./user.ts";
 
 interface Request {
-    user: UserWithId
+  user: UserWithId;
 }
 
 export const registerRoutes = (router: Router) => {
-
-router.use("/", async (ctx, next) => {
+  router.use("/", async (ctx, next) => {
     const userService = new UserService(dustService.database);
 
     const bearer = ctx.request.headers.get("authorization");
     const token = bearer?.split(" ")?.[1];
     if (token != null) {
-        const payload = await userService.validateJWT(token);
-        ctx.state.user = payload.user;
+      const payload = await userService.validateJWT(token);
+      ctx.state.user = payload.user;
     }
 
     next();
-});
+  });
 
   router.post("/auth", async (ctx) => {
     const userService = new UserService(dustService.database);
@@ -55,7 +54,7 @@ router.use("/", async (ctx, next) => {
         ctx.response.status = 400;
       }
     } catch (e) {
-        console.log(e);
+      console.log(e);
       ctx.response.status = 500;
     }
   });
