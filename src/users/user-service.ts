@@ -1,6 +1,6 @@
 import type { Database } from "../../database.ts";
 import { addUser, getUserByEmail, createSession } from "./data.ts";
-import type { User } from "./user.ts";
+import type { User, UserWithId } from "./user.ts";
 import { hash, verify } from "@ts-rex/bcrypt";
 import * as jose from "https://deno.land/x/jose@v5.9.6/index.ts";
 
@@ -48,14 +48,15 @@ export class UserService {
         this.jwtSecretKey,
         { name: "HMAC", hash: "SHA-256" },
         true,
-        ["sign"]
+        ["sign", "verify"]
       );
   }
 
-  private async createJWTForUser(user: Omit<User, "password">): Promise<SignedJWTToken> {
+  private async createJWTForUser(user: Omit<UserWithId, "password">): Promise<SignedJWTToken> {
     const key = await this.getJWTSecret();
     const token = await new jose.SignJWT({
       user: {
+        id: user.id,
         email: user.email,
         displayName: user.displayName,
       },
@@ -70,13 +71,13 @@ export class UserService {
     return token;
   }
 
-  async validateJWT(token: SignedJWTToken): Promise<{user: {email: string, displayName: string}}> {
+  async validateJWT(token: SignedJWTToken): Promise<{user: {id: number, email: string, displayName: string}}> {
     const key = await this.getJWTSecret();
     try {
         // verify token
-        const { payload, protectedHeader } = await jose.jwtVerify<{user: {email: string, displayName: string}}>(token, key, {
-          issuer:   "dust-server", // issuer
-          audience: "dust-client", // audience
+        const { payload, protectedHeader } = await jose.jwtVerify<{user: {id: number, email: string, displayName: string}}>(token, key, {
+          issuer:   "urn:dust:server", // issuer
+          audience: "urn:dust:client", // audience
         });
         
         return payload;
