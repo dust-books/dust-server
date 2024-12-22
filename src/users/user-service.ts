@@ -1,5 +1,5 @@
 import type { Database } from "../../database.ts";
-import { addUser, getUserByEmail, createSession } from "./data.ts";
+import { addUser, getUserByEmail, createSession, getUserIdFromSession } from "./data.ts";
 import type { User, UserWithId } from "./user.ts";
 import { hash, verify } from "@ts-rex/bcrypt";
 import * as jose from "https://deno.land/x/jose@v5.9.6/index.ts";
@@ -85,5 +85,11 @@ export class UserService {
         console.log("Token is invalid", e);
         throw new InvalidTokenError();
       }
+  }
+
+  async getUserForValidatedSession(token: SignedJWTToken): Promise<number> {
+    const userId = await getUserIdFromSession(this.db, token);
+
+    return userId;
   }
 }
