@@ -1,28 +1,23 @@
-import { Status, type Router } from "@oak/oak";
+import { RouterContext, Status, type Router } from "@oak/oak";
 import { bookService } from "./book-service.ts";
 import { dustService } from "../../main.ts";
 
 export const registerRoutes = (router: Router) => {
-  router.get("/books/", async (ctx) => {
+  router.get("/books/", async (ctx: RouterContext<"/books/">) => {
     const books = await bookService.getBooks(dustService.database);
-    console.log(books);
     ctx.response.body = {
       books: books,
     };
   });
-  router.get("/books/:id", async (ctx) => {
+  router.get("/books/:id", async (ctx: RouterContext<"/books/:id">) => {
     try {
       const book = await bookService.getBookById(
         dustService.database,
         ctx.params.id
       );
-      console.log(book);
-      ctx.response.status = Status.OK;
       ctx.response.body = {
         book: book,
       };
-      ctx.response.type = "json";
-
       return;
     } catch (e) {
       console.error(e);
@@ -34,7 +29,8 @@ export const registerRoutes = (router: Router) => {
       ctx.params.id
     );
     const file = await Deno.open(book.filepath, { read: true });
-    ctx.response.body = file;
+    ctx.response.body = file.readable;
+    file.close();
   });
   router.get("/books/:id/progress", (ctx) => {
     ctx.response.body = {
