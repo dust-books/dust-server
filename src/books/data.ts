@@ -1,6 +1,6 @@
 import type { Database } from "../../database.ts";
 import type { AuthorWithId } from "./author.ts";
-import type { Book } from "./book.ts";
+import type { Book, BookWithId } from "./book.ts";
 
 export const migrate = (database: Database) => {
     return database.migrate([
@@ -15,17 +15,33 @@ export const migrate = (database: Database) => {
     ]);
 }
 
-export const getAllBooks = (database: Database) => {
-    return database.execute(`
+export const getAllBooks = async (database: Database): Promise<BookWithId[]> => {
+    const resp = await database.execute(`
         SELECT rowid, * FROM books;
     `);
+
+    return resp.rows.map((r) => {
+        return {
+            id: r['rowid'] as number,
+            name: r['name'] as string,
+            filepath: r['file_path'] as string,
+            author: r['author'] as number,
+        };
+    })
 }
 
-export const getBook = (database: Database, id: string) => {
-    return database.execute({
+export const getBook = async (database: Database, id: string): Promise<BookWithId> => {
+    const resp = await database.execute({
         sql: "SELECT rowid, * FROM books where rowId = $id;",
         args: { id }
-    })
+    });
+
+    return {
+        id: resp.rows[0]['rowid'] as number,
+        name: resp.rows[0]['name'] as string,
+        author: resp.rows[0]['author'] as number,
+        filepath: resp.rows[0]['file_path'] as string,
+    }
 }
 
 export const getBookByName = (database: Database, name: string) => {
@@ -47,10 +63,35 @@ export const addBookIfNotExists = async (database: Database, book: Book) => {
     });
 }
 
+export const getAuthorById = async (database: Database, id: number): Promise<AuthorWithId> => {
+    const resp = await database.execute({
+        sql: "SELECT rowid, * FROM authors where rowId = $id",
+        args: {id}
+    });
+    return {
+        id: resp.rows[0]['rowid'] as number,
+        name: resp.rows[0]['name'] as string,
+    }
+}
+
 export const getAuthorByName = (database: Database, name: string) => {
     return database.execute({
         sql: "SELECT rowid, * FROM authors WHERE name = $name",
         args: {name: name}
+    })
+}
+
+export const getAllAuthors = async (database: Database): Promise<AuthorWithId[]> => {
+    const resp = await database.execute({
+        sql: "SELECT rowid, * FROM authors",
+        args: {name: name}
+    });
+
+    return resp.rows.map((r) => {
+        return {
+            id: r['rowid'] as number,
+            name: r['name'] as string,
+        }
     })
 }
 
