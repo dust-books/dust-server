@@ -1,6 +1,9 @@
 export interface SupportedConfig {
     // libraryDirectories -- a list of file paths to index files from
     libraryDirectories: Array<string>;
+    
+    // googleBooksApiKey -- API key for Google Books API (optional)
+    googleBooksApiKey?: string;
 
     [key: string]: any,
 
@@ -14,6 +17,7 @@ export class DustConfig {
     collect() {
         this.internalConfig = {...this.internalConfig, 
             libraryDirectories: Deno.env.get("dirs")?.split(",") ?? [],
+            googleBooksApiKey: Deno.env.get("GOOGLE_BOOKS_API_KEY"),
         }
     }
 
@@ -23,5 +27,9 @@ export class DustConfig {
 
     getLibraryDirectories() {
         return this.internalConfig.libraryDirectories;
+    }
+    
+    getGoogleBooksApiKey() {
+        return this.internalConfig.googleBooksApiKey;
     }
 }

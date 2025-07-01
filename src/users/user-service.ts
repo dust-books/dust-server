@@ -1,8 +1,10 @@
 import type { Database } from "../../database.ts";
-import { addUser, getUserByEmail, createSession, getUserIdFromSession } from "./data.ts";
+import { addUser, getUserByEmail, getUserById, createSession, getUserIdFromSession } from "./data.ts";
 import type { User, UserWithId } from "./user.ts";
 import { hash, verify } from "@ts-rex/bcrypt";
 import * as jose from "https://deno.land/x/jose@v5.9.6/index.ts";
+import { PermissionService } from "./permission-service.ts";
+import { ROLES, type RoleName } from "./permissions.ts";
 
 export class InvalidTokenError extends Error {}
 export class InvalidCredentialsError extends Error {}
@@ -11,11 +13,13 @@ type SignedJWTToken = string;
 export class UserService {
   private db: Database;
   private jwtSecretKey: Uint8Array;
+  private permissionService: PermissionService;
 
   constructor(db: Database) {
     this.db = db;
     const encoder = new TextEncoder();
     this.jwtSecretKey = encoder.encode(Deno.env.get("JWT_SECRET"));
+    this.permissionService = new PermissionService(db);
   }
 
   async handleSignUp(user: User): Promise<SignedJWTToken> {
@@ -25,6 +29,11 @@ export class UserService {
     };
 
     await addUser(this.db, encryptedUser);
+    
+    // Get the newly created user to assign default role
+    const newUser = await getUserByEmail(this.db, user.email);
+    await this.permissionService.assignUserRole(newUser.id, ROLES.USER);
+    
     const token = await this.handleSignIn(user);
     return token;
   }
@@ -91,5 +100,47 @@ export class UserService {
     const userId = await getUserIdFromSession(this.db, token);
 
     return userId;
+  }
+
+  async getUserFromToken(token: SignedJWTToken): Promise<Omit<UserWithId, "password">> {
+    const payload = await this.validateJWT(token);
+    const userId = payload.user.id;
+    
+    // Get full user data including roles and permissions
+    const user = await getUserById(this.db, userId);
+    if (!user) {
+      throw new Error("User not found");
+    }
+    
+    const roles = await this.permissionService.getUserRoles(userId);
+    const permissions = await this.permissionService.getUserPermissions(userId);
+    
+    return {
+      id: user.id,
+      username: user.username,
+      email: user.email,
+      displayName: user.displayName,
+      roles: roles.map(r => r.name),
+      permissions: permissions.map(p => p.name),
+      created: user.created,
+      lastLogin: user.lastLogin
+    };
+  }
+
+  // Permission management methods
+  async assignUserRole(userId: number, roleName: RoleName): Promise<void> {
+    return await this.permissionService.assignUserRole(userId, roleName);
+  }
+
+  async removeUserRole(userId: number, roleName: RoleName): Promise<void> {
+    return await this.permissionService.removeUserRole(userId, roleName);
+  }
+
+  async getUserRoles(userId: number) {
+    return await this.permissionService.getUserRoles(userId);
+  }
+
+  async initializePermissionSystem(): Promise<void> {
+    await this.permissionService.initializeDefaultRolesAndPermissions();
   }
 }

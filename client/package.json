@@ -1,0 +1,27 @@
+{
+  "name": "dust-client",
+  "version": "1.0.0",
+  "description": "Dust Media Server - Web Client",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "lit": "^3.1.0",
+    "@lit/context": "^1.1.0",
+    "epubjs": "^0.3.93",
+    "pdfjs-dist": "^4.0.379"
+  },
+  "devDependencies": {
+    "vite": "^5.0.0",
+    "typescript": "^5.0.0",
+    "@types/node": "^20.0.0",
+    "vite-plugin-dts": "^3.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

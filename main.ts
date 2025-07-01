@@ -23,12 +23,13 @@ class DustService implements Service {
   private timerManager = new DustTimerManager();
   private abortController = new AbortController();
   private _abort = () => this.abortController.abort();
+  private _stop = () => this.stop();
 
   constructor() {
     const { signal } = this.abortController;
     this.config.collect();
     Deno.addSignalListener('SIGINT', this._abort);
-    signal.addEventListener("abort", this.stop);
+    signal.addEventListener("abort", this._stop);
     
     // TODO: Let's pull this out. Maybe to a "core" module?
     this.app.use(async (context, next) => {
@@ -77,7 +78,7 @@ class DustService implements Service {
     console.log("Gracefully shutting down Dust");
     this.timerManager.clearAll();
     Deno.removeSignalListener('SIGINT', this._abort);
-    this.abortController.signal.removeEventListener("abort", this.stop);
+    this.abortController.signal.removeEventListener("abort", this._stop);
     console.log("Dust shut down successfully");
   }
 }
