@@ -24,7 +24,7 @@ export class PermissionService {
                 await userData.createRole(this.database, role.name, role.description);
             } catch (error) {
                 // Role might already exist, continue
-                console.log(`Role ${role.name} might already exist: ${error}`);
+                // Role already exists, skipping (this is normal)
             }
         }
     }
@@ -67,7 +67,7 @@ export class PermissionService {
                 await userData.createPermission(this.database, permission.name, permission.resource_type, permission.description);
             } catch (error) {
                 // Permission might already exist, continue
-                console.log(`Permission ${permission.name} might already exist: ${error}`);
+                // Permission already exists, skipping (this is normal)
             }
         }
     }

@@ -10,7 +10,7 @@ export class DustDatabase implements Database {
     // TODO: Default filepath to an OS-specific application config dir
     // ie: "%APP_ROAMING%/dust/dust.db" for windows
     private db = createClient({
-        url: "file:dust.db"
+        url: Deno.env.get("DATABASE_URL") || "file:dust.db"
     });
 
     migrate(statements: Array<InStatement>): Promise<Array<ResultSet>> {

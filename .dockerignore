@@ -1,0 +1,67 @@
+# Ignore version control
+.git
+.gitignore
+
+# Ignore OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Ignore development files
+*.md
+README.md
+LICENSE
+CHANGELOG.md
+
+# Ignore logs
+*.log
+logs
+
+# Ignore editor files
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# Ignore temporary files
+*.tmp
+*.temp
+
+# Ignore test files
+**/__tests__/**
+**/*.test.ts
+**/*.spec.ts
+test-fix.ts
+
+# Ignore build artifacts
+dist/
+build/
+
+# Ignore node_modules if any
+node_modules/
+
+# Ignore Docker files
+Dockerfile*
+.dockerignore
+docker-compose*.yml
+
+# Ignore local database files (will be created in container)
+*.db
+*.db-shm
+*.db-wal
+
+# Ignore client build artifacts (if this is server-only)
+client/dist/
+client/node_modules/
+
+# Ignore environment files with secrets
+.env
+.env.local
+.env.development
+.env.test
+.env.production

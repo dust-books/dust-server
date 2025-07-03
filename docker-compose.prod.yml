@@ -1,0 +1,28 @@
+services:
+  dust-server:
+    environment:
+      # Production environment variables
+      - NODE_ENV=production
+      - PORT=4001
+      - DATABASE_URL=file:/app/data/dust.db
+      - JWT_SECRET=${JWT_SECRET}  # REQUIRED: Generate with: openssl rand -base64 32
+      # Set your library directories (comma-separated)
+      - dirs=/app/books,/app/comics
+      # Set your Google Books API key for metadata enrichment
+      # - GOOGLE_BOOKS_API_KEY=${GOOGLE_BOOKS_API_KEY}
+    volumes:
+      # Mount your actual book/media directories
+      - /path/to/your/books:/app/books:ro
+      - /path/to/your/comics:/app/comics:ro
+      # Persistent database storage
+      - dust_prod_data:/app/data
+    restart: always
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  dust_prod_data:
+    driver: local

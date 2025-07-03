@@ -1,0 +1,29 @@
+services:
+  dust-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "4001:4001"
+    environment:
+      - PORT=4001
+      - DATABASE_URL=file:/app/data/dust.db
+      - dirs=/app/books  # Default library directory inside container
+      - JWT_SECRET=${JWT_SECRET}  # REQUIRED: Set this in .env file
+      # - GOOGLE_BOOKS_API_KEY=your_api_key_here  # Uncomment and set if needed
+    volumes:
+      # Mount a local directory for books
+      - ./books:/app/books:ro  # Read-only mount for book files
+      # Mount a volume for the database to persist data
+      - dust_data:/app/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+volumes:
+  dust_data:
+    driver: local
