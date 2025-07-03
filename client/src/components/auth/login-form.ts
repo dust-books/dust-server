@@ -2,13 +2,16 @@
  * Login Form Component
  */
 
-import { LitElement, html, css } from 'lit';
-import { customElement, state } from 'lit/decorators.js';
-import { consume } from '@lit/context';
+import { LitElement, html, css } from "lit";
+import { customElement, state } from "lit/decorators.js";
+import { consume } from "@lit/context";
 
-import { appStateContext, AppStateService } from '../../services/app-state.js';
+import { appStateContext, AppStateService } from "../../services/app-state.js";
+import { serverManager } from "../../services/server-manager.js";
+import type { MultiServerState } from "../../types/server.js";
+import "../server/server-selector.js";
 
-@customElement('login-form')
+@customElement("login-form")
 export class LoginForm extends LitElement {
   @consume({ context: appStateContext })
   appStateService!: AppStateService;
@@ -21,14 +24,36 @@ export class LoginForm extends LitElement {
 
   @state()
   private formData = {
-    email: '',
-    password: '',
-    username: '',
-    display_name: ''
+    email: "",
+    password: "",
+    username: "",
+    display_name: "",
   };
 
   @state()
   private errors: Record<string, string> = {};
+
+  @state()
+  private serverState: MultiServerState = {
+    servers: [],
+    activeServerId: null,
+    isConnecting: false,
+  };
+
+  private unsubscribe?: () => void;
+
+  connectedCallback() {
+    super.connectedCallback();
+    this.unsubscribe = serverManager.subscribe((state) => {
+      this.serverState = state;
+    });
+    this.serverState = serverManager.getState();
+  }
+
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    this.unsubscribe?.();
+  }
 
   static styles = css`
     :host {
@@ -86,6 +111,7 @@ export class LoginForm extends LitElement {
       background: var(--background-color);
       color: var(--text-color);
       transition: border-color 0.2s ease;
+      box-sizing: border-box;
     }
 
     .form-input:focus {
@@ -132,14 +158,16 @@ export class LoginForm extends LitElement {
     .loading-spinner {
       width: 16px;
       height: 16px;
-      border: 2px solid rgba(255,255,255,0.3);
+      border: 2px solid rgba(255, 255, 255, 0.3);
       border-radius: 50%;
       border-top-color: white;
       animation: spin 1s linear infinite;
     }
 
     @keyframes spin {
-      to { transform: rotate(360deg); }
+      to {
+        transform: rotate(360deg);
+      }
     }
 
     .form-footer {
@@ -150,16 +178,59 @@ export class LoginForm extends LitElement {
       color: var(--text-light);
       font-size: 0.875rem;
     }
+
+    .server-selector-container {
+      margin-bottom: 2rem;
+      padding-bottom: 1rem;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .server-selector-title {
+      font-size: 0.9rem;
+      font-weight: 500;
+      color: var(--text-color);
+      margin-bottom: 0.75rem;
+      text-align: center;
+    }
+
+    .connect-server-link {
+      display: block;
+      text-align: center;
+      margin-top: 0.5rem;
+      color: var(--primary-color);
+      text-decoration: none;
+      font-size: 0.875rem;
+      cursor: pointer;
+    }
+
+    .connect-server-link:hover {
+      text-decoration: underline;
+    }
   `;
+
+  private handleServerChange(event: CustomEvent) {
+    // Refresh app state when server changes
+    this.appStateService.refreshAfterServerChange();
+  }
+
+  private handleConnectServer() {
+    this.dispatchEvent(
+      new CustomEvent("navigate", {
+        detail: { page: "connect-server" },
+        bubbles: true,
+        composed: true,
+      })
+    );
+  }
 
   private handleTabSwitch(isLogin: boolean) {
     this.isLogin = isLogin;
     this.errors = {};
     this.formData = {
-      email: '',
-      password: '',
-      username: '',
-      display_name: ''
+      email: "",
+      password: "",
+      username: "",
+      display_name: "",
     };
   }
 
@@ -167,7 +238,7 @@ export class LoginForm extends LitElement {
     this.formData = { ...this.formData, [field]: value };
     // Clear error when user starts typing
     if (this.errors[field]) {
-      this.errors = { ...this.errors, [field]: '' };
+      this.errors = { ...this.errors, [field]: "" };
     }
   }
 
@@ -175,26 +246,26 @@ export class LoginForm extends LitElement {
     const errors: Record<string, string> = {};
 
     if (!this.formData.email) {
-      errors.email = 'Email is required';
+      errors.email = "Email is required";
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(this.formData.email)) {
-      errors.email = 'Please enter a valid email';
+      errors.email = "Please enter a valid email";
     }
 
     if (!this.formData.password) {
-      errors.password = 'Password is required';
+      errors.password = "Password is required";
     } else if (!this.isLogin && this.formData.password.length < 6) {
-      errors.password = 'Password must be at least 6 characters';
+      errors.password = "Password must be at least 6 characters";
     }
 
     if (!this.isLogin) {
       if (!this.formData.username) {
-        errors.username = 'Username is required';
+        errors.username = "Username is required";
       } else if (this.formData.username.length < 3) {
-        errors.username = 'Username must be at least 3 characters';
+        errors.username = "Username must be at least 3 characters";
       }
 
       if (!this.formData.display_name) {
-        errors.display_name = 'Display name is required';
+        errors.display_name = "Display name is required";
       }
     }
 
@@ -204,7 +275,7 @@ export class LoginForm extends LitElement {
 
   private async handleSubmit(event: Event) {
     event.preventDefault();
-    
+
     if (!this.validateForm()) {
       return;
     }
@@ -213,37 +284,56 @@ export class LoginForm extends LitElement {
 
     try {
       if (this.isLogin) {
-        await this.appStateService.login(this.formData.email, this.formData.password);
+        await this.appStateService.login(
+          this.formData.email,
+          this.formData.password
+        );
       } else {
         await this.appStateService.register({
           username: this.formData.username,
           email: this.formData.email,
           password: this.formData.password,
-          display_name: this.formData.display_name
+          display_name: this.formData.display_name,
         });
         // Switch to login after successful registration
         this.handleTabSwitch(true);
       }
     } catch (error) {
       // Error handling is done in the app state service
-      console.error('Authentication error:', error);
+      console.error("Authentication error:", error);
     } finally {
       this.isLoading = false;
     }
   }
 
   render() {
+    const hasMultipleServers = this.serverState.servers.length > 1;
+    const currentServer = serverManager.getActiveServer();
+
     return html`
       <div class="form-container">
+        ${hasMultipleServers || !currentServer ? html`
+          <div class="server-selector-container">
+            <div class="server-selector-title">Server Connection</div>
+            <server-selector @server-changed=${this.handleServerChange}></server-selector>
+            <a 
+              class="connect-server-link" 
+              @click=${this.handleConnectServer}
+            >
+              + Add Another Server
+            </a>
+          </div>
+        ` : ''}
+
         <div class="form-tabs">
-          <button 
-            class="tab-button ${this.isLogin ? 'active' : ''}"
+          <button
+            class="tab-button ${this.isLogin ? "active" : ""}"
             @click=${() => this.handleTabSwitch(true)}
           >
             Login
           </button>
-          <button 
-            class="tab-button ${!this.isLogin ? 'active' : ''}"
+          <button
+            class="tab-button ${!this.isLogin ? "active" : ""}"
             @click=${() => this.handleTabSwitch(false)}
           >
             Register
@@ -251,48 +341,76 @@ export class LoginForm extends LitElement {
         </div>
 
         <form @submit=${this.handleSubmit}>
-          ${!this.isLogin ? html`
-            <div class="form-group">
-              <label class="form-label" for="username">Username</label>
-              <input
-                type="text"
-                id="username"
-                class="form-input ${this.errors.username ? 'error' : ''}"
-                .value=${this.formData.username}
-                @input=${(e: InputEvent) => this.handleInputChange('username', (e.target as HTMLInputElement).value)}
-                placeholder="Enter your username"
-                ?disabled=${this.isLoading}
-              />
-              ${this.errors.username ? html`<div class="form-error">${this.errors.username}</div>` : ''}
-            </div>
+          ${!this.isLogin
+            ? html`
+                <div class="form-group">
+                  <label class="form-label" for="username">Username</label>
+                  <input
+                    type="text"
+                    id="username"
+                    class="form-input ${this.errors.username ? "error" : ""}"
+                    .value=${this.formData.username}
+                    @input=${(e: InputEvent) =>
+                      this.handleInputChange(
+                        "username",
+                        (e.target as HTMLInputElement).value
+                      )}
+                    placeholder="Enter your username"
+                    ?disabled=${this.isLoading}
+                  />
+                  ${this.errors.username
+                    ? html`<div class="form-error">
+                        ${this.errors.username}
+                      </div>`
+                    : ""}
+                </div>
 
-            <div class="form-group">
-              <label class="form-label" for="display_name">Display Name</label>
-              <input
-                type="text"
-                id="display_name"
-                class="form-input ${this.errors.display_name ? 'error' : ''}"
-                .value=${this.formData.display_name}
-                @input=${(e: InputEvent) => this.handleInputChange('display_name', (e.target as HTMLInputElement).value)}
-                placeholder="Enter your display name"
-                ?disabled=${this.isLoading}
-              />
-              ${this.errors.display_name ? html`<div class="form-error">${this.errors.display_name}</div>` : ''}
-            </div>
-          ` : ''}
+                <div class="form-group">
+                  <label class="form-label" for="display_name"
+                    >Display Name</label
+                  >
+                  <input
+                    type="text"
+                    id="display_name"
+                    class="form-input ${this.errors.display_name
+                      ? "error"
+                      : ""}"
+                    .value=${this.formData.display_name}
+                    @input=${(e: InputEvent) =>
+                      this.handleInputChange(
+                        "display_name",
+                        (e.target as HTMLInputElement).value
+                      )}
+                    placeholder="Enter your display name"
+                    ?disabled=${this.isLoading}
+                  />
+                  ${this.errors.display_name
+                    ? html`<div class="form-error">
+                        ${this.errors.display_name}
+                      </div>`
+                    : ""}
+                </div>
+              `
+            : ""}
 
           <div class="form-group">
             <label class="form-label" for="email">Email</label>
             <input
               type="email"
               id="email"
-              class="form-input ${this.errors.email ? 'error' : ''}"
+              class="form-input ${this.errors.email ? "error" : ""}"
               .value=${this.formData.email}
-              @input=${(e: InputEvent) => this.handleInputChange('email', (e.target as HTMLInputElement).value)}
+              @input=${(e: InputEvent) =>
+                this.handleInputChange(
+                  "email",
+                  (e.target as HTMLInputElement).value
+                )}
               placeholder="Enter your email"
               ?disabled=${this.isLoading}
             />
-            ${this.errors.email ? html`<div class="form-error">${this.errors.email}</div>` : ''}
+            ${this.errors.email
+              ? html`<div class="form-error">${this.errors.email}</div>`
+              : ""}
           </div>
 
           <div class="form-group">
@@ -300,26 +418,32 @@ export class LoginForm extends LitElement {
             <input
               type="password"
               id="password"
-              class="form-input ${this.errors.password ? 'error' : ''}"
+              class="form-input ${this.errors.password ? "error" : ""}"
               .value=${this.formData.password}
-              @input=${(e: InputEvent) => this.handleInputChange('password', (e.target as HTMLInputElement).value)}
+              @input=${(e: InputEvent) =>
+                this.handleInputChange(
+                  "password",
+                  (e.target as HTMLInputElement).value
+                )}
               placeholder="Enter your password"
               ?disabled=${this.isLoading}
             />
-            ${this.errors.password ? html`<div class="form-error">${this.errors.password}</div>` : ''}
+            ${this.errors.password
+              ? html`<div class="form-error">${this.errors.password}</div>`
+              : ""}
           </div>
 
-          <button 
-            type="submit" 
+          <button
+            type="submit"
             class="submit-button"
             ?disabled=${this.isLoading}
           >
-            ${this.isLoading ? html`
-              <div class="loading-spinner"></div>
-              ${this.isLogin ? 'Signing In...' : 'Creating Account...'}
-            ` : html`
-              ${this.isLogin ? 'Sign In' : 'Create Account'}
-            `}
+            ${this.isLoading
+              ? html`
+                  <div class="loading-spinner"></div>
+                  ${this.isLogin ? "Signing In..." : "Creating Account..."}
+                `
+              : html` ${this.isLogin ? "Sign In" : "Create Account"} `}
           </button>
         </form>
 
@@ -333,6 +457,6 @@ export class LoginForm extends LitElement {
 
 declare global {
   interface HTMLElementTagNameMap {
-    'login-form': LoginForm;
+    "login-form": LoginForm;
   }
 }

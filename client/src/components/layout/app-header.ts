@@ -2,20 +2,20 @@
  * Application Header Component
  */
 
-import { LitElement, html, css } from 'lit';
-import { customElement, property } from 'lit/decorators.js';
-import { consume } from '@lit/context';
+import { LitElement, html, css } from "lit";
+import { customElement, property } from "lit/decorators.js";
+import { consume } from "@lit/context";
 
-import { appStateContext, AppStateService } from '../../services/app-state.js';
-import type { User } from '../../types/app.js';
+import { appStateContext, AppStateService } from "../../services/app-state.js";
+import type { User } from "../../types/app.js";
 
-@customElement('app-header')
+@customElement("app-header")
 export class AppHeader extends LitElement {
   @consume({ context: appStateContext })
   appStateService!: AppStateService;
 
   @property({ type: String })
-  currentPage = '';
+  currentPage = "";
 
   @property({ type: Object })
   user: User | null = null;
@@ -36,7 +36,6 @@ export class AppHeader extends LitElement {
       justify-content: space-between;
       padding: 0 1rem;
       height: 60px;
-      max-width: 1200px;
       margin: 0 auto;
     }
 
@@ -123,7 +122,7 @@ export class AppHeader extends LitElement {
       .search-container {
         display: none;
       }
-      
+
       .header {
         padding: 0 0.5rem;
       }
@@ -131,15 +130,19 @@ export class AppHeader extends LitElement {
   `;
 
   private handleLogoClick() {
-    this.dispatchEvent(new CustomEvent('navigate', {
-      detail: { page: 'library' }
-    }));
+    this.dispatchEvent(
+      new CustomEvent("navigate", {
+        detail: { page: "library" },
+      })
+    );
   }
 
   private handleProfileClick() {
-    this.dispatchEvent(new CustomEvent('navigate', {
-      detail: { page: 'profile' }
-    }));
+    this.dispatchEvent(
+      new CustomEvent("navigate", {
+        detail: { page: "profile" },
+      })
+    );
   }
 
   private async handleLogout() {
@@ -148,18 +151,18 @@ export class AppHeader extends LitElement {
 
   private toggleTheme() {
     const currentTheme = this.appStateService.getState().theme;
-    const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+    const newTheme = currentTheme === "light" ? "dark" : "light";
     this.appStateService.setTheme(newTheme);
   }
 
   private getThemeIcon() {
     const theme = this.appStateService.getState().theme;
-    return theme === 'light' ? '🌙' : '☀️';
+    return theme === "light" ? "🌙" : "☀️";
   }
 
   private getUserInitials(): string {
-    if (!this.user) return '?';
-    const names = this.user.displayName.split(' ');
+    if (!this.user) return "?";
+    const names = this.user.displayName.split(" ");
     if (names.length >= 2) {
       return `${names[0][0]}${names[1][0]}`.toUpperCase();
     }
@@ -181,17 +184,25 @@ export class AppHeader extends LitElement {
             placeholder="Search books, authors, genres..."
             @input=${(e: InputEvent) => {
               // TODO: Implement search
-              console.log('Search:', (e.target as HTMLInputElement).value);
+              console.log("Search:", (e.target as HTMLInputElement).value);
             }}
           />
         </div>
 
         <div class="user-menu">
-          <button class="theme-toggle" @click=${this.toggleTheme} title="Toggle theme">
+          <button
+            class="theme-toggle"
+            @click=${this.toggleTheme}
+            title="Toggle theme"
+          >
             ${this.getThemeIcon()}
           </button>
 
-          <div class="user-avatar" @click=${this.handleProfileClick} title=${this.user?.display_name || 'Profile'}>
+          <div
+            class="user-avatar"
+            @click=${this.handleProfileClick}
+            title=${this.user?.display_name || "Profile"}
+          >
             ${this.getUserInitials()}
           </div>
 
@@ -206,6 +217,6 @@ export class AppHeader extends LitElement {
 
 declare global {
   interface HTMLElementTagNameMap {
-    'app-header': AppHeader;
+    "app-header": AppHeader;
   }
 }

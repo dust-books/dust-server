@@ -8,6 +8,7 @@ import { consume } from "@lit/context";
 
 import { appStateContext, AppStateService } from "../services/app-state.js";
 import type { AppState } from "../types/app.js";
+import { serverManager } from "../services/server-manager.js";
 
 // Import child components
 import "./auth/login-form.js";
@@ -24,6 +25,8 @@ import "./pages/genres-page.js";
 import "./pages/genre-detail-page.js";
 import "./pages/currently-reading-page.js";
 import "./pages/completed-reading-page.js";
+import "./pages/series-page.js";
+import "./pages/connect-server-page.js";
 
 @customElement("dust-app")
 export class DustApp extends LitElement {
@@ -80,13 +83,12 @@ export class DustApp extends LitElement {
       border-radius: 12px;
       padding: 2rem;
       box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-      max-width: 400px;
+      max-width: 600px;
       width: 100%;
     }
 
     .logo {
       text-align: center;
-      margin-bottom: 2rem;
     }
 
     .logo h1 {
@@ -204,6 +206,16 @@ export class DustApp extends LitElement {
     window.history.pushState({}, "", `/genres/${genreId}`);
   }
 
+  private handleServerChange(event: CustomEvent) {
+    console.log('Server changed:', event.detail.server);
+    
+    // Refresh the app state to load data from the new server
+    this.appStateService.refreshAfterServerChange();
+    
+    // Navigate to library page to show new server's content
+    this.navigateTo('library');
+  }
+
   private renderAuthenticatedApp() {
     return html`
       <app-header
@@ -217,6 +229,7 @@ export class DustApp extends LitElement {
           .currentPage=${this.currentPage}
           .user=${this.appState.user}
           @navigate=${(e: CustomEvent) => this.navigateTo(e.detail.page)}
+          @server-changed=${this.handleServerChange}
         ></app-sidebar>
 
         <main
@@ -305,6 +318,12 @@ export class DustApp extends LitElement {
       case "completed":
         return html` <completed-reading-page></completed-reading-page> `;
 
+      case "series":
+        return html` <series-page></series-page> `;
+
+      case "connect-server":
+        return html` <connect-server-page></connect-server-page> `;
+
       default:
         return html`
           <div style="text-align: center; padding: 2rem;">
@@ -329,7 +348,25 @@ export class DustApp extends LitElement {
             <h1>📚 Dust</h1>
             <p>Your Personal Library</p>
           </div>
-          <login-form></login-form>
+          <login-form 
+            @navigate=${(e: CustomEvent) => this.navigateTo(e.detail.page)}
+          ></login-form>
+        </div>
+      </div>
+    `;
+  }
+
+  private renderConnectServerScreen() {
+    return html`
+      <div class="login-container">
+        <div class="login-wrapper">
+          <div class="logo">
+            <h1>📚 Dust</h1>
+            <p>Your Personal Library</p>
+          </div>
+          <connect-server-page 
+            @navigate=${(e: CustomEvent) => this.navigateTo(e.detail.page)}
+          ></connect-server-page>
         </div>
       </div>
     `;
@@ -347,6 +384,18 @@ export class DustApp extends LitElement {
       `;
     }
 
+    // Check if we're on the connect-server page
+    if (this.currentPage === 'connect-server') {
+      return this.renderConnectServerScreen();
+    }
+
+    // Check if any servers are configured
+    const servers = serverManager.getServers();
+    if (servers.length === 0) {
+      return this.renderConnectServerScreen();
+    }
+
+    // We have servers but user is not authenticated with any
     if (!this.appState.isAuthenticated) {
       return this.renderLoginScreen();
     }

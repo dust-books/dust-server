@@ -546,6 +546,7 @@ export class EpubReaderService {
       case 'ArrowLeft':
       case 'ArrowUp':
       case 'PageUp':
+      case 'h': // Vim-style navigation
         event.preventDefault();
         this.prevPage();
         break;
@@ -553,18 +554,48 @@ export class EpubReaderService {
       case 'ArrowDown':
       case 'PageDown':
       case ' ': // Spacebar
+      case 'l': // Vim-style navigation
         event.preventDefault();
         this.nextPage();
         break;
       case 'Home':
+      case 'g': // Go to beginning (Vim-style)
         event.preventDefault();
         this.goTo(0);
         break;
       case 'End':
+      case 'G': // Go to end (Vim-style)
         if (this.book) {
           event.preventDefault();
           this.goTo(this.book.spine.length - 1);
         }
+        break;
+      case 'j': // Vim-style down/next
+        event.preventDefault();
+        this.nextPage();
+        break;
+      case 'k': // Vim-style up/previous
+        event.preventDefault();
+        this.prevPage();
+        break;
+      case '1':
+      case '2':
+      case '3':
+      case '4':
+      case '5':
+      case '6':
+      case '7':
+      case '8':
+      case '9':
+        // Number keys for quick percentage navigation
+        event.preventDefault();
+        const percentage = parseInt(event.key) * 10;
+        this.goToPercentage(percentage);
+        break;
+      case '0':
+        // 0 key goes to beginning
+        event.preventDefault();
+        this.goTo(0);
         break;
     }
   }

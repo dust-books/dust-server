@@ -340,6 +340,8 @@ export class PdfReader {
         case 'ArrowLeft':
         case 'ArrowUp':
         case 'PageUp':
+        case 'h': // Vim-style navigation
+        case 'k': // Vim-style up/previous
           event.preventDefault();
           this.previousPage();
           break;
@@ -347,16 +349,36 @@ export class PdfReader {
         case 'ArrowDown':
         case 'PageDown':
         case ' ': // Spacebar
+        case 'l': // Vim-style navigation
+        case 'j': // Vim-style down/next
           event.preventDefault();
           this.nextPage();
           break;
         case 'Home':
+        case 'g': // Go to beginning (Vim-style)
+        case '0': // 0 key goes to beginning
           event.preventDefault();
           this.goToPage(1);
           break;
         case 'End':
+        case 'G': // Go to end (Vim-style)
           event.preventDefault();
           this.goToPage(this.totalPages);
+          break;
+        case '1':
+        case '2':
+        case '3':
+        case '4':
+        case '5':
+        case '6':
+        case '7':
+        case '8':
+        case '9':
+          // Number keys for quick percentage navigation
+          event.preventDefault();
+          const percentage = parseInt(event.key) * 10;
+          const targetPage = Math.ceil((percentage / 100) * this.totalPages);
+          this.goToPage(targetPage);
           break;
       }
     };

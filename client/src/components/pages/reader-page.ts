@@ -9,6 +9,7 @@ import { consume } from "@lit/context";
 import type { Book, ReadingProgress } from "../../types/app.js";
 import { appStateContext, AppStateService } from "../../services/app-state.js";
 import { EpubReaderService } from "../../services/epub-reader.js";
+import { serverManager } from "../../services/server-manager.js";
 
 type ReaderType = "epub" | "pdf";
 type Theme = "light" | "dark" | "sepia";
@@ -747,7 +748,7 @@ export class ReaderPage extends LitElement {
     });
 
     // Load the book file via URL with authentication handled by headers
-    const bookUrl = `/api/books/${this.book.id}/stream`;
+    const bookUrl = this.getBookStreamUrl();
     await this.epubReader.loadBook(bookUrl, this.getAuthHeaders());
 
     // Render to container
@@ -853,7 +854,7 @@ export class ReaderPage extends LitElement {
     }
 
     // Load and render the PDF
-    const bookUrl = `/api/books/${this.book.id}/stream`;
+    const bookUrl = this.getBookStreamUrl();
     console.log(`📖 PDF Reader: Loading PDF from ${bookUrl}`);
 
     try {
@@ -878,14 +879,27 @@ export class ReaderPage extends LitElement {
     }
   }
 
+  private getBookStreamUrl(): string {
+    if (!this.book) {
+      throw new Error("No book available");
+    }
+
+    const activeServer = serverManager.getActiveServer();
+    if (!activeServer) {
+      throw new Error("No active server configured");
+    }
+
+    return `${activeServer.baseUrl}/books/${this.book.id}/stream`;
+  }
+
   private getAuthHeaders(): Record<string, string> {
-    const token = localStorage.getItem("dust_token");
-    if (!token) {
-      throw new Error("No authentication token found");
+    const activeServer = serverManager.getActiveServer();
+    if (!activeServer?.auth?.token) {
+      throw new Error("No authentication token found for active server");
     }
 
     return {
-      Authorization: `Bearer ${token}`,
+      Authorization: `Bearer ${activeServer.auth.token}`,
     };
   }
 

@@ -33,7 +33,11 @@ export class LibraryPage extends LitElement {
   private selectedGenres: string[] = [];
 
   @state()
-  private readingStatusFilter: 'all' | 'not-started' | 'in-progress' | 'completed' = 'all';
+  private readingStatusFilter:
+    | "all"
+    | "not-started"
+    | "in-progress"
+    | "completed" = "all";
 
   private searchTimeout: number | null = null;
 
@@ -97,6 +101,7 @@ export class LibraryPage extends LitElement {
       background: var(--surface-color);
       border-radius: 8px;
       border: 1px solid var(--border-color);
+      flex-direction: column;
     }
 
     .search-box {
@@ -110,6 +115,7 @@ export class LibraryPage extends LitElement {
       border-radius: 6px;
       background: var(--background-color);
       color: var(--text-color);
+      box-sizing: border-box;
     }
 
     .filter-group {
@@ -131,6 +137,8 @@ export class LibraryPage extends LitElement {
       background: var(--background-color);
       color: var(--text-color);
       cursor: pointer;
+      margin-top: 0.5rem;
+      display: block;
     }
 
     .filter-select:focus {
@@ -305,18 +313,20 @@ export class LibraryPage extends LitElement {
 
   disconnectedCallback() {
     console.log("LibraryPage - disconnected callback");
-    
+
     // Clear search timeout
     if (this.searchTimeout) {
       clearTimeout(this.searchTimeout);
     }
-    
+
     super.disconnectedCallback();
   }
 
   private async loadBooks() {
-    console.log(`📚 loadBooks called - isLoading: ${this.isLoading}, hasLoaded: ${this.hasLoaded}`);
-    
+    console.log(
+      `📚 loadBooks called - isLoading: ${this.isLoading}, hasLoaded: ${this.hasLoaded}`
+    );
+
     if (this.isLoading || this.hasLoaded) {
       console.log("📚 loadBooks skipped - already loading or loaded");
       return; // Prevent multiple requests
@@ -329,7 +339,7 @@ export class LibraryPage extends LitElement {
       this.books = books;
       this.hasLoaded = true;
       console.log("📚 Books loaded successfully:", books.length);
-      
+
       // Debug: log structure of first book to see what's available
       if (books.length > 0) {
         console.log("📚 Sample book structure:", books[0]);
@@ -355,16 +365,16 @@ export class LibraryPage extends LitElement {
 
   private handleSearch(event: InputEvent) {
     const value = (event.target as HTMLInputElement).value;
-    
+
     // Clear existing timeout
     if (this.searchTimeout) {
       clearTimeout(this.searchTimeout);
     }
-    
+
     // Debounce search to avoid excessive filtering
     this.searchTimeout = window.setTimeout(() => {
       this.searchQuery = value;
-      console.log('📚 Search query:', this.searchQuery);
+      console.log("📚 Search query:", this.searchQuery);
     }, 300);
   }
 
@@ -374,19 +384,25 @@ export class LibraryPage extends LitElement {
 
   private handleReadingStatusFilter(event: Event) {
     const target = event.target as HTMLSelectElement;
-    this.readingStatusFilter = target.value as 'all' | 'not-started' | 'in-progress' | 'completed';
-    console.log('📚 Reading status filter:', this.readingStatusFilter);
+    this.readingStatusFilter = target.value as
+      | "all"
+      | "not-started"
+      | "in-progress"
+      | "completed";
+    console.log("📚 Reading status filter:", this.readingStatusFilter);
   }
 
-  private getBookReadingStatus(bookId: number): 'not-started' | 'in-progress' | 'completed' {
+  private getBookReadingStatus(
+    bookId: number
+  ): "not-started" | "in-progress" | "completed" {
     const progress = this.appStateService.getReadingProgress(bookId);
-    
+
     if (!progress || progress.percentage_complete === 0) {
-      return 'not-started';
+      return "not-started";
     } else if (progress.percentage_complete >= 100) {
-      return 'completed';
+      return "completed";
     } else {
-      return 'in-progress';
+      return "in-progress";
     }
   }
 
@@ -397,31 +413,48 @@ export class LibraryPage extends LitElement {
     if (this.searchQuery) {
       const query = this.searchQuery.toLowerCase();
       const beforeCount = filtered.length;
-      
+
       filtered = filtered.filter((book) => {
         const matchesTitle = book.name?.toLowerCase().includes(query) || false;
-        const matchesAuthor = book.author?.name?.toLowerCase().includes(query) || false;
-        const matchesGenre = book.genre?.some((g) => g.toLowerCase().includes(query)) || false;
-        const matchesDescription = book.description?.toLowerCase().includes(query) || false;
-        const matchesPublisher = book.publisher?.toLowerCase().includes(query) || false;
+        const matchesAuthor =
+          book.author?.name?.toLowerCase().includes(query) || false;
+        const matchesGenre =
+          book.genre?.some((g) => g.toLowerCase().includes(query)) || false;
+        const matchesDescription =
+          book.description?.toLowerCase().includes(query) || false;
+        const matchesPublisher =
+          book.publisher?.toLowerCase().includes(query) || false;
         const matchesIsbn = book.isbn?.toLowerCase().includes(query) || false;
-        const matchesTags = book.tags?.some((tag) => tag.name.toLowerCase().includes(query)) || false;
-        
-        return matchesTitle || matchesAuthor || matchesGenre || matchesDescription || 
-               matchesPublisher || matchesIsbn || matchesTags;
+        const matchesTags =
+          book.tags?.some((tag) => tag.name.toLowerCase().includes(query)) ||
+          false;
+
+        return (
+          matchesTitle ||
+          matchesAuthor ||
+          matchesGenre ||
+          matchesDescription ||
+          matchesPublisher ||
+          matchesIsbn ||
+          matchesTags
+        );
       });
-      
-      console.log(`📚 Search "${query}": ${beforeCount} -> ${filtered.length} books`);
+
+      console.log(
+        `📚 Search "${query}": ${beforeCount} -> ${filtered.length} books`
+      );
     }
 
     // Apply reading status filter
-    if (this.readingStatusFilter !== 'all') {
+    if (this.readingStatusFilter !== "all") {
       const beforeStatusFilter = filtered.length;
       filtered = filtered.filter((book) => {
         const bookStatus = this.getBookReadingStatus(book.id);
         return bookStatus === this.readingStatusFilter;
       });
-      console.log(`📚 Status filter "${this.readingStatusFilter}": ${beforeStatusFilter} -> ${filtered.length} books`);
+      console.log(
+        `📚 Status filter "${this.readingStatusFilter}": ${beforeStatusFilter} -> ${filtered.length} books`
+      );
     }
 
     // Apply genre filters
@@ -446,13 +479,18 @@ export class LibraryPage extends LitElement {
       <div class="book-card" @click=${() => this.handleBookClick(book)}>
         <div class="book-cover">
           ${book.cover_image_url || book.cover_image_path
-            ? html` <img src="${book.cover_image_url || book.cover_image_path}" alt="${book.name}" /> `
+            ? html`
+                <img
+                  src="${book.cover_image_url || book.cover_image_path}"
+                  alt="${book.name}"
+                />
+              `
             : "📖"}
         </div>
 
         <div class="book-info">
           <h3 class="book-title">${book.name}</h3>
-          <p class="book-author">${book.author?.name || 'Unknown Author'}</p>
+          <p class="book-author">${book.author?.name || "Unknown Author"}</p>
 
           ${progress > 0
             ? html`
@@ -486,16 +524,19 @@ export class LibraryPage extends LitElement {
   }
 
   private renderEmptyState() {
-    let message = "Your library is empty or no books match your current filters.";
+    let message =
+      "Your library is empty or no books match your current filters.";
     let title = "No books found";
-    
-    if (this.readingStatusFilter === 'completed') {
+
+    if (this.readingStatusFilter === "completed") {
       title = "No completed books";
-      message = "You haven't finished reading any books yet. Keep reading to see them here!";
-    } else if (this.readingStatusFilter === 'in-progress') {
+      message =
+        "You haven't finished reading any books yet. Keep reading to see them here!";
+    } else if (this.readingStatusFilter === "in-progress") {
       title = "No books in progress";
-      message = "You don't have any books currently being read. Start a book to see it here!";
-    } else if (this.readingStatusFilter === 'not-started') {
+      message =
+        "You don't have any books currently being read. Start a book to see it here!";
+    } else if (this.readingStatusFilter === "not-started") {
       title = "No unread books";
       message = "All books in your library have been started or completed!";
     } else if (this.searchQuery) {
@@ -530,10 +571,11 @@ export class LibraryPage extends LitElement {
           <h1 class="page-title">Your Library</h1>
           <p class="page-subtitle">
             ${filteredBooks.length} of ${this.books.length} books
-            ${this.readingStatusFilter !== 'all' || this.searchQuery ? 
-              html` <span style="color: var(--primary-color);">(filtered)</span>` : 
-              ''
-            }
+            ${this.readingStatusFilter !== "all" || this.searchQuery
+              ? html` <span style="color: var(--primary-color);"
+                  >(filtered)</span
+                >`
+              : ""}
           </p>
         </div>
 
@@ -569,17 +611,20 @@ export class LibraryPage extends LitElement {
         </div>
 
         <div class="filter-group">
-          <label class="filter-label">Reading Status:</label>
-          <select 
-            class="filter-select"
-            .value=${this.readingStatusFilter}
-            @change=${this.handleReadingStatusFilter}
+          <label class="filter-label" for="readingStatusFilter"
+            >Reading Status:
+            <select
+              class="filter-select"
+              id="readingStatusFilter"
+              .value=${this.readingStatusFilter}
+              @change=${this.handleReadingStatusFilter}
+            >
+              <option value="all">All Books</option>
+              <option value="not-started">Not Started</option>
+              <option value="in-progress">In Progress</option>
+              <option value="completed">Completed</option>
+            </select></label
           >
-            <option value="all">All Books</option>
-            <option value="not-started">Not Started</option>
-            <option value="in-progress">In Progress</option>
-            <option value="completed">Completed</option>
-          </select>
         </div>
 
         <!-- TODO: Add genre filters, sort options, etc. -->

@@ -5,6 +5,7 @@
 import { LitElement, html, css } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import type { User } from '../../types/app.js';
+import '../server/server-selector.js';
 
 @customElement('app-sidebar')
 export class AppSidebar extends LitElement {
@@ -130,6 +131,13 @@ export class AppSidebar extends LitElement {
   render() {
     return html`
       <nav class="sidebar">
+        <server-selector 
+          @server-changed=${(e: CustomEvent) => this.dispatchEvent(new CustomEvent('server-changed', { 
+            detail: e.detail, 
+            bubbles: true 
+          }))}
+        ></server-selector>
+        
         <div class="nav-section">
           <div class="nav-title">Library</div>
           

@@ -1,5 +1,5 @@
 /**
- * API Service for communicating with the Dust server
+ * API Service for communicating with Dust servers (multi-server support)
  */
 
 import type {
@@ -15,6 +15,9 @@ import type {
   ApiResponse
 } from '../types/api.js';
 
+import { serverManager } from './server-manager.js';
+import type { ServerWithAuth } from '../types/server.js';
+
 export class ApiError extends Error {
   constructor(
     message: string,
@@ -27,40 +30,44 @@ export class ApiError extends Error {
 }
 
 export class ApiService {
-  private baseUrl: string;
-  private token: string | null = null;
-
-  constructor(baseUrl: string = '/api') {
-    this.baseUrl = baseUrl;
-    this.loadToken();
+  constructor() {
+    // No longer store baseUrl or token directly - get from server manager
   }
 
-  private loadToken(): void {
-    this.token = localStorage.getItem('dust_token');
+  /**
+   * Get current server configuration
+   */
+  private getCurrentServer(): ServerWithAuth {
+    const server = serverManager.getActiveServer();
+    if (!server) {
+      throw new ApiError('No active server selected');
+    }
+    return server;
   }
 
-  private saveToken(token: string): void {
-    this.token = token;
-    localStorage.setItem('dust_token', token);
-  }
-
-  private clearToken(): void {
-    this.token = null;
-    localStorage.removeItem('dust_token');
+  /**
+   * Get auth token for current server
+   */
+  private getCurrentToken(): string | null {
+    const server = this.getCurrentServer();
+    return server.auth?.token || null;
   }
 
   private async request<T>(
     endpoint: string,
     options: RequestInit = {}
   ): Promise<T> {
-    const url = `${this.baseUrl}${endpoint}`;
+    const server = this.getCurrentServer();
+    const token = this.getCurrentToken();
+    
+    const url = `${server.baseUrl}${endpoint}`;
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
       ...options.headers,
     };
 
-    if (this.token) {
-      headers.Authorization = `Bearer ${this.token}`;
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
     }
 
     try {
@@ -99,13 +106,20 @@ export class ApiService {
 
   // Authentication methods
   async login(credentials: LoginRequest): Promise<LoginResponse> {
-    const response = await this.request<LoginResponse>('/auth/login', {
-      method: 'POST',
-      body: JSON.stringify(credentials),
-    });
+    // Use server manager to handle authentication with current server
+    const server = this.getCurrentServer();
+    const result = await serverManager.authenticateWithServer(server.id, credentials.email, credentials.password);
+    
+    if (!result.success) {
+      throw new ApiError(result.error || 'Authentication failed');
+    }
 
-    this.saveToken(response.token);
-    return response;
+    // Return the expected response format with user data from authentication result
+    return {
+      token: result.auth!.token,
+      user: result.user, // User data from the authentication response
+      expires_at: result.auth!.expiresAt || ''
+    };
   }
 
   async logout(): Promise<void> {
@@ -114,7 +128,14 @@ export class ApiService {
     } catch (error) {
       console.warn('Logout request failed:', error);
     } finally {
-      this.clearToken();
+      // Clear auth for current server (but keep the server configured)
+      const server = this.getCurrentServer();
+      const serverIndex = serverManager.getServers().findIndex(s => s.id === server.id);
+      if (serverIndex >= 0) {
+        const servers = serverManager.getServers();
+        servers[serverIndex].auth = undefined;
+        servers[serverIndex].user = undefined;
+      }
     }
   }
 
@@ -169,11 +190,14 @@ export class ApiService {
   }
 
   async streamBook(id: number): Promise<Response> {
-    const url = `${this.baseUrl}/books/${id}/stream`;
+    const server = this.getCurrentServer();
+    const token = this.getCurrentToken();
+    
+    const url = `${server.baseUrl}/books/${id}/stream`;
     const headers: HeadersInit = {};
 
-    if (this.token) {
-      headers.Authorization = `Bearer ${this.token}`;
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
     }
 
     const response = await fetch(url, { headers });
@@ -297,11 +321,11 @@ export class ApiService {
 
   // Utility methods
   isAuthenticated(): boolean {
-    return !!this.token;
+    return !!this.getCurrentToken();
   }
 
   getToken(): string | null {
-    return this.token;
+    return this.getCurrentToken();
   }
 }
 

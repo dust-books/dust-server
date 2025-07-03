@@ -5,6 +5,7 @@
 import { createContext } from '@lit/context';
 import type { AppState, User, Book, ReadingProgress, Toast } from '../types/app.js';
 import { apiService, ApiError } from './api.js';
+import { serverManager } from './server-manager.js';
 
 export const appStateContext = createContext<AppStateService>('app-state');
 
@@ -69,13 +70,27 @@ export class AppStateService {
       this.setState({ theme: savedTheme });
     }
 
-    // Check if user is authenticated
-    if (apiService.isAuthenticated()) {
-      this.setState({ isAuthenticated: true, isLoading: true });
-      this.loadCurrentUser();
-    } else {
-      // Ensure loading is false if not authenticated
-      this.setState({ isLoading: false });
+    // Check if we have any servers configured
+    const activeServer = serverManager.getActiveServer();
+    if (!activeServer) {
+      // No servers configured, user needs to connect to a server first
+      this.setState({ isLoading: false, isAuthenticated: false });
+      return;
+    }
+
+    // Check if user is authenticated with the active server
+    try {
+      if (apiService.isAuthenticated()) {
+        this.setState({ isAuthenticated: true, isLoading: true });
+        this.loadCurrentUser();
+      } else {
+        // Ensure loading is false if not authenticated
+        this.setState({ isLoading: false });
+      }
+    } catch (error) {
+      // Handle case where API service fails (no active server, etc.)
+      console.warn('Failed to check authentication status:', error);
+      this.setState({ isLoading: false, isAuthenticated: false });
     }
   }
 
@@ -482,6 +497,61 @@ export class AppStateService {
 
   isAdmin(): boolean {
     return this.hasPermission('admin.full') || this.hasRole('admin');
+  }
+
+  // Server management
+  async refreshAfterServerChange(): Promise<void> {
+    console.log('Refreshing app state after server change');
+    
+    // Clear current state
+    this.setState({
+      currentBook: null,
+      readingProgress: new Map(),
+      isLoading: true
+    });
+
+    // Check if the new server has authentication
+    const activeServer = serverManager.getActiveServer();
+    if (!activeServer?.auth) {
+      // No auth for new server, user needs to login
+      this.setState({ 
+        isAuthenticated: false, 
+        user: null,
+        isLoading: false 
+      });
+      return;
+    }
+
+    // Try to load user data from new server
+    try {
+      const userData = await apiService.getCurrentUser();
+      this.setState({
+        user: userData,
+        isAuthenticated: true,
+        isLoading: false
+      });
+
+      this.showToast({
+        type: 'success',
+        title: 'Server Changed',
+        message: `Connected to ${activeServer.name}`,
+        duration: 3000
+      });
+    } catch (error) {
+      // Auth failed, user needs to login to new server
+      this.setState({ 
+        isAuthenticated: false, 
+        user: null,
+        isLoading: false 
+      });
+      
+      this.showToast({
+        type: 'info',
+        title: 'Authentication Required',
+        message: `Please sign in to ${activeServer.name}`,
+        duration: 5000
+      });
+    }
   }
 }
 

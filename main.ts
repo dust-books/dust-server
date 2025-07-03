@@ -1,4 +1,5 @@
 import { Application, isHttpError, Router } from "@oak/oak";
+import { oakCors } from "https://deno.land/x/cors@v1.2.2/mod.ts";
 import type { Module } from "./module.ts";
 import { DustDatabase } from "./database.ts";
 import { UsersModule } from "./src/users/module.ts";
@@ -31,6 +32,14 @@ class DustService implements Service {
     Deno.addSignalListener('SIGINT', this._abort);
     signal.addEventListener("abort", this._stop);
     
+    // Add CORS middleware
+    this.app.use(oakCors({
+      origin: true, // Allow all origins for development
+      credentials: true,
+      methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+      allowedHeaders: ["Content-Type", "Authorization", "Accept"]
+    }));
+    
     // TODO: Let's pull this out. Maybe to a "core" module?
     this.app.use(async (context, next) => {
       try {
@@ -58,6 +67,17 @@ class DustService implements Service {
       ctx.response.type = "text/html";
       ctx.response.body = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>Dust Server</title></head><body><iframe src="https://giphy.com/embed/2wKbtCMHTVoOY" width="480" height="480" style="" frameBorder="0" class="giphy-embed" allowFullScreen></iframe></body></html>`
     });
+    
+    // Health check endpoint for server discovery
+    this.router.get("/health", (ctx) => {
+      ctx.response.status = 200;
+      ctx.response.type = "application/json";
+      ctx.response.body = {
+        status: "ok",
+        version: "1.0.0",
+        service: "dust-server"
+      };
+    });
   }
 
   async registerModule(module: Module): Promise<void> {
@@ -70,8 +90,9 @@ class DustService implements Service {
   async start(): Promise<void> {
     this.app.use(this.router.routes());
     this.app.use(this.router.allowedMethods());
-    console.log("Dust is bookin' it on port 4001");
-    await this.app.listen({ port: 4001, signal: this.abortController.signal });
+    const port = this.config.getPort();
+    console.log(`Dust is bookin' it on port ${port}`);
+    await this.app.listen({ port, signal: this.abortController.signal });
   }
 
   stop(): void {

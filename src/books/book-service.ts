@@ -5,6 +5,7 @@ import { BookCrawler } from "./book-crawler.ts";
 import type { Book, BookWithId } from "./book.ts";
 import {
   addAuthorIfNotExists,
+  addAuthorWithMetadata,
   addBookIfNotExists,
   getAllAuthors,
   getAllBooks,
@@ -12,6 +13,7 @@ import {
   getAuthorByName,
   getBook,
 } from "./data.ts";
+import type { ExternalAuthorMetadata } from "./external-metadata-service.ts";
 import { FSWalker } from "./fs/fs-walker.ts";
 import { TagService } from "./tag-service.ts";
 import { ArchiveService } from "./archive-service.ts";
@@ -51,23 +53,66 @@ export class BookService {
     for (const [authorName, books] of groupedByAuthor.entries()) {
       console.log(`👤 Processing author: ${authorName} (${books.length} books)`);
       
-      // Ensure author exists in database
-      const author = await addAuthorIfNotExists(dustService.database, authorName);
+      // Get enhanced author metadata from the first book that has it
+      const authorMetadata = books.find(book => 
+        book.externalMetadata?.authorDetails?.find(author => 
+          author.name.toLowerCase().includes(authorName.toLowerCase()) ||
+          authorName.toLowerCase().includes(author.name.toLowerCase())
+        )
+      )?.externalMetadata?.authorDetails?.find(author => 
+        author.name.toLowerCase().includes(authorName.toLowerCase()) ||
+        authorName.toLowerCase().includes(author.name.toLowerCase())
+      );
+
+      // Add author with enhanced metadata if available
+      let author: AuthorWithId;
+      if (authorMetadata) {
+        console.log(`👤 ✓ Enhanced metadata available for ${authorName}`);
+        author = await addAuthorWithMetadata(dustService.database, {
+          name: authorName,
+          biography: authorMetadata.biography,
+          birth_date: authorMetadata.birthDate,
+          death_date: authorMetadata.deathDate,
+          nationality: authorMetadata.nationality,
+          image_url: authorMetadata.imageUrl,
+          wikipedia_url: authorMetadata.wikipediaUrl,
+          goodreads_url: authorMetadata.goodreadsUrl,
+          website: authorMetadata.website,
+          aliases: authorMetadata.aliases ? JSON.stringify(authorMetadata.aliases) : undefined,
+          genres: authorMetadata.genres ? JSON.stringify(authorMetadata.genres) : undefined
+        });
+      } else {
+        // Fallback to basic author creation
+        author = await addAuthorIfNotExists(dustService.database, authorName);
+      }
       
       for (const enhancedBook of books) {
         try {
           // Add book to database with enhanced metadata
-          const bookResult = await addBookIfNotExists(dustService.database, {
+          const bookToAdd: Book = {
             name: enhancedBook.name,
             filepath: enhancedBook.filepath,
             author: author.id,
-          });
+            file_format: enhancedBook.metadata.fileFormat,
+            file_size: enhancedBook.metadata.fileSize,
+            page_count: enhancedBook.externalMetadata?.pageCount || enhancedBook.metadata.pageCount,
+            isbn: enhancedBook.isbn,
+            publication_date: enhancedBook.externalMetadata?.publishedDate,
+            publisher: enhancedBook.externalMetadata?.publisher,
+            description: enhancedBook.externalMetadata?.description,
+            cover_image_path: enhancedBook.metadata.coverImagePath || (enhancedBook.externalMetadata?.coverImageUrl ? undefined : undefined), // TODO: Download and store cover images
+          };
+          
+          const bookResult = await addBookIfNotExists(dustService.database, bookToAdd);
           
           // If book was actually added (not already existing), apply auto-tags
           if (bookResult && bookResult.rows.length > 0) {
             const bookId = bookResult.rows[0].id as number;
             
-            console.log(`📖 Added new book: ${enhancedBook.name} (ID: ${bookId})`);
+            const metadataInfo = enhancedBook.isbn ? `ISBN: ${enhancedBook.isbn}` : 'No ISBN';
+            const externalInfo = enhancedBook.externalMetadata ? ' (External metadata)' : '';
+            const authorInfo = authorMetadata ? ` (Author: ${authorMetadata.name}${authorMetadata.nationality ? `, ${authorMetadata.nationality}` : ''})` : '';
+            console.log(`📖 Added new book: ${enhancedBook.name} (ID: ${bookId}, ${metadataInfo}${externalInfo}${authorInfo})`);
             
             // Apply suggested tags automatically
             for (const tagName of enhancedBook.suggestedTags) {

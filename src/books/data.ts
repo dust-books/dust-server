@@ -4,8 +4,9 @@ import type { Book, BookWithId } from "./book.ts";
 
 export type { BookWithId };
 
-export const migrate = (database: Database) => {
-    return database.migrate([
+export const migrate = async (database: Database) => {
+    // First run the basic table creation migrations
+    await database.migrate([
         `CREATE TABLE IF NOT EXISTS books (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL,
@@ -62,12 +63,35 @@ export const migrate = (database: Database) => {
             UNIQUE(user_id, book_id),
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
             FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE CASCADE
-        )`,
-        // Migration for existing databases to add archive fields
-        `ALTER TABLE books ADD COLUMN status TEXT DEFAULT 'active'`,
-        `ALTER TABLE books ADD COLUMN archived_at DATETIME`,
-        `ALTER TABLE books ADD COLUMN archive_reason TEXT`
+        )`
     ]);
+
+    // Add author metadata columns safely - only if they don't exist
+    const authorColumns = [
+        'biography TEXT',
+        'birth_date TEXT', 
+        'death_date TEXT',
+        'nationality TEXT',
+        'image_url TEXT',
+        'wikipedia_url TEXT',
+        'goodreads_url TEXT',
+        'website TEXT',
+        'aliases TEXT',
+        'genres TEXT',
+        'created_at DATETIME',
+        'updated_at DATETIME'
+    ];
+
+    for (const column of authorColumns) {
+        try {
+            await database.execute(`ALTER TABLE authors ADD COLUMN ${column}`);
+        } catch (error) {
+            // Column likely already exists, ignore the error
+            if (!error.message.includes('duplicate column name')) {
+                throw error;
+            }
+        }
+    }
 }
 
 export const getAllBooks = async (database: Database): Promise<BookWithId[]> => {
@@ -139,15 +163,19 @@ export const addBookIfNotExists = async (database: Database, book: Book) => {
     const file_format = book.file_format || book.filepath.split('.').pop()?.toLowerCase();
     
     return database.execute({
-        sql: `INSERT INTO books (name, author, file_path, file_format, file_size, page_count) 
-              VALUES ($name, $author, $filePath, $file_format, $file_size, $page_count) RETURNING id, *`, 
+        sql: `INSERT INTO books (name, author, file_path, file_format, file_size, page_count, isbn, publication_date, publisher, description) 
+              VALUES ($name, $author, $filePath, $file_format, $file_size, $page_count, $isbn, $publication_date, $publisher, $description) RETURNING id, *`, 
         args: {
             name: book.name, 
             filePath: book.filepath, 
             author: book.author,
             file_format: file_format || null,
             file_size: book.file_size ?? null,
-            page_count: book.page_count ?? null
+            page_count: book.page_count ?? null,
+            isbn: book.isbn ?? null,
+            publication_date: book.publication_date ?? null,
+            publisher: book.publisher ?? null,
+            description: book.description ?? null
         }
     });
 }
@@ -159,14 +187,98 @@ export const updateBookFileFormat = async (database: Database, bookId: number, f
     });
 }
 
+export const updateBookMetadata = async (database: Database, bookId: number, metadata: Partial<Book>) => {
+    const fields: string[] = [];
+    const args: any = { id: bookId };
+    
+    if (metadata.isbn !== undefined) {
+        fields.push("isbn = $isbn");
+        args.isbn = metadata.isbn;
+    }
+    if (metadata.publication_date !== undefined) {
+        fields.push("publication_date = $publication_date");
+        args.publication_date = metadata.publication_date;
+    }
+    if (metadata.publisher !== undefined) {
+        fields.push("publisher = $publisher");
+        args.publisher = metadata.publisher;
+    }
+    if (metadata.description !== undefined) {
+        fields.push("description = $description");
+        args.description = metadata.description;
+    }
+    if (metadata.page_count !== undefined) {
+        fields.push("page_count = $page_count");
+        args.page_count = metadata.page_count;
+    }
+    if (metadata.cover_image_path !== undefined) {
+        fields.push("cover_image_path = $cover_image_path");
+        args.cover_image_path = metadata.cover_image_path;
+    }
+    
+    if (fields.length === 0) {
+        return null; // Nothing to update
+    }
+    
+    fields.push("updated_at = CURRENT_TIMESTAMP");
+    
+    return database.execute({
+        sql: `UPDATE books SET ${fields.join(', ')} WHERE id = $id`,
+        args
+    });
+}
+
+export const getBookByISBN = async (database: Database, isbn: string): Promise<BookWithId | null> => {
+    const resp = await database.execute({
+        sql: "SELECT * FROM books WHERE isbn = $isbn LIMIT 1",
+        args: { isbn }
+    });
+
+    if (resp.rows.length === 0) {
+        return null;
+    }
+
+    const row = resp.rows[0];
+    return {
+        id: row['id'] as number,
+        name: row['name'] as string,
+        author: row['author'] as number,
+        filepath: row['file_path'] as string,
+        file_format: row['file_format'] as string,
+        file_size: row['file_size'] as number,
+        page_count: row['page_count'] as number,
+        cover_image_path: row['cover_image_path'] as string,
+        isbn: row['isbn'] as string,
+        publication_date: row['publication_date'] as string,
+        publisher: row['publisher'] as string,
+        description: row['description'] as string,
+        status: row['status'] as string || 'active',
+        archived_at: row['archived_at'] as string,
+        archive_reason: row['archive_reason'] as string,
+    };
+}
+
 export const getAuthorById = async (database: Database, id: number): Promise<AuthorWithId> => {
     const resp = await database.execute({
         sql: "SELECT * FROM authors where id = $id",
         args: {id}
     });
+    const row = resp.rows[0];
     return {
-        id: resp.rows[0]['id'] as number,
-        name: resp.rows[0]['name'] as string,
+        id: row['id'] as number,
+        name: row['name'] as string,
+        biography: row['biography'] as string,
+        birth_date: row['birth_date'] as string,
+        death_date: row['death_date'] as string,
+        nationality: row['nationality'] as string,
+        image_url: row['image_url'] as string,
+        wikipedia_url: row['wikipedia_url'] as string,
+        goodreads_url: row['goodreads_url'] as string,
+        website: row['website'] as string,
+        aliases: row['aliases'] as string,
+        genres: row['genres'] as string,
+        created_at: row['created_at'] as string,
+        updated_at: row['updated_at'] as string,
     }
 }
 
@@ -179,7 +291,7 @@ export const getAuthorByName = (database: Database, name: string) => {
 
 export const getAllAuthors = async (database: Database): Promise<AuthorWithId[]> => {
     const resp = await database.execute({
-        sql: "SELECT * FROM authors",
+        sql: "SELECT * FROM authors ORDER BY name",
         args: {}
     });
 
@@ -187,6 +299,18 @@ export const getAllAuthors = async (database: Database): Promise<AuthorWithId[]>
         return {
             id: r['id'] as number,
             name: r['name'] as string,
+            biography: r['biography'] as string,
+            birth_date: r['birth_date'] as string,
+            death_date: r['death_date'] as string,
+            nationality: r['nationality'] as string,
+            image_url: r['image_url'] as string,
+            wikipedia_url: r['wikipedia_url'] as string,
+            goodreads_url: r['goodreads_url'] as string,
+            website: r['website'] as string,
+            aliases: r['aliases'] as string,
+            genres: r['genres'] as string,
+            created_at: r['created_at'] as string,
+            updated_at: r['updated_at'] as string,
         }
     })
 }
@@ -195,21 +319,162 @@ export const getAllAuthors = async (database: Database): Promise<AuthorWithId[]>
 export const addAuthorIfNotExists = async (database: Database, authorName: string): Promise<AuthorWithId> => {
     const existing = await getAuthorByName(database, authorName);
     if (existing.rows.length != 0) {
+        const row = existing.rows[0];
         return {
-            id: existing.rows[0]['id'] as number,
-            name: existing.rows[0]['name'] as string,
+            id: row['id'] as number,
+            name: row['name'] as string,
+            biography: row['biography'] as string,
+            birth_date: row['birth_date'] as string,
+            death_date: row['death_date'] as string,
+            nationality: row['nationality'] as string,
+            image_url: row['image_url'] as string,
+            wikipedia_url: row['wikipedia_url'] as string,
+            goodreads_url: row['goodreads_url'] as string,
+            website: row['website'] as string,
+            aliases: row['aliases'] as string,
+            genres: row['genres'] as string,
+            created_at: row['created_at'] as string,
+            updated_at: row['updated_at'] as string,
         };
     }
 
     const resp = await database.execute({
-        sql: "INSERT INTO authors (name) VALUES ($name) RETURNING id, *", 
+        sql: "INSERT INTO authors (name, created_at, updated_at) VALUES ($name, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP) RETURNING *", 
         args: {name: authorName}
     });
 
+    const row = resp.rows[0];
     return {
-        id: resp.rows[0]['id'] as number,
-        name: resp.rows[0]['name'] as string,
+        id: row['id'] as number,
+        name: row['name'] as string,
+        biography: row['biography'] as string,
+        birth_date: row['birth_date'] as string,
+        death_date: row['death_date'] as string,
+        nationality: row['nationality'] as string,
+        image_url: row['image_url'] as string,
+        wikipedia_url: row['wikipedia_url'] as string,
+        goodreads_url: row['goodreads_url'] as string,
+        website: row['website'] as string,
+        aliases: row['aliases'] as string,
+        genres: row['genres'] as string,
+        created_at: row['created_at'] as string,
+        updated_at: row['updated_at'] as string,
     }
+}
+
+export const addAuthorWithMetadata = async (
+    database: Database, 
+    authorData: Author
+): Promise<AuthorWithId> => {
+    const existing = await getAuthorByName(database, authorData.name);
+    if (existing.rows.length != 0) {
+        // Update existing author with new metadata
+        return await updateAuthorMetadata(database, existing.rows[0]['id'] as number, authorData);
+    }
+
+    const resp = await database.execute({
+        sql: `INSERT INTO authors (
+            name, biography, birth_date, death_date, nationality, 
+            image_url, wikipedia_url, goodreads_url, website, aliases, genres,
+            created_at, updated_at
+        ) VALUES (
+            $name, $biography, $birth_date, $death_date, $nationality,
+            $image_url, $wikipedia_url, $goodreads_url, $website, $aliases, $genres,
+            CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+        ) RETURNING *`, 
+        args: {
+            name: authorData.name,
+            biography: authorData.biography || null,
+            birth_date: authorData.birth_date || null,
+            death_date: authorData.death_date || null,
+            nationality: authorData.nationality || null,
+            image_url: authorData.image_url || null,
+            wikipedia_url: authorData.wikipedia_url || null,
+            goodreads_url: authorData.goodreads_url || null,
+            website: authorData.website || null,
+            aliases: authorData.aliases || null,
+            genres: authorData.genres || null
+        }
+    });
+
+    const row = resp.rows[0];
+    return {
+        id: row['id'] as number,
+        name: row['name'] as string,
+        biography: row['biography'] as string,
+        birth_date: row['birth_date'] as string,
+        death_date: row['death_date'] as string,
+        nationality: row['nationality'] as string,
+        image_url: row['image_url'] as string,
+        wikipedia_url: row['wikipedia_url'] as string,
+        goodreads_url: row['goodreads_url'] as string,
+        website: row['website'] as string,
+        aliases: row['aliases'] as string,
+        genres: row['genres'] as string,
+        created_at: row['created_at'] as string,
+        updated_at: row['updated_at'] as string,
+    }
+}
+
+export const updateAuthorMetadata = async (
+    database: Database, 
+    authorId: number, 
+    authorData: Partial<Author>
+): Promise<AuthorWithId> => {
+    const fields: string[] = [];
+    const args: any = { id: authorId };
+    
+    if (authorData.biography !== undefined) {
+        fields.push("biography = $biography");
+        args.biography = authorData.biography;
+    }
+    if (authorData.birth_date !== undefined) {
+        fields.push("birth_date = $birth_date");
+        args.birth_date = authorData.birth_date;
+    }
+    if (authorData.death_date !== undefined) {
+        fields.push("death_date = $death_date");
+        args.death_date = authorData.death_date;
+    }
+    if (authorData.nationality !== undefined) {
+        fields.push("nationality = $nationality");
+        args.nationality = authorData.nationality;
+    }
+    if (authorData.image_url !== undefined) {
+        fields.push("image_url = $image_url");
+        args.image_url = authorData.image_url;
+    }
+    if (authorData.wikipedia_url !== undefined) {
+        fields.push("wikipedia_url = $wikipedia_url");
+        args.wikipedia_url = authorData.wikipedia_url;
+    }
+    if (authorData.goodreads_url !== undefined) {
+        fields.push("goodreads_url = $goodreads_url");
+        args.goodreads_url = authorData.goodreads_url;
+    }
+    if (authorData.website !== undefined) {
+        fields.push("website = $website");
+        args.website = authorData.website;
+    }
+    if (authorData.aliases !== undefined) {
+        fields.push("aliases = $aliases");
+        args.aliases = authorData.aliases;
+    }
+    if (authorData.genres !== undefined) {
+        fields.push("genres = $genres");
+        args.genres = authorData.genres;
+    }
+    
+    if (fields.length > 0) {
+        fields.push("updated_at = CURRENT_TIMESTAMP");
+        
+        await database.execute({
+            sql: `UPDATE authors SET ${fields.join(', ')} WHERE id = $id`,
+            args
+        });
+    }
+    
+    return await getAuthorById(database, authorId);
 }
 
 // Tag management functions
