@@ -7,15 +7,17 @@ import { customElement, property, state } from "lit/decorators.js";
 import { consume } from "@lit/context";
 
 import { appStateContext, AppStateService } from "../../services/app-state.js";
-import type { Book } from "../../types/app.js";
+import { serverManager } from "../../services/server-manager.js";
+import type { MultiServerState } from "../../types/server.js";
+import type { Book, AppState } from "../../types/app.js";
 
 @customElement("library-page")
 export class LibraryPage extends LitElement {
   @consume({ context: appStateContext })
   appStateService!: AppStateService;
 
-  @property({ type: Array })
-  books: Book[] = [];
+  @state()
+  private books: Book[] = [];
 
   @state()
   private isLoading = false;
@@ -40,6 +42,11 @@ export class LibraryPage extends LitElement {
     | "completed" = "all";
 
   private searchTimeout: number | null = null;
+
+  @state()
+  private currentServerId: string | null = null;
+
+  private serverUnsubscribe?: () => void;
 
   static styles = css`
     :host {
@@ -308,7 +315,54 @@ export class LibraryPage extends LitElement {
   connectedCallback() {
     console.log("LibraryPage - connected callback");
     super.connectedCallback();
-    this.loadBooks();
+    
+    // Subscribe to server changes - this is the primary trigger
+    this.serverUnsubscribe = serverManager.subscribe((state) => {
+      const activeServerId = state.activeServerId;
+      if (this.currentServerId !== activeServerId && activeServerId !== null) {
+        console.log(`📚 SERVER CHANGE: from ${this.currentServerId} to ${activeServerId}`);
+        console.log(`📚 SERVER CHANGE: current books before reset: ${this.books.length}`);
+        
+        const oldServerId = this.currentServerId;
+        this.currentServerId = activeServerId;
+        
+        // Only reset if we actually had books or if we're switching between different servers
+        if (oldServerId && oldServerId !== activeServerId) {
+          console.log("📚 SERVER CHANGE: Different server detected, resetting state");
+          this.resetLibraryState();
+          
+          // Load books with a delay to ensure everything is ready
+          setTimeout(() => {
+            console.log("📚 SERVER CHANGE: Attempting to load books for new server");
+            this.loadBooksIfReady();
+          }, 300);
+        } else if (!oldServerId) {
+          console.log("📚 SERVER CHANGE: Initial server setup, loading books");
+          this.loadBooksIfReady();
+        }
+      }
+    });
+    
+    // Set initial server ID
+    const serverState = serverManager.getState();
+    this.currentServerId = serverState.activeServerId;
+    
+    // Initial load
+    this.loadBooksIfReady();
+  }
+
+  private loadBooksIfReady() {
+    const appState = this.appStateService.getState();
+    const activeServer = serverManager.getActiveServer();
+    
+    console.log(`📚 LOAD CHECK: isAuthenticated=${appState.isAuthenticated}, hasServer=${!!activeServer}, hasAuth=${!!activeServer?.auth}, hasLoaded=${this.hasLoaded}`);
+    
+    if (appState.isAuthenticated && activeServer?.auth && !this.hasLoaded) {
+      console.log("📚 LOAD CHECK: Conditions met, loading books");
+      this.loadBooks();
+    } else {
+      console.log("📚 LOAD CHECK: Conditions not met, skipping load");
+    }
   }
 
   disconnectedCallback() {
@@ -319,7 +373,27 @@ export class LibraryPage extends LitElement {
       clearTimeout(this.searchTimeout);
     }
 
+    // Unsubscribe from server changes
+    this.serverUnsubscribe?.();
+
     super.disconnectedCallback();
+  }
+
+  private resetLibraryState() {
+    console.log(`📚 RESET: Resetting library state for server change. Current books: ${this.books.length}`);
+    this.books = [];
+    this.hasLoaded = false;
+    this.isLoading = false;
+    this.searchQuery = "";
+    this.selectedGenres = [];
+    this.readingStatusFilter = "all";
+    console.log("📚 RESET: Library state reset complete");
+  }
+
+  public forceReloadBooks() {
+    console.log("📚 Force reloading books");
+    this.resetLibraryState();
+    this.loadBooks();
   }
 
   private async loadBooks() {
@@ -332,10 +406,23 @@ export class LibraryPage extends LitElement {
       return; // Prevent multiple requests
     }
 
+    // Check if we have an authenticated server before attempting to load
+    const activeServer = serverManager.getActiveServer();
+    if (!activeServer) {
+      console.log("📚 No active server, skipping book load");
+      return;
+    }
+
+    if (!activeServer.auth) {
+      console.log("📚 Server not authenticated, skipping book load");
+      return;
+    }
+
     this.isLoading = true;
     try {
       console.log("📚 Making API request via AppStateService...");
       const books = await this.appStateService.loadBooks();
+      console.log(`📚 LOAD: Setting books from ${this.books.length} to ${books.length}`);
       this.books = books;
       this.hasLoaded = true;
       console.log("📚 Books loaded successfully:", books.length);
@@ -348,6 +435,13 @@ export class LibraryPage extends LitElement {
     } catch (error) {
       console.error("📚 Failed to load books:", error);
       // Don't set hasLoaded=true on error so user can retry
+      
+      // If it's an authentication error, don't keep trying
+      if (error instanceof Error && (error.message.includes('401') || error.message.includes('No active server'))) {
+        console.log("📚 Authentication error detected, stopping retries");
+        this.hasLoaded = true; // Prevent endless retries
+        this.books = []; // Clear any stale data
+      }
     } finally {
       this.isLoading = false;
       console.log("📚 loadBooks finished, isLoading set to false");
@@ -564,6 +658,7 @@ export class LibraryPage extends LitElement {
 
   render() {
     const filteredBooks = this.getFilteredBooks();
+    console.log(`📚 RENDER: books.length=${this.books.length}, filteredBooks.length=${filteredBooks.length}, isLoading=${this.isLoading}, hasLoaded=${this.hasLoaded}, currentServerId=${this.currentServerId}`);
 
     return html`
       <div class="page-header">

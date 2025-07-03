@@ -22,7 +22,7 @@ const authenticateAndRequirePermission = (permission: any) => {
         const payload = await userService.validateJWT(token);
         ctx.state.user = payload.user;
       } catch (e) {
-        console.warn("Invalid JWT token:", e.message);
+        console.warn("Invalid JWT token:", e instanceof Error ? e.message : String(e));
       }
     }
     

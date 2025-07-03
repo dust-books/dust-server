@@ -165,7 +165,10 @@ Deno.test("BookCrawler - crawlForBooksWithMetadata", async (t) => {
     const mockWalker = createMockWalker([
       {
         path: '/storage/books/Author/Book/9781789349917.epub',
-        name: '9781789349917.epub'
+        name: '9781789349917.epub',
+        isFile: true,
+        isDirectory: false,
+        isSymlink: false
       }
     ]);
     const crawler = new BookCrawler(mockWalker, undefined, false);

@@ -1,5 +1,5 @@
 import type { Database } from "../../database.ts";
-import type { AuthorWithId } from "./author.ts";
+import type { Author, AuthorWithId } from "./author.ts";
 import type { Book, BookWithId } from "./book.ts";
 
 export type { BookWithId };
@@ -87,7 +87,7 @@ export const migrate = async (database: Database) => {
             await database.execute(`ALTER TABLE authors ADD COLUMN ${column}`);
         } catch (error) {
             // Column likely already exists, ignore the error
-            if (!error.message.includes('duplicate column name')) {
+            if (!(error instanceof Error) || !error.message.includes('duplicate column name')) {
                 throw error;
             }
         }

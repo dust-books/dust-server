@@ -199,12 +199,15 @@ export class AppStateService {
     this.setState({ isLoading: true });
     
     try {
+      console.log('AppState: Loading books from current server');
       const response = await apiService.getBooks(filters);
       this.setState({ isLoading: false });
+      console.log('AppState: Successfully loaded books:', response.books.length);
       return response.books;
     } catch (error) {
       this.setState({ isLoading: false });
       this.handleError(error, 'Failed to load books');
+      console.error('AppState: Failed to load books:', error);
       return [];
     }
   }
@@ -503,7 +506,7 @@ export class AppStateService {
   async refreshAfterServerChange(): Promise<void> {
     console.log('Refreshing app state after server change');
     
-    // Clear current state
+    // Clear current state - this will trigger re-renders and library page will reload
     this.setState({
       currentBook: null,
       readingProgress: new Map(),

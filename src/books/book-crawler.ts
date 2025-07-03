@@ -115,7 +115,8 @@ export class BookCrawler {
                 let externalMetadata: ExternalBookMetadata | undefined;
                 if (validISBN && this.enableExternalLookup) {
                     console.log(`📚 Fetching external metadata for ISBN: ${validISBN}`);
-                    externalMetadata = await this.externalMetadataService.lookupByISBN(validISBN);
+                    const result = await this.externalMetadataService.lookupByISBN(validISBN);
+                    externalMetadata = result || undefined;
                     
                     if (externalMetadata) {
                         console.log(`✓ External metadata found: "${externalMetadata.title}" by ${externalMetadata.authors?.join(', ')}`);

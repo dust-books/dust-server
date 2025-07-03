@@ -57,12 +57,15 @@ Deno.test("Integration - Complete ISBN Workflow", async (t) => {
       
       // Mock the directory scanning to return our test file
       const originalPopulateBooksDB = bookService.populateBooksDB.bind(bookService);
-      bookService.populateBooksDB = async (dirs: string[], apiKey?: string, enableExternal?: boolean) => {
+      bookService.populateBooksDB = async (dirs: string[], apiKey?: string, enableExternal?: boolean): Promise<void> => {
         // Create a mock crawler with our test data
         const mockWalker = createMockWalker([
           {
             path: '/storage/books/Jeff Szuhay/Learn C Programming/9781789349917.epub',
-            name: '9781789349917.epub'
+            name: '9781789349917.epub',
+            isFile: true,
+            isDirectory: false,
+            isSymlink: false
           }
         ]);
         
@@ -95,7 +98,7 @@ Deno.test("Integration - Complete ISBN Workflow", async (t) => {
           assertEquals(enhancedBook.suggestedTags.includes('Programming'), true);
         }
         
-        return enhancedBooks;
+        // Don't return anything - function should be void
       };
       
       // Run the population process
@@ -106,13 +109,13 @@ Deno.test("Integration - Complete ISBN Workflow", async (t) => {
       assertEquals(calls.length >= 4, true); // Should have multiple database calls
       
       // Verify author was added
-      const authorCheck = calls.find(call => 
+      const authorCheck = calls.find((call: any[]) => 
         call[0].sql?.includes('SELECT * FROM authors WHERE name = $name')
       );
       assertExists(authorCheck);
       
       // Verify book was added with metadata
-      const bookInsert = calls.find(call => 
+      const bookInsert = calls.find((call: any[]) => 
         call[0].sql?.includes('INSERT INTO books') && call[0].sql?.includes('isbn')
       );
       assertExists(bookInsert);
@@ -126,6 +129,9 @@ Deno.test("Integration - Complete ISBN Workflow", async (t) => {
   });
 
   await t.step("should handle mixed ISBN and regular files", async () => {
+    // Clear previous mock state
+    mockDustService.database.mockClear();
+    
     // Setup mocks
     (globalThis as any).dustService = mockDustService;
     const originalFetch = globalThis.fetch;
@@ -157,12 +163,18 @@ Deno.test("Integration - Complete ISBN Workflow", async (t) => {
         // ISBN file with metadata
         {
           path: '/storage/books/Jeff Szuhay/Learn C Programming/9781789349917.epub',
-          name: '9781789349917.epub'
+          name: '9781789349917.epub',
+          isFile: true,
+          isDirectory: false,
+          isSymlink: false
         },
         // Regular file without ISBN
         {
           path: '/storage/books/George Orwell/1984/nineteen_eighty_four.epub',
-          name: 'nineteen_eighty_four.epub'
+          name: 'nineteen_eighty_four.epub',
+          isFile: true,
+          isDirectory: false,
+          isSymlink: false
         }
       ]);
       
@@ -217,6 +229,9 @@ Deno.test("Integration - Complete ISBN Workflow", async (t) => {
   });
 
   await t.step("should handle external API failures gracefully", async () => {
+    // Clear previous mock state
+    mockDustService.database.mockClear();
+    
     // Setup mocks
     (globalThis as any).dustService = mockDustService;
     const originalFetch = globalThis.fetch;
@@ -234,7 +249,10 @@ Deno.test("Integration - Complete ISBN Workflow", async (t) => {
       const mockWalker = createMockWalker([
         {
           path: '/storage/books/Jeff Szuhay/Learn C Programming/9781789349917.epub',
-          name: '9781789349917.epub'
+          name: '9781789349917.epub',
+          isFile: true,
+          isDirectory: false,
+          isSymlink: false
         }
       ]);
       
@@ -288,12 +306,18 @@ Deno.test("Integration - Performance", async (t) => {
           const isbn = `978${String(i).padStart(10, '0')}`;
           return {
             path: `/storage/books/Author${i}/Book${i}/${isbn}.epub`,
-            name: `${isbn}.epub`
+            name: `${isbn}.epub`,
+            isFile: true,
+            isDirectory: false,
+            isSymlink: false
           };
         } else {
           return {
             path: `/storage/books/Author${i}/Book${i}/book${i}.epub`,
-            name: `book${i}.epub`
+            name: `book${i}.epub`,
+            isFile: true,
+            isDirectory: false,
+            isSymlink: false
           };
         }
       });

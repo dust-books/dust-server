@@ -12,4 +12,11 @@ export type UserWithId = User & {
     is_active?: boolean;
     created_at?: string;
     updated_at?: string;
+    created?: string;
+    lastLogin?: string;
+}
+
+export type UserWithRoles = Omit<UserWithId, "password"> & {
+    roles: string[];
+    permissions: string[];
 }

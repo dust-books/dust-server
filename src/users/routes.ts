@@ -51,7 +51,7 @@ export const registerRoutes = (router: Router) => {
         // Transform client data to match server expectations
         const userData = {
           username: body.username || body.email.split('@')[0] || 'user' + Date.now(), // ensure username is always set
-          displayName: body.display_name || body.displayName || body.username || 'User',
+          displayName: (body as any).display_name || body.displayName || body.username || 'User',
           email: body.email,
           password: body.password
         };

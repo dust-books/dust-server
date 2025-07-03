@@ -1,7 +1,9 @@
 {
   "tasks": {
     "dev_broken": "deno serve --watch -R main.ts",
-    "dev": "deno run --allow-all main.ts"
+    "dev": "deno run --allow-all main.ts",
+    "test": "deno test --allow-all src/books/__tests__/",
+    "test:isbn": "deno test --allow-all src/books/__tests__/isbn-utils.test.ts"
   },
   "imports": {
     "@libsql/client": "npm:@libsql/client@^0.14.0",

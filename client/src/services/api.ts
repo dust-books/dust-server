@@ -164,6 +164,9 @@ export class ApiService {
     includeTags?: string[];
     excludeTags?: string[];
   }): Promise<{ books: Book[]; userPreferences: any }> {
+    const server = this.getCurrentServer();
+    console.log('API: Getting books from server:', server.name, server.baseUrl);
+    
     const params = new URLSearchParams();
     
     if (filters?.includeGenres?.length) {
@@ -182,7 +185,9 @@ export class ApiService {
     const queryString = params.toString();
     const url = `/books/${queryString ? `?${queryString}` : ''}`;
     
-    return this.request<{ books: Book[]; userPreferences: any }>(url);
+    const result = await this.request<{ books: Book[]; userPreferences: any }>(url);
+    console.log('API: Received books from server:', result.books.length);
+    return result;
   }
 
   async getBook(id: number): Promise<{ book: Book; tags: any[] }> {

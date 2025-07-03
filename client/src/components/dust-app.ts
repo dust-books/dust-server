@@ -46,6 +46,9 @@ export class DustApp extends LitElement {
   @state()
   private currentGenreId: number | null = null;
 
+  @state()
+  private currentServerId: string | null = null;
+
   static styles = css`
     :host {
       display: flex;
@@ -142,6 +145,10 @@ export class DustApp extends LitElement {
     super.connectedCallback();
     window.addEventListener("popstate", this.handleNavigation);
     this.handleNavigation();
+    
+    // Initialize current server ID
+    const activeServer = serverManager.getActiveServer();
+    this.currentServerId = activeServer?.id || null;
   }
 
   disconnectedCallback() {
@@ -209,6 +216,10 @@ export class DustApp extends LitElement {
   private handleServerChange(event: CustomEvent) {
     console.log('Server changed:', event.detail.server);
     
+    // Update current server ID to trigger re-renders
+    const newServer = event.detail.server;
+    this.currentServerId = newServer.id;
+    
     // Refresh the app state to load data from the new server
     this.appStateService.refreshAfterServerChange();
     
@@ -259,7 +270,6 @@ export class DustApp extends LitElement {
       case "library":
         return html`
           <library-page
-            .books=${[]}
             @book-select=${this.handleBookSelect}
           ></library-page>
         `;

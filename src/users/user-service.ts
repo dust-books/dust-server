@@ -1,6 +1,6 @@
 import type { Database } from "../../database.ts";
 import { addUser, getUserByEmail, getUserById, createSession, getUserIdFromSession } from "./data.ts";
-import type { User, UserWithId } from "./user.ts";
+import type { User, UserWithId, UserWithRoles } from "./user.ts";
 import { hash, verify } from "@ts-rex/bcrypt";
 import * as jose from "https://deno.land/x/jose@v5.9.6/index.ts";
 import { PermissionService } from "./permission-service.ts";
@@ -102,7 +102,7 @@ export class UserService {
     return userId;
   }
 
-  async getUserFromToken(token: SignedJWTToken): Promise<Omit<UserWithId, "password">> {
+  async getUserFromToken(token: SignedJWTToken): Promise<UserWithRoles> {
     const payload = await this.validateJWT(token);
     const userId = payload.user.id;
     
@@ -120,6 +120,10 @@ export class UserService {
       username: user.username,
       email: user.email,
       displayName: user.displayName,
+      display_name: user.display_name,
+      is_active: user.is_active,
+      created_at: user.created_at,
+      updated_at: user.updated_at,
       roles: roles.map(r => r.name),
       permissions: permissions.map(p => p.name),
       created: user.created,
