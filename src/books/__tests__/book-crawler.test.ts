@@ -25,6 +25,13 @@ class MockMetadataExtractor {
         author: "Jeff Szuhay"
       };
     }
+    if (filePath.includes("George Orwell") || filePath.includes("nineteen_eighty_four")) {
+      return {
+        ...mockBookMetadata.basic,
+        title: undefined,  // No title so path parsing will be used
+        author: undefined   // No author so path parsing will be used
+      };
+    }
     return mockBookMetadata.basic;
   }
 
@@ -67,6 +74,35 @@ Deno.test("BookCrawler - crawlForBooksWithMetadata", async (t) => {
       // Mock the metadata extractor
       (crawler as any).metadataExtractor = new MockMetadataExtractor();
       
+      // Mock the external metadata service
+      (crawler as any).externalMetadataService = {
+        lookupByISBN: async (isbn: string) => {
+          if (isbn === "9781789349917") {
+            return {
+              isbn: "9781789349917",
+              title: "Learn C Programming",
+              authors: ["Jeff Szuhay"],
+              publisher: "Packt Publishing",
+              publishedDate: "2020-06-26",
+              description: "Get started with writing simple programs in C while learning the skills that will help you work with practically any programming language",
+              pageCount: 742,
+              categories: ["Computers"],
+              language: "en"
+            };
+          }
+          return null;
+        },
+        detectGenresFromCategories: (categories: string[]) => {
+          return categories.includes("Computers") ? ["Programming", "Technology"] : ["Fiction"];
+        },
+        detectContentRating: (metadata: any) => {
+          return ["All Ages"];
+        },
+        generateAuthorTags: (authorDetails: any) => {
+          return [];
+        }
+      };
+      
       const results = await crawler.crawlForBooksWithMetadata();
       
       assertEquals(results.length, 1);
@@ -91,6 +127,14 @@ Deno.test("BookCrawler - crawlForBooksWithMetadata", async (t) => {
     
     // Mock the metadata extractor
     (crawler as any).metadataExtractor = new MockMetadataExtractor();
+    
+    // Mock the external metadata service
+    (crawler as any).externalMetadataService = {
+      lookupByISBN: async (isbn: string) => null,
+      detectGenresFromCategories: (categories: string[]) => ["Fiction"],
+      detectContentRating: (metadata: any) => ["All Ages"],
+      generateAuthorTags: (authorDetails: any) => []
+    };
     
     const results = await crawler.crawlForBooksWithMetadata();
     
@@ -118,6 +162,35 @@ Deno.test("BookCrawler - crawlForBooksWithMetadata", async (t) => {
       
       // Mock the metadata extractor
       (crawler as any).metadataExtractor = new MockMetadataExtractor();
+      
+      // Mock the external metadata service
+      (crawler as any).externalMetadataService = {
+        lookupByISBN: async (isbn: string) => {
+          if (isbn === "9781789349917") {
+            return {
+              isbn: "9781789349917",
+              title: "Learn C Programming",
+              authors: ["Jeff Szuhay"],
+              publisher: "Packt Publishing",
+              publishedDate: "2020-06-26",
+              description: "Get started with writing simple programs in C while learning the skills that will help you work with practically any programming language",
+              pageCount: 742,
+              categories: ["Computers"],
+              language: "en"
+            };
+          }
+          return null;
+        },
+        detectGenresFromCategories: (categories: string[]) => {
+          return categories.includes("Computers") ? ["Programming", "Technology"] : ["Fiction"];
+        },
+        detectContentRating: (metadata: any) => {
+          return ["All Ages"];
+        },
+        generateAuthorTags: (authorDetails: any) => {
+          return [];
+        }
+      };
       
       const results = await crawler.crawlForBooksWithMetadata();
       
@@ -151,6 +224,14 @@ Deno.test("BookCrawler - crawlForBooksWithMetadata", async (t) => {
     
     // Mock the metadata extractor
     (crawler as any).metadataExtractor = new MockMetadataExtractor();
+    
+    // Mock the external metadata service
+    (crawler as any).externalMetadataService = {
+      lookupByISBN: async (isbn: string) => null,
+      detectGenresFromCategories: (categories: string[]) => ["Fiction"],
+      detectContentRating: (metadata: any) => ["All Ages"],
+      generateAuthorTags: (authorDetails: any) => []
+    };
     
     const results = await crawler.crawlForBooksWithMetadata();
     
@@ -212,6 +293,35 @@ Deno.test("BookCrawler - crawlForBooksWithMetadata", async (t) => {
       // Mock the metadata extractor
       (crawler as any).metadataExtractor = new MockMetadataExtractor();
       
+      // Mock the external metadata service
+      (crawler as any).externalMetadataService = {
+        lookupByISBN: async (isbn: string) => {
+          if (isbn === "9781789349917") {
+            return {
+              isbn: "9781789349917",
+              title: "Learn C Programming",
+              authors: ["Jeff Szuhay"],
+              publisher: "Packt Publishing",
+              publishedDate: "2020-06-26",
+              description: "Get started with writing simple programs in C while learning the skills that will help you work with practically any programming language",
+              pageCount: 742,
+              categories: ["Computers"],
+              language: "en"
+            };
+          }
+          return null;
+        },
+        detectGenresFromCategories: (categories: string[]) => {
+          return categories.includes("Computers") ? ["Programming", "Technology"] : ["Fiction"];
+        },
+        detectContentRating: (metadata: any) => {
+          return ["All Ages"];
+        },
+        generateAuthorTags: (authorDetails: any) => {
+          return [];
+        }
+      };
+      
       const results = await crawler.crawlForBooksWithMetadata();
       
       assertEquals(results.length, 1);
@@ -250,6 +360,37 @@ Deno.test("BookCrawler - crawlForBooksWithMetadata", async (t) => {
       // Mock the metadata extractor
       (crawler as any).metadataExtractor = new MockMetadataExtractor();
       
+      // Mock the external metadata service with Harry Potter metadata
+      (crawler as any).externalMetadataService = {
+        lookupByISBN: async (isbn: string) => {
+          if (isbn === "9780747532699") {
+            return {
+              isbn: "9780747532699",
+              title: "Harry Potter and the Philosopher's Stone",
+              authors: ["J.K. Rowling"],
+              publisher: "Bloomsbury",
+              publishedDate: "1997-06-26",
+              description: "The first book in the Harry Potter series",
+              pageCount: 223,
+              categories: ["Fiction", "Fantasy"],
+              language: "en",
+              series: "Harry Potter",
+              seriesNumber: 1
+            };
+          }
+          return null;
+        },
+        detectGenresFromCategories: (categories: string[]) => {
+          return categories.includes("Fantasy") ? ["Fantasy", "Fiction"] : ["Fiction"];
+        },
+        detectContentRating: (metadata: any) => {
+          return ["All Ages"];
+        },
+        generateAuthorTags: (authorDetails: any) => {
+          return [];
+        }
+      };
+      
       const results = await crawler.crawlForBooksWithMetadata();
       
       assertEquals(results.length, 1);
@@ -269,6 +410,14 @@ Deno.test("BookCrawler - crawlForBooksWithMetadata", async (t) => {
     
     // Mock the metadata extractor
     (crawler as any).metadataExtractor = new MockMetadataExtractor();
+    
+    // Mock the external metadata service (even though disabled, it needs to exist)
+    (crawler as any).externalMetadataService = {
+      lookupByISBN: async (isbn: string) => null,
+      detectGenresFromCategories: (categories: string[]) => ["Fiction"],
+      detectContentRating: (metadata: any) => ["All Ages"],
+      generateAuthorTags: (authorDetails: any) => []
+    };
     
     const results = await crawler.crawlForBooksWithMetadata();
     

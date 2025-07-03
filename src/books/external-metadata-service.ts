@@ -212,14 +212,14 @@ export class GoogleBooksAPI implements MetadataSource {
     title: string,
     subtitle: string
   ): { series: string; number: number } | null {
-    const text = `${title} ${subtitle}`.toLowerCase();
+    const text = `${title} ${subtitle}`;
 
     // Pattern 1: "Book Title (Series Name #3)"
     const pattern1 = /\((.+?)\s*(?:#|book|vol\.?|volume)\s*(\d+)\)/i;
     const match1 = text.match(pattern1);
     if (match1) {
       return {
-        series: match1[1].trim(),
+        series: this.toTitleCase(match1[1].trim()),
         number: parseInt(match1[2], 10),
       };
     }
@@ -229,12 +229,18 @@ export class GoogleBooksAPI implements MetadataSource {
     const match2 = text.match(pattern2);
     if (match2) {
       return {
-        series: match2[1].trim(),
+        series: this.toTitleCase(match2[1].trim()),
         number: parseInt(match2[2], 10),
       };
     }
 
     return null;
+  }
+
+  private toTitleCase(str: string): string {
+    return str.replace(/\w\S*/g, (txt) => 
+      txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase()
+    );
   }
 
   async lookupAuthor(authorName: string): Promise<ExternalAuthorMetadata | null> {
@@ -695,6 +701,7 @@ export class ExternalMetadataService {
       biography: "Biography",
       autobiography: "Biography",
       history: "History",
+      historical: "History", // Added for partial matches like "Historical Fiction"
       science: "Science",
       technology: "Technology",
       cooking: "Cooking",
@@ -754,14 +761,15 @@ export class ExternalMetadataService {
       metadata.description
     } ${categories.join(" ")}`.toLowerCase();
 
-    if (
+    // Check for teen content first (more specific)
+    if (allText.includes("young adult") || allText.includes("teen")) {
+      ratings.push("Teen");
+    } else if (
       allText.includes("adult") ||
       allText.includes("erotic") ||
       allText.includes("explicit")
     ) {
       ratings.push("NSFW");
-    } else if (allText.includes("young adult") || allText.includes("teen")) {
-      ratings.push("Teen");
     } else if (allText.includes("children")) {
       ratings.push("All Ages");
     }

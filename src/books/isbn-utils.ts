@@ -19,18 +19,26 @@ export function extractISBNFromFilename(filename: string): string | null {
     // Remove file extension
     const nameWithoutExt = filename.replace(/\.[^.]+$/, '');
     
-    // Pattern 1: Pure ISBN as filename (with or without hyphens)
-    const isbnPattern1 = /^(97[89][\d\-]{10,}|\d{9}[\dX]|\d{10})$/i;
+    // Pattern 1: Pure ISBN as filename (with or without hyphens/underscores)
+    const isbnPattern1 = /^(97[89][\d\-_]{10,}|\d{9}[\dX]|\d{10})$/i;
     const match1 = nameWithoutExt.match(isbnPattern1);
     if (match1) {
-        return cleanISBN(match1[1]);
+        const cleaned = cleanISBN(match1[1]);
+        // Validate that it's a proper length after cleaning
+        if (cleaned.length === 10 || cleaned.length === 13) {
+            return cleaned;
+        }
     }
     
     // Pattern 2: ISBN somewhere in filename (prefixed/suffixed with underscores or other chars)
-    const isbnPattern2 = /(?:isbn[_\-]?)?(97[89][\d\-]{10,}|\d{9}[\dX])/i;
+    const isbnPattern2 = /(?:isbn[_\-]?)?(97[89][\d\-_]{10,}|\d{9}[\dX])/i;
     const match2 = nameWithoutExt.match(isbnPattern2);
     if (match2) {
-        return cleanISBN(match2[1]);
+        const cleaned = cleanISBN(match2[1]);
+        // Validate that it's a proper length after cleaning
+        if (cleaned.length === 10 || cleaned.length === 13) {
+            return cleaned;
+        }
     }
     
     return null;
@@ -38,9 +46,41 @@ export function extractISBNFromFilename(filename: string): string | null {
 
 /**
  * Clean ISBN by removing all non-digit characters except X
+ * Also handles common ISBN prefixes and formats
  */
 export function cleanISBN(isbn: string): string {
-    return isbn.replace(/[^\dX]/gi, '').toUpperCase();
+    // First, handle common patterns like "ISBN-13: 978..." or "ISBN: 123..."
+    let cleaned = isbn;
+    
+    // Remove common ISBN prefixes
+    cleaned = cleaned.replace(/^(?:isbn[-:\s]*(?:1[03][-:\s]*)?)/i, '');
+    
+    // Remove everything that's not a digit or X
+    cleaned = cleaned.replace(/[^\dX]/gi, '').toUpperCase();
+    
+    // If we got more than 13 characters, try to extract the most likely ISBN
+    if (cleaned.length > 13) {
+        // Look for a 13-digit sequence starting with 978 or 979
+        const isbn13Match = cleaned.match(/(97[89]\d{10})/);
+        if (isbn13Match) {
+            return isbn13Match[1];
+        }
+        
+        // Look for a 10-digit sequence 
+        const isbn10Match = cleaned.match(/(\d{9}[\dX])/);
+        if (isbn10Match) {
+            return isbn10Match[1];
+        }
+        
+        // If still too long, take the first 13 or 10 characters
+        if (cleaned.length >= 13 && (cleaned.startsWith('978') || cleaned.startsWith('979'))) {
+            return cleaned.slice(0, 13);
+        } else if (cleaned.length >= 10) {
+            return cleaned.slice(0, 10);
+        }
+    }
+    
+    return cleaned;
 }
 
 /**

@@ -3,8 +3,6 @@
  * Run with: deno test src/books/__tests__/run-tests.ts
  */
 
-import "https://deno.land/std@0.208.0/dotenv/load.ts";
-
 // Import all test files to run them
 import "./isbn-utils.test.ts";
 import "./external-metadata-service.test.ts";

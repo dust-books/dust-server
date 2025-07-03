@@ -15,6 +15,7 @@ export interface MockWalkEntry {
 
 export class MockFileSystemWalker implements FileSystemWalker {
   private entries: MockWalkEntry[];
+  private supportedExtensions = ['.epub', '.pdf', '.mobi', '.azw3', '.cbr', '.cbz'];
 
   constructor(entries: MockWalkEntry[]) {
     this.entries = entries.map(entry => ({
@@ -27,7 +28,12 @@ export class MockFileSystemWalker implements FileSystemWalker {
   }
 
   async collect() {
-    return this.entries;
+    // Filter by supported file extensions, similar to FSWalker
+    return this.entries.filter(entry => {
+      if (!entry.isFile) return false;
+      const ext = '.' + entry.name.split('.').pop()?.toLowerCase();
+      return this.supportedExtensions.includes(ext);
+    });
   }
 }
 
@@ -190,8 +196,12 @@ export const createMockDatabase = (): any => {
   executeWrapper.mockClear = () => executeMock.mockClear();
   executeWrapper.mock = executeMock.mock;
   
-  const migrateWrapper = () => migrateMock.fn();
+  const migrateWrapper = (...args: any[]) => migrateMock.fn(...args);
+  migrateWrapper.mockResolvedValueOnce = (value: any) => migrateMock.mockResolvedValueOnce(value);
+  migrateWrapper.mockResolvedValue = (value: any) => migrateMock.mockResolvedValue(value);
+  migrateWrapper.mockReturnValue = (value: any) => migrateMock.mockReturnValue(value);
   migrateWrapper.mockClear = () => migrateMock.mockClear();
+  migrateWrapper.mock = migrateMock.mock;
   
   return {
     execute: executeWrapper,
