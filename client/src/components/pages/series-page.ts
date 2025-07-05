@@ -185,7 +185,7 @@ export class SeriesPage extends LitElement {
           </li>
         </ul>
 
-        <a href="/library" class="back-link" @click=${(e: Event) => {
+        <a href="#library" class="back-link" @click=${(e: Event) => {
           e.preventDefault();
           this.handleBackToLibrary();
         }}>

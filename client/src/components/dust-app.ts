@@ -152,6 +152,7 @@ export class DustApp extends LitElement {
     });
     
     window.addEventListener("popstate", this.handleNavigation);
+    window.addEventListener("hashchange", this.handleNavigation);
     this.handleNavigation();
     
     // Initialize server connection
@@ -163,11 +164,20 @@ export class DustApp extends LitElement {
     super.disconnectedCallback();
     this.unsubscribe?.();
     window.removeEventListener("popstate", this.handleNavigation);
+    window.removeEventListener("hashchange", this.handleNavigation);
   }
 
   private handleNavigation() {
-    const path = window.location.pathname;
-    const segments = path.split("/").filter((s) => s);
+    // Use hash for routing (GitHub Pages compatible)
+    const hash = window.location.hash.slice(1); // Remove the '#'
+    
+    // If no hash, set default route
+    if (!hash) {
+      window.location.hash = "#library";
+      return;
+    }
+    
+    const segments = hash.split("/").filter((s) => s);
     const page = segments[0] || "library";
 
     this.currentPage = page;
@@ -197,28 +207,28 @@ export class DustApp extends LitElement {
 
   private navigateTo(page: string) {
     this.currentPage = page;
-    window.history.pushState({}, "", `/${page}`);
+    window.location.hash = `#${page}`;
   }
 
   private handleBookSelect(event: CustomEvent) {
     const bookId = event.detail.bookId;
     this.currentPage = "reader";
     this.appStateService.selectBook(bookId);
-    window.history.pushState({}, "", `/reader/${bookId}`);
+    window.location.hash = `#reader/${bookId}`;
   }
 
   private handleAuthorSelect(event: CustomEvent) {
     const { authorId } = event.detail;
     this.currentPage = "author-detail";
     this.currentAuthorId = authorId;
-    window.history.pushState({}, "", `/authors/${authorId}`);
+    window.location.hash = `#authors/${authorId}`;
   }
 
   private handleGenreSelect(event: CustomEvent) {
     const { genreId } = event.detail;
     this.currentPage = "genre-detail";
     this.currentGenreId = genreId;
-    window.history.pushState({}, "", `/genres/${genreId}`);
+    window.location.hash = `#genres/${genreId}`;
   }
 
   private handleServerChange(event: CustomEvent) {
