@@ -201,7 +201,7 @@ export class AppHeader extends LitElement {
           <div
             class="user-avatar"
             @click=${this.handleProfileClick}
-            title=${this.user?.display_name || "Profile"}
+            title=${this.user?.displayName || "Profile"}
           >
             ${this.getUserInitials()}
           </div>

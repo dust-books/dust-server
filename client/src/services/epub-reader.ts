@@ -146,7 +146,7 @@ export class EpubReaderService {
     if (!this.rendition) return;
 
     try {
-      await this.rendition.display(target);
+      await this.rendition.display(target as any);
       this.updateLocation();
     } catch (error) {
       console.error('Failed to navigate to location:', error);
@@ -160,10 +160,10 @@ export class EpubReaderService {
     if (!this.book || !this.rendition) return;
 
     try {
-      const location = await this.book.locations.percentageFromCfi(
-        this.book.locations.start
+      await this.book.locations.percentageFromCfi(
+        (this.book.locations as any).start
       );
-      const targetCfi = this.book.locations.cfiFromPercentage(percentage / 100);
+      const targetCfi = (this.book.locations as any).cfiFromPercentage(percentage / 100);
       await this.goTo(targetCfi);
     } catch (error) {
       console.error('Failed to navigate to percentage:', error);
@@ -223,14 +223,14 @@ export class EpubReaderService {
     let pageNumber = 0;
     let totalPages = 0;
     
-    if (this.book.locations && this.book.locations.total > 0) {
+    if (this.book.locations && (this.book.locations as any).total > 0) {
       // Use generated locations for accurate page tracking
-      pageNumber = this.book.locations.locationFromCfi(this.currentLocation.start.cfi) + 1; // 1-indexed
-      totalPages = this.book.locations.total;
+      pageNumber = (this.book.locations as any).locationFromCfi(this.currentLocation.start.cfi) + 1; // 1-indexed
+      totalPages = (this.book.locations as any).total;
     } else {
       // Fallback to location property or chapter-based calculation
       pageNumber = this.currentLocation.start.location || (this.currentLocation.start.index + 1) || 1;
-      totalPages = this.book.spine.length;
+      totalPages = (this.book.spine as any).length;
     }
 
     // Calculate percentage from page numbers if EPUB.js percentage is not available
@@ -246,7 +246,7 @@ export class EpubReaderService {
       totalPages: totalPages,
       percentage: Math.round(percentage * 100) / 100, // Round to 2 decimal places
       chapter: this.currentLocation.start.index || 0,
-      totalChapters: this.book.spine.length
+      totalChapters: (this.book.spine as any).length
     };
   }
 
@@ -262,9 +262,9 @@ export class EpubReaderService {
 
     try {
       const results = await Promise.all(
-        this.book.spine.spineItems.map(async (item) => {
+        (this.book.spine as any).spineItems.map(async (item: any) => {
           const results = await item.load(this.book!.load.bind(this.book))
-            .then((doc: Document) => item.find(query))
+            .then((_doc: Document) => item.find(query))
             .finally(() => item.unload());
           
           return results.map((result: any) => ({
@@ -535,7 +535,7 @@ export class EpubReaderService {
       activeElement.tagName === 'INPUT' || 
       activeElement.tagName === 'TEXTAREA' || 
       activeElement.tagName === 'SELECT' ||
-      activeElement.contentEditable === 'true'
+      (activeElement as any).contentEditable === 'true'
     );
 
     if (isInputActive) {
@@ -567,7 +567,7 @@ export class EpubReaderService {
       case 'G': // Go to end (Vim-style)
         if (this.book) {
           event.preventDefault();
-          this.goTo(this.book.spine.length - 1);
+          this.goTo((this.book.spine as any).length - 1);
         }
         break;
       case 'j': // Vim-style down/next

@@ -208,7 +208,7 @@ export class LoginForm extends LitElement {
     }
   `;
 
-  private handleServerChange(event: CustomEvent) {
+  private handleServerChange(_event: CustomEvent) {
     // Refresh app state when server changes
     this.appStateService.refreshAfterServerChange();
   }

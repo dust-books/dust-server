@@ -3,7 +3,7 @@
  */
 
 import { createContext } from '@lit/context';
-import type { AppState, User, Book, ReadingProgress, Toast } from '../types/app.js';
+import type { AppState, Book, ReadingProgress, Toast } from '../types/app.js';
 import { apiService, ApiError } from './api.js';
 import { serverManager } from './server-manager.js';
 
@@ -453,7 +453,7 @@ export class AppStateService {
     this.notifyListeners();
     
     // Auto-remove toast after duration
-    if (newToast.duration > 0) {
+    if (newToast.duration && newToast.duration > 0) {
       setTimeout(() => this.removeToast(id), newToast.duration);
     }
     

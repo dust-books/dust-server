@@ -3,12 +3,11 @@
  */
 
 import { LitElement, html, css } from 'lit';
-import { customElement, state } from 'lit/decorators.js';
+import { customElement } from 'lit/decorators.js';
 
 @customElement('series-page')
 export class SeriesPage extends LitElement {
-  @state()
-  private isLoading = false;
+  // Removed unused state variable
 
   static styles = css`
     :host {

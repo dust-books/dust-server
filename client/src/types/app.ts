@@ -2,6 +2,8 @@
  * Application-specific type definitions
  */
 
+import type { User, Book, ReadingProgress } from './api.js';
+
 export interface AppState {
   user: User | null;
   isAuthenticated: boolean;

@@ -7,7 +7,7 @@ import { customElement, property, state } from 'lit/decorators.js';
 import { consume } from '@lit/context';
 
 import { appStateContext, AppStateService } from '../../services/app-state.js';
-import type { Book } from '../../types/app.js';
+// Unused import removed
 
 interface Author {
   id: number;

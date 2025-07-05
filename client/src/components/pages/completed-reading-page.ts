@@ -7,6 +7,7 @@ import { customElement, state } from 'lit/decorators.js';
 import { consume } from '@lit/context';
 
 import { appStateContext, AppStateService } from '../../services/app-state.js';
+import { apiService } from '../../services/api.js';
 import type { Book, ReadingProgress } from '../../types/app.js';
 
 @customElement('completed-reading-page')
@@ -258,7 +259,7 @@ export class CompletedReadingPage extends LitElement {
   private async loadCompletedBooks() {
     this.isLoading = true;
     try {
-      const response = await this.appStateService.api.getCompletedBooks();
+      const response = await apiService.getCompletedBooks();
       this.completedBooks = response.books;
     } catch (error) {
       console.error('Failed to load completed books:', error);

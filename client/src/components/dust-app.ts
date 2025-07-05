@@ -46,8 +46,7 @@ export class DustApp extends LitElement {
   @state()
   private currentGenreId: number | null = null;
 
-  @state()
-  private currentServerId: string | null = null;
+  // Removed unused state variable
 
   static styles = css`
     :host {
@@ -146,9 +145,8 @@ export class DustApp extends LitElement {
     window.addEventListener("popstate", this.handleNavigation);
     this.handleNavigation();
     
-    // Initialize current server ID
-    const activeServer = serverManager.getActiveServer();
-    this.currentServerId = activeServer?.id || null;
+    // Initialize server connection
+    serverManager.getActiveServer();
   }
 
   disconnectedCallback() {
@@ -216,9 +214,7 @@ export class DustApp extends LitElement {
   private handleServerChange(event: CustomEvent) {
     console.log('Server changed:', event.detail.server);
     
-    // Update current server ID to trigger re-renders
-    const newServer = event.detail.server;
-    this.currentServerId = newServer.id;
+    // Server changed - trigger re-render via app state refresh
     
     // Refresh the app state to load data from the new server
     this.appStateService.refreshAfterServerChange();
@@ -248,7 +244,7 @@ export class DustApp extends LitElement {
           @book-select=${this.handleBookSelect}
           @author-select=${this.handleAuthorSelect}
           @genre-select=${this.handleGenreSelect}
-          @navigate-back=${(e: CustomEvent) => {
+          @navigate-back=${(_e: CustomEvent) => {
             // Navigate back based on current context
             if (this.currentPage === "author-detail") {
               this.navigateTo("authors");

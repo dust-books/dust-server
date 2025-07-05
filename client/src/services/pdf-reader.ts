@@ -329,7 +329,7 @@ export class PdfReader {
         activeElement.tagName === 'INPUT' || 
         activeElement.tagName === 'TEXTAREA' || 
         activeElement.tagName === 'SELECT' ||
-        activeElement.contentEditable === 'true'
+        (activeElement as any).contentEditable === 'true'
       );
 
       if (isInputActive) {

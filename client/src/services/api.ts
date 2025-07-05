@@ -12,7 +12,6 @@ import type {
   CreateUserRequest,
   UpdateUserRequest,
   DashboardStats,
-  ApiResponse
 } from '../types/api.js';
 
 import { serverManager } from './server-manager.js';
@@ -61,9 +60,9 @@ export class ApiService {
     const token = this.getCurrentToken();
     
     const url = `${server.baseUrl}${endpoint}`;
-    const headers: HeadersInit = {
+    const headers: Record<string, string> = {
       'Content-Type': 'application/json',
-      ...options.headers,
+      ...((options.headers as Record<string, string>) || {}),
     };
 
     if (token) {
