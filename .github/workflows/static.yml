@@ -36,7 +36,7 @@ jobs:
       - name: Install Node
         uses: actions/setup-node@v3.9.1
       - name: Build Client
-        run: cd ./client && npm run build
+        run: cd ./client && npm i && npm run build
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
