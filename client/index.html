@@ -240,8 +240,7 @@
 
   <!-- Main Application Container -->
   <div id="app">
-    <!-- The Dust application will be mounted here -->
-    <dust-app></dust-app>
+    <!-- The Dust application will be mounted here by main.js -->
   </div>
 
   <!-- Application Initialization Script -->
@@ -292,7 +291,7 @@
     document.addEventListener('DOMContentLoaded', async () => {
       try {
         // Wait for custom elements to be defined
-        await customElements.whenDefined('dust-app');
+        await customElements.whenDefined('dust-main');
         
         // Small delay to ensure everything is properly rendered
         await new Promise(resolve => setTimeout(resolve, 100));

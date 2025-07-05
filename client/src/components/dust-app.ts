@@ -34,8 +34,8 @@ export class DustApp extends LitElement {
   @property({ attribute: false })
   appStateService!: AppStateService;
 
-  @property({ type: Object })
-  appState!: AppState;
+  @state()
+  private appState!: AppState;
 
   @state()
   private currentPage = "library";
@@ -46,7 +46,7 @@ export class DustApp extends LitElement {
   @state()
   private currentGenreId: number | null = null;
 
-  // Removed unused state variable
+  private unsubscribe?: () => void;
 
   static styles = css`
     :host {
@@ -142,6 +142,15 @@ export class DustApp extends LitElement {
   connectedCallback() {
     console.log("DustApp - connected callback");
     super.connectedCallback();
+    
+    // Initialize app state from service
+    this.appState = this.appStateService.getState();
+    
+    // Subscribe to state changes
+    this.unsubscribe = this.appStateService.subscribe(() => {
+      this.appState = this.appStateService.getState();
+    });
+    
     window.addEventListener("popstate", this.handleNavigation);
     this.handleNavigation();
     
@@ -152,6 +161,7 @@ export class DustApp extends LitElement {
   disconnectedCallback() {
     console.log("DustApp - disconnected callback");
     super.disconnectedCallback();
+    this.unsubscribe?.();
     window.removeEventListener("popstate", this.handleNavigation);
   }
 

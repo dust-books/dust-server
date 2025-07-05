@@ -3,11 +3,10 @@
  */
 
 import { LitElement, html, css } from "lit";
-import { customElement, state } from "lit/decorators.js";
+import { customElement } from "lit/decorators.js";
 import { provide } from "@lit/context";
 
 import { appState, appStateContext } from "./services/app-state.js";
-import type { AppState } from "./types/app.js";
 
 // Import components
 import "./components/dust-app.js";
@@ -17,8 +16,7 @@ export class DustMain extends LitElement {
   @provide({ context: appStateContext })
   appStateService = appState;
 
-  @state()
-  private appState: AppState = appState.getState();
+  // App state is managed by the dust-app component directly
 
   static styles = css`
     :host {
@@ -32,20 +30,10 @@ export class DustMain extends LitElement {
   connectedCallback() {
     console.log("DustMain - connected callback");
     super.connectedCallback();
-    this.unsubscribe = appState.subscribe(() => {
-      this.appState = appState.getState();
-    });
   }
-
-  disconnectedCallback() {
-    super.disconnectedCallback();
-    this.unsubscribe?.();
-  }
-
-  private unsubscribe?: () => void;
 
   render() {
-    return html` <dust-app .appState=${this.appState}></dust-app> `;
+    return html` <dust-app></dust-app> `;
   }
 }
 
