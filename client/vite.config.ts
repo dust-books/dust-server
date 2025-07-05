@@ -27,12 +27,11 @@ export default defineConfig({
     }
   },
   build: {
-    lib: {
-      entry: 'src/main.ts',
-      formats: ['es']
-    },
+    outDir: 'dist',
     rollupOptions: {
-      external: [],
+      input: {
+        main: 'index.html'
+      },
       output: {
         entryFileNames: '[name].js',
         chunkFileNames: '[name].js',
