@@ -2,6 +2,8 @@ import { defineConfig } from 'vite'
 import dts from 'vite-plugin-dts'
 
 export default defineConfig({
+  // Use relative paths for GitHub Pages deployment
+  base: '',
   plugins: [
     dts({
       include: ['src/**/*'],
