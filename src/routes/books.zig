@@ -569,7 +569,7 @@ pub const BookRoutes = struct {
             return;
         };
         
-        try self.tag_service.addTagToBook(book_id, tag_name.string);
+        try self.tag_service.addTagToBook(@intCast(book_id), tag_name.string, @intCast(user_id));
         try res.json(.{ .message = "Tag added successfully" }, .{});
     }
     
@@ -605,7 +605,7 @@ pub const BookRoutes = struct {
             return;
         };
         
-        try self.tag_service.removeTagFromBook(book_id, tag_name);
+        try self.tag_service.removeTagFromBook(@intCast(book_id), tag_name);
         try res.json(.{ .message = "Tag removed successfully" }, .{});
     }
     
@@ -629,17 +629,19 @@ pub const BookRoutes = struct {
             return;
         };
         
-        const books = try self.tag_service.getBooksByTag(tag_name);
-        defer self.allocator.free(books);
+        const book_ids = try self.tag_service.getBooksByTag(tag_name);
+        defer self.allocator.free(book_ids);
         
-        // Filter by user access
-        var accessible_books = std.ArrayList(@TypeOf(books[0])).init(self.allocator);
+        // Fetch books and filter by user access
+        var accessible_books = std.ArrayList(@import("../books.zig").Book).init(self.allocator);
         defer accessible_books.deinit();
         
-        for (books) |book| {
-            const can_access = try self.book_permission_service.canUserAccessBook(user_id, book.id);
+        for (book_ids) |book_id| {
+            const can_access = try self.book_permission_service.canUserAccessBook(user_id, @intCast(book_id));
             if (can_access.can_access) {
-                try accessible_books.append(book);
+                if (try self.book_service.getBookById(book_id)) |book| {
+                    try accessible_books.append(book);
+                }
             }
         }
         

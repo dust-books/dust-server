@@ -176,7 +176,7 @@ pub const TagService = struct {
         return tags.toOwnedSlice();
     }
 
-    pub fn addTagToBook(
+    pub fn addTagToBookById(
         self: *TagService,
         book_id: i64,
         tag_id: i64,
@@ -201,13 +201,49 @@ pub const TagService = struct {
         });
     }
 
-    pub fn removeTagFromBook(self: *TagService, book_id: i64, tag_id: i64) !void {
+    pub fn addTagToBook(
+        self: *TagService,
+        book_id: i64,
+        tag_name: []const u8,
+        applied_by: ?i64,
+    ) !void {
+        const tag = try self.getTagByName(tag_name) orelse return error.TagNotFound;
+        try self.addTagToBookById(book_id, tag.id, applied_by, false);
+    }
+
+    pub fn removeTagFromBookById(self: *TagService, book_id: i64, tag_id: i64) !void {
         const query = "DELETE FROM book_tags WHERE book_id = ? AND tag_id = ?";
 
         var stmt = try self.db.prepare(query);
         defer stmt.deinit();
 
         try stmt.exec(.{}, .{ .book_id = book_id, .tag_id = tag_id });
+    }
+
+    pub fn removeTagFromBook(self: *TagService, book_id: i64, tag_name: []const u8) !void {
+        const tag = try self.getTagByName(tag_name) orelse return error.TagNotFound;
+        try self.removeTagFromBookById(book_id, tag.id);
+    }
+
+    pub fn getBooksWithTag(self: *TagService, tag_name: []const u8) ![]i64 {
+        const tag = try self.getTagByName(tag_name) orelse return error.TagNotFound;
+
+        const query =
+            \\SELECT book_id FROM book_tags WHERE tag_id = ?
+        ;
+
+        var stmt = try self.db.prepare(query);
+        defer stmt.deinit();
+
+        var book_ids = std.ArrayList(i64).init(self.allocator);
+        errdefer book_ids.deinit();
+
+        const iter = try stmt.iterator(struct { book_id: i64 }, .{ .tag_id = tag.id });
+        while (try iter.next(.{})) |row| {
+            try book_ids.append(row.book_id);
+        }
+
+        return book_ids.toOwnedSlice();
     }
 
     pub fn getBookTags(self: *TagService, book_id: i64) ![]Tag {
@@ -269,10 +305,31 @@ pub const TagService = struct {
         // Apply all auto tags
         for (auto_tags.items) |tag_name| {
             if (try self.getTagByName(tag_name)) |tag| {
-                self.addTagToBook(book_id, tag.id, null, true) catch |err| {
+                self.addTagToBookById(book_id, tag.id, null, true) catch |err| {
                     std.log.debug("Tag {s} already exists on book {d}: {}", .{ tag_name, book_id, err });
                 };
             }
         }
+    }
+
+    pub fn getBooksByTag(self: *TagService, tag_name: []const u8) ![]i64 {
+        const tag = try self.getTagByName(tag_name) orelse return error.TagNotFound;
+
+        const query =
+            \\SELECT book_id FROM book_tags WHERE tag_id = ?
+        ;
+
+        var stmt = try self.db.prepare(query);
+        defer stmt.deinit();
+
+        var book_ids = std.ArrayList(i64).init(self.allocator);
+        errdefer book_ids.deinit();
+
+        const iter = try stmt.iterator(struct { book_id: i64 }, .{ .tag_id = tag.id });
+        while (try iter.next(.{})) |row| {
+            try book_ids.append(row.book_id);
+        }
+
+        return book_ids.toOwnedSlice();
     }
 };
