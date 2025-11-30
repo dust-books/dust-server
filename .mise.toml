@@ -1,0 +1,6 @@
+# Mise configuration for Dust Server Zig rewrite
+# This file pins the exact versions of tools needed for this project
+
+[tools]
+zig = "0.15.2"
+zls = "0.15.0"  # Zig Language Server for IDE support
