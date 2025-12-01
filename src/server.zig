@@ -14,7 +14,7 @@ const BookRepository = @import("modules/books/model.zig").BookRepository;
 const AuthorRepository = @import("modules/books/model.zig").AuthorRepository;
 const TagRepository = @import("modules/books/model.zig").TagRepository;
 const admin_users = @import("modules/users/routes/admin_users.zig");
-const admin_routes = @import("admin_routes.zig");
+const AdminController = @import("modules/admin/controller.zig").AdminController;
 
 pub const DustServer = struct {
     httpz_server: httpz.Server(*ServerContext),
@@ -23,6 +23,7 @@ pub const DustServer = struct {
     permission_service: *PermissionService,
     permission_repo: *PermissionRepository,
     book_controller: *BookController,
+    admin_controller: *AdminController,
     should_shutdown: *std.atomic.Value(bool),
     
     pub fn init(allocator: std.mem.Allocator, port: u16, db: *Database, jwt_secret: []const u8, should_shutdown: *std.atomic.Value(bool)) !DustServer {
@@ -51,6 +52,9 @@ pub const DustServer = struct {
         const book_controller = try allocator.create(BookController);
         book_controller.* = BookController.init(&db.db, book_repo, author_repo, tag_repo, allocator);
         
+        const admin_controller = try allocator.create(AdminController);
+        admin_controller.* = AdminController.init(db, allocator);
+        
         const context_ptr = try allocator.create(ServerContext);
         context_ptr.* = ServerContext{
             .auth_context = AuthContext{
@@ -60,7 +64,7 @@ pub const DustServer = struct {
             },
             .permission_service = permission_service,
             .permission_repo = permission_repo,
-            .admin_controller = null,
+            .admin_controller = admin_controller,
             .book_controller = book_controller,
             .db = db,
         };
@@ -76,6 +80,7 @@ pub const DustServer = struct {
             .permission_service = permission_service,
             .permission_repo = permission_repo,
             .book_controller = book_controller,
+            .admin_controller = admin_controller,
             .should_shutdown = should_shutdown,
         };
     }
@@ -92,6 +97,7 @@ pub const DustServer = struct {
         // Clean up controllers and their repositories
         self.book_controller.deinit();
         self.allocator.destroy(self.book_controller);
+        self.allocator.destroy(self.admin_controller);
         
         // Clean up auth service
         self.allocator.destroy(self.context_ptr.auth_context.auth_service);
@@ -153,7 +159,7 @@ pub const DustServer = struct {
         router.get("/admin/users/:id", adminGetUser, .{});
         router.put("/admin/users/:id", adminUpdateUser, .{});
         router.delete("/admin/users/:id", adminDeleteUser, .{});
-        router.post("/admin/scan", admin_routes.scanLibrary, .{});
+        router.post("/admin/scan", adminScanLibrary, .{});
     }
     
     pub fn listen(self: *DustServer) !void {
@@ -269,6 +275,11 @@ fn adminUpdateUser(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Respons
 
 fn adminDeleteUser(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
     try admin_users.deleteUser(ctx.auth_context.auth_service.user_repo.db, &ctx.auth_context.jwt, ctx.auth_context.allocator, req, res);
+}
+
+fn adminScanLibrary(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
+    const controller: *AdminController = @ptrCast(@alignCast(ctx.admin_controller.?));
+    try controller.scanLibrary(req, res);
 }
 
 // Tag route handlers
