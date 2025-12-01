@@ -1,2 +1,14 @@
 # pls dont commit your local db
 dust.db
+
+# Zig build artifacts
+zig-cache/
+zig-out/
+.zig-cache/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~

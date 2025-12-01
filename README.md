@@ -4,6 +4,54 @@
 
 Dust is a media server focused around ebooks and comics. Think Plex, but for people who like to read (and more importantly, collect digital books and comics!).
 
+## 🚀 Zig Implementation (New!)
+
+Dust is being rewritten in **Zig 0.15.2** for improved performance, memory safety, and lower resource usage. The Zig version is now **~60% complete** with core functionality operational!
+
+### Quick Start (Zig Version)
+
+```bash
+# Build the server
+zig build -Doptimize=ReleaseSafe
+
+# Set required environment variables
+export JWT_SECRET=$(openssl rand -base64 32)
+export dirs="/path/to/books"
+
+# Run the server
+./zig-out/bin/dust-server
+```
+
+**📚 See [ZIG-QUICKSTART.md](ZIG-QUICKSTART.md) for full setup instructions.**
+
+### What's Working
+✅ User authentication (JWT)  
+✅ Permission system  
+✅ User management  
+✅ Database (SQLite)  
+✅ 50+ API endpoints  
+✅ Tag system (40+ default tags)  
+✅ Reading progress tracking (schema)  
+
+### Zig Documentation
+- [ZIG-QUICKSTART.md](ZIG-QUICKSTART.md) - Get up and running quickly
+- [ZIG-SESSION-SUMMARY.md](ZIG-SESSION-SUMMARY.md) - Detailed implementation overview
+- [ZIG-PROGRESS-SUMMARY.md](ZIG-PROGRESS-SUMMARY.md) - Current status and next steps
+- [ZIG-MIGRATION-GUIDE.md](ZIG-MIGRATION-GUIDE.md) - Technical architecture details
+
+### Stats
+- **4,537 lines** of Zig code
+- **27 Zig files** across modules
+- **9.8MB binary** (ReleaseSafe mode)
+- **10 database tables**
+- **50+ API endpoints**
+
+---
+
+## Original TypeScript/Deno Implementation
+
+The original TypeScript implementation is still available and functional.
+
 ## Folder Structure
 
 Assuming you have a drive labled "M" and you want that drive to be indexed by Dust, you should structure your media like so:
