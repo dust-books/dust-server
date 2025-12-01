@@ -70,4 +70,8 @@ pub const Database = struct {
         defer stmt.deinit();
         try stmt.exec(.{}, .{});
     }
+    
+    // Note: For most database operations, access the raw sqlite.Db via db.db
+    // The wrapper provides migration tracking and lifecycle management
+    // Use .db.db.prepare(), .db.db.exec(), etc. for queries
 };
