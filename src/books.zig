@@ -315,7 +315,95 @@ const TimerManager = @import("timer.zig").TimerManager;
 const BackgroundTaskContext = struct {
     db: *sqlite.Db,
     allocator: std.mem.Allocator,
+    library_directories: []const []const u8,
 };
+
+fn scanLibraryDirectories(context_ptr: *anyopaque) void {
+    const ctx: *BackgroundTaskContext = @ptrCast(@alignCast(context_ptr));
+    
+    std.log.info("📚 Starting library scan...", .{});
+    
+    // Get directories from DUST_DIRS environment variable
+    const dirs_env = std.posix.getenv("DUST_DIRS") orelse "";
+    if (dirs_env.len == 0) {
+        std.log.warn("⚠️  DUST_DIRS environment variable not set, skipping scan", .{});
+        return;
+    }
+    
+    var it = std.mem.split(u8, dirs_env, ":");
+    while (it.next()) |dir| {
+        if (dir.len == 0) continue;
+        std.log.info("🔍 Scanning directory: {s}", .{dir});
+        scanDirectory(ctx, dir) catch |err| {
+            std.log.err("❌ Failed to scan directory {s}: {}", .{ dir, err });
+            continue;
+        };
+    }
+    
+    std.log.info("✅ Library scan completed", .{});
+}
+
+fn scanDirectory(ctx: *BackgroundTaskContext, dir_path: []const u8) !void {
+    var dir = std.fs.openDirAbsolute(dir_path, .{ .iterate = true }) catch |err| {
+        std.log.err("Failed to open directory {s}: {}", .{ dir_path, err });
+        return err;
+    };
+    defer dir.close();
+    
+    var walker = try dir.walk(ctx.allocator);
+    defer walker.deinit();
+    
+    while (try walker.next()) |entry| {
+        if (entry.kind != .file) continue;
+        
+        // Check if it's an epub file
+        if (std.mem.endsWith(u8, entry.basename, ".epub")) {
+            const full_path = try std.fs.path.join(ctx.allocator, &.{ dir_path, entry.path });
+            defer ctx.allocator.free(full_path);
+            
+            std.log.info("📖 Found book: {s}", .{full_path});
+            
+            // Check if book already exists in database
+            const exists = checkBookExists(ctx.db, full_path) catch |err| {
+                std.log.err("Failed to check if book exists: {}", .{err});
+                continue;
+            };
+            
+            if (!exists) {
+                addBookToDatabase(ctx, full_path) catch |err| {
+                    std.log.err("Failed to add book {s}: {}", .{ full_path, err });
+                    continue;
+                };
+                std.log.info("✅ Added book: {s}", .{full_path});
+            }
+        }
+    }
+}
+
+fn checkBookExists(db: *sqlite.Db, path: []const u8) !bool {
+    const query = "SELECT COUNT(*) FROM books WHERE path = ?";
+    var stmt = try db.prepare(query);
+    defer stmt.deinit();
+    
+    const row = try stmt.one(struct { count: i64 }, .{}, .{path});
+    return if (row) |r| r.count > 0 else false;
+}
+
+fn addBookToDatabase(ctx: *BackgroundTaskContext, path: []const u8) !void {
+    // Extract title from filename (remove .epub extension)
+    const basename = std.fs.path.basename(path);
+    const title = if (std.mem.lastIndexOf(u8, basename, ".epub")) |idx|
+        basename[0..idx]
+    else
+        basename;
+    
+    const query =
+        \\INSERT INTO books (title, path, added_at)
+        \\VALUES (?, ?, strftime('%s', 'now'))
+    ;
+    
+    try ctx.db.exec(query, .{}, .{ .title = title, .path = path });
+}
 
 fn cleanupOldBooks(context_ptr: *anyopaque) void {
     const ctx: *BackgroundTaskContext = @ptrCast(@alignCast(context_ptr));
@@ -341,15 +429,19 @@ fn cleanupBackgroundContext(context: *anyopaque, allocator: std.mem.Allocator) v
     allocator.destroy(ctx);
 }
 
-pub fn registerBackgroundTasks(timer_manager: *TimerManager, db: *sqlite.Db, allocator: std.mem.Allocator) !void {
+pub fn registerBackgroundTasks(timer_manager: *TimerManager, db: *sqlite.Db, allocator: std.mem.Allocator, library_directories: []const []const u8) !void {
     const ctx = try allocator.create(BackgroundTaskContext);
     ctx.* = .{
         .db = db,
         .allocator = allocator,
+        .library_directories = library_directories,
     };
+    
+    // Run library scan every 5 minutes (300000 ms)
+    try timer_manager.registerTimer(scanLibraryDirectories, ctx, 300000, cleanupBackgroundContext);
     
     // Run cleanup every hour (3600000 ms)
     try timer_manager.registerTimer(cleanupOldBooks, ctx, 3600000, cleanupBackgroundContext);
     
-    std.log.info("📅 Registered books background tasks", .{});
+    std.log.info("📅 Registered books background tasks (scan every 5min, cleanup every hour)", .{});
 }

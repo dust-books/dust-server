@@ -22,6 +22,7 @@ pub const ServerContext = struct {
     permission_repo: ?*PermissionRepository = null,
     admin_controller: ?*anyopaque = null,  // Use anyopaque to avoid circular dependency
     book_controller: ?*anyopaque = null,
+    db: ?*@import("../../database.zig").Database = null,
     
     // httpz special handlers
     pub fn notFound(_: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
@@ -52,6 +53,7 @@ pub fn register(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) 
             email: []const u8,
             password: []const u8,
             username: ?[]const u8 = null,
+            display_name: ?[]const u8 = null,
         },
         auth_ctx.allocator,
         body,
@@ -162,10 +164,9 @@ pub fn login(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !vo
         return;
     };
     
-    // Return token and user info
+    // Return token and user info (matching Deno format)
     res.status = 200;
     try res.json(.{
-        .message = "Login successful",
         .token = token,
         .user = .{
             .id = user.id,

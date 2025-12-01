@@ -10,6 +10,11 @@ pub fn registerRoutes(builder: *httpz.Router.Builder, user_service: *UserService
 }
 
 fn login(user_service: *UserService, req: *httpz.Request, res: *httpz.Response) !void {
+    // Add CORS headers
+    res.header("Access-Control-Allow-Origin", "*");
+    res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+    res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
+    
     std.log.info("🔑 Login attempt received", .{});
     
     const body = try req.json(.{});
@@ -47,6 +52,11 @@ fn login(user_service: *UserService, req: *httpz.Request, res: *httpz.Response) 
 }
 
 fn register(user_service: *UserService, req: *httpz.Request, res: *httpz.Response) !void {
+    // Add CORS headers
+    res.header("Access-Control-Allow-Origin", "*");
+    res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+    res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
+    
     std.log.info("📝 Register attempt received", .{});
     
     const body = req.json(.{}) catch |err| {

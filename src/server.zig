@@ -14,6 +14,7 @@ const BookRepository = @import("modules/books/model.zig").BookRepository;
 const AuthorRepository = @import("modules/books/model.zig").AuthorRepository;
 const TagRepository = @import("modules/books/model.zig").TagRepository;
 const admin_users = @import("modules/users/routes/admin_users.zig");
+const admin_routes = @import("admin_routes.zig");
 
 pub const DustServer = struct {
     httpz_server: httpz.Server(*ServerContext),
@@ -69,6 +70,7 @@ pub const DustServer = struct {
             .permission_repo = permission_repo,
             .admin_controller = null,  // admin_controller,
             .book_controller = book_controller,
+            .db = db,
         };
         
         const context_ptr = try allocator.create(ServerContext);
@@ -112,7 +114,16 @@ pub const DustServer = struct {
     }
     
     pub fn setupRoutes(self: *DustServer) !void {
-        var router = try self.httpz_server.router(.{});
+        // Setup CORS middleware
+        const cors_middleware = try self.httpz_server.middleware(httpz.middleware.Cors, .{
+            .origin = "https://client.dustbooks.org, http://localhost:3000, http://localhost:5173",
+            .methods = "GET,POST,PUT,PATCH,DELETE,OPTIONS",
+            .headers = "authorization,content-type",
+            .max_age = "86400",
+            .credentials = "true",
+        });
+        
+        var router = try self.httpz_server.router(.{.middlewares = &.{cors_middleware}});
         
         // Root endpoint - fun Giphy embed
         router.get("/", index, .{});
@@ -155,6 +166,7 @@ pub const DustServer = struct {
         router.get("/admin/users/:id", adminGetUser, .{});
         router.put("/admin/users/:id", adminUpdateUser, .{});
         router.delete("/admin/users/:id", adminDeleteUser, .{});
+        router.post("/admin/scan", admin_routes.scanLibrary, .{});
     }
     
     pub fn listen(self: *DustServer) !void {
@@ -183,7 +195,8 @@ pub const DustServer = struct {
 };
 
 // Route handlers
-fn index(_: *ServerContext, _: *httpz.Request, res: *httpz.Response) !void {
+fn index(_: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
+    std.debug.print("📥 [{any}] {s} - from {any}\n", .{ req.method, req.url.path, req.address });
     res.status = 200;
     res.header("content-type", "text/html");
     res.body = 
@@ -205,7 +218,8 @@ fn index(_: *ServerContext, _: *httpz.Request, res: *httpz.Response) !void {
     ;
 }
 
-fn health(_: *ServerContext, _: *httpz.Request, res: *httpz.Response) !void {
+fn health(_: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
+    std.debug.print("📥 [{any}] {s} - from {any}\n", .{ req.method, req.url.path, req.address });
     res.status = 200;
     try res.json(.{
         .status = "ok",
@@ -247,11 +261,13 @@ fn health(_: *ServerContext, _: *httpz.Request, res: *httpz.Response) !void {
 
 // Book route handlers
 fn booksList(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
+    std.debug.print("📥 [{any}] {s} - from {any}\n", .{ req.method, req.url.path, req.address });
     const controller: *BookController = @ptrCast(@alignCast(ctx.book_controller.?));
     try controller.listBooks(req, res);
 }
 
 fn booksGet(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
+    std.debug.print("📥 [{any}] {s} - from {any}\n", .{ req.method, req.url.path, req.address });
     const controller: *BookController = @ptrCast(@alignCast(ctx.book_controller.?));
     try controller.getBook(req, res);
 }
@@ -335,4 +351,7 @@ fn booksUnarchive(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response
     const controller: *BookController = @ptrCast(@alignCast(ctx.book_controller.?));
     try controller.unarchiveBook(req, res);
 }
+
+// CORS preflight handler for OPTIONS requests
+
 

@@ -21,8 +21,8 @@ pub fn main() !void {
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
-    std.debug.print("Dust Server (Zig Edition) - Version 0.1.0\n", .{});
-    std.debug.print("Zig Version: {s}\n", .{@import("builtin").zig_version_string});
+    std.debug.print("🚀 Dust Server (Zig Edition) - Version 0.1.0\n", .{});
+    std.debug.print("📦 Zig Version: {s}\n", .{@import("builtin").zig_version_string});
 
     // Set up signal handling for graceful shutdown
     const posix = std.posix;
@@ -68,13 +68,16 @@ pub fn main() !void {
     
     // Register background tasks
     std.debug.print("📅 Registering background tasks...\n", .{});
-    try books.registerBackgroundTasks(&timer_manager, &db.db, allocator);
+    try books.registerBackgroundTasks(&timer_manager, &db.db, allocator, cfg.library_directories);
     std.debug.print("✅ Background tasks registered\n\n", .{});
 
     // Start server
     var server = try DustServer.init(allocator, cfg.port, &db, cfg.jwt_secret, &should_shutdown);
     defer server.deinit();
 
+    std.debug.print("🎧 Starting HTTP server on port {d}...\n", .{cfg.port});
+    std.debug.print("📡 Listening for connections...\n", .{});
+    
     try server.listen();
 
     std.debug.print("✅ Server shutdown complete\n", .{});
