@@ -34,13 +34,13 @@ pub const Scanner = struct {
     pub fn init(allocator: std.mem.Allocator, db: *sqlite.Db) !Scanner {
         // Get directories from environment variable
         const dirs_env = std.posix.getenv("DUST_DIRS") orelse "";
-        var dirs = std.ArrayList([]const u8).init(allocator);
+        var dirs: std.ArrayList([]const u8) = .empty;
         
         if (dirs_env.len > 0) {
-            var it = std.mem.split(u8, dirs_env, ":");
+            var it = std.mem.splitScalar(u8, dirs_env, ':');
             while (it.next()) |dir| {
                 const dir_copy = try allocator.dupe(u8, dir);
-                try dirs.append(dir_copy);
+                try dirs.append(allocator, dir_copy);
             }
         }
         
@@ -55,7 +55,7 @@ pub const Scanner = struct {
         for (self.scan_dirs.items) |dir| {
             self.allocator.free(dir);
         }
-        self.scan_dirs.deinit();
+        self.scan_dirs.deinit(self.allocator);
     }
     
     pub fn scanLibrary(self: *Scanner, path: []const u8) !ScanResult {

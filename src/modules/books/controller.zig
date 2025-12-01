@@ -47,39 +47,6 @@ pub const BookController = struct {
         
         res.status = 200;
         try res.json(.{ .books = books }, .{});
-        // const writer = list.writer();
-
-        // try writer.writeAll("{\"books\":[");
-        // for (books, 0..) |book, i| {
-        //     if (i > 0) try writer.writeAll(",");
-
-        //     // Get author
-        //     const author = self.author_repo.getAuthorById(allocator, book.author) catch |err| {
-        //         std.log.warn("Author {d} not found for book {d}: {}", .{ book.author, book.id, err });
-        //         continue;
-        //     };
-
-        //     try std.fmt.format(writer,
-        //         \\{{"id":{d},"name":"{s}","author":{{"id":{d},"name":"{s}"}},"file_path":"{s}","status":"{s}"
-        //     , .{ book.id, book.name, author.id, author.name, book.file_path, book.status });
-
-        //     if (book.isbn) |isbn| {
-        //         try std.fmt.format(writer, ",\"isbn\":\"{s}\"", .{isbn});
-        //     }
-        //     if (book.description) |desc| {
-        //         try std.fmt.format(writer, ",\"description\":\"{s}\"", .{desc});
-        //     }
-        //     if (book.page_count) |pc| {
-        //         try std.fmt.format(writer, ",\"page_count\":{d}", .{pc});
-        //     }
-
-        //     try writer.writeAll("}");
-        // }
-        // try writer.writeAll("]}");
-
-        // res.status = 200;
-        // res.content_type = httpz.ContentType.JSON;
-        // res.body = try allocator.dupe(u8, list.items);
     }
 
     // GET /books/:id - Get specific book

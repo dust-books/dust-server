@@ -49,7 +49,17 @@ pub fn scanLibrary(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Respons
         try res.json(.{ .message = "Database not available" }, .{});
         return;
     };
-    var lib_scanner = scanner.Scanner.init(res.arena, &db.db);
+    var lib_scanner = scanner.Scanner.init(res.arena, &db.db) catch |err| {
+        std.log.err("Failed to initialize scanner: {}", .{err});
+        res.status = 500;
+        try res.json(.{ 
+            .message = "Failed to initialize scanner",
+            .@"error" = @errorName(err),
+        }, .{});
+        return;
+    };
+    defer lib_scanner.deinit();
+    
     const result = lib_scanner.scanLibrary(scan_path) catch |err| {
         std.log.err("Scan failed: {}", .{err});
         res.status = 500;

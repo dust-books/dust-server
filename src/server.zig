@@ -18,14 +18,12 @@ const admin_routes = @import("admin_routes.zig");
 
 pub const DustServer = struct {
     httpz_server: httpz.Server(*ServerContext),
-    context: ServerContext,
     context_ptr: *ServerContext,
     allocator: std.mem.Allocator,
     permission_service: *PermissionService,
     permission_repo: *PermissionRepository,
     book_controller: *BookController,
     should_shutdown: *std.atomic.Value(bool),
-    // admin_controller: *AdminController,
     
     pub fn init(allocator: std.mem.Allocator, port: u16, db: *Database, jwt_secret: []const u8, should_shutdown: *std.atomic.Value(bool)) !DustServer {
         const auth_service = try allocator.create(AuthService);
@@ -53,14 +51,8 @@ pub const DustServer = struct {
         const book_controller = try allocator.create(BookController);
         book_controller.* = BookController.init(&db.db, book_repo, author_repo, tag_repo, allocator);
         
-        // TODO: Initialize admin controller after fixing linker issue
-        // const user_repo = try allocator.create(UserRepository);
-        // user_repo.* = UserRepository.init(db, allocator);
-        // 
-        // const admin_controller = try allocator.create(AdminController);
-        // admin_controller.* = AdminController.init(allocator, user_repo, permission_repo, permission_service);
-        
-        const context = ServerContext{
+        const context_ptr = try allocator.create(ServerContext);
+        context_ptr.* = ServerContext{
             .auth_context = AuthContext{
                 .auth_service = auth_service,
                 .jwt = jwt,
@@ -68,13 +60,10 @@ pub const DustServer = struct {
             },
             .permission_service = permission_service,
             .permission_repo = permission_repo,
-            .admin_controller = null,  // admin_controller,
+            .admin_controller = null,
             .book_controller = book_controller,
             .db = db,
         };
-        
-        const context_ptr = try allocator.create(ServerContext);
-        context_ptr.* = context;
         
         const httpz_server = try httpz.Server(*ServerContext).init(allocator, .{
             .port = port,
@@ -82,14 +71,12 @@ pub const DustServer = struct {
         
         return .{
             .httpz_server = httpz_server,
-            .context = context,
             .context_ptr = context_ptr,
             .allocator = allocator,
             .permission_service = permission_service,
             .permission_repo = permission_repo,
             .book_controller = book_controller,
             .should_shutdown = should_shutdown,
-            // .admin_controller = admin_controller,
         };
     }
     
@@ -107,7 +94,7 @@ pub const DustServer = struct {
         self.allocator.destroy(self.book_controller);
         
         // Clean up auth service
-        self.allocator.destroy(self.context.auth_context.auth_service);
+        self.allocator.destroy(self.context_ptr.auth_context.auth_service);
         
         // Clean up context pointer
         self.allocator.destroy(self.context_ptr);
@@ -227,37 +214,6 @@ fn health(_: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
         .service = "dust-server",
     }, .{});
 }
-
-// Admin route handlers that access controller from context
-// fn adminListUsers(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
-//     const controller: *AdminController = @ptrCast(@alignCast(ctx.admin_controller.?));
-//     try controller.listUsers(req, res);
-// }
-
-// fn adminUpdateUser(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
-//     const controller: *AdminController = @ptrCast(@alignCast(ctx.admin_controller.?));
-//     try controller.updateUser(req, res);
-// }
-
-// fn adminDeleteUser(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
-//     const controller: *AdminController = @ptrCast(@alignCast(ctx.admin_controller.?));
-//     try controller.deleteUser(req, res);
-// }
-
-// fn adminAssignRole(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
-//     const controller: *AdminController = @ptrCast(@alignCast(ctx.admin_controller.?));
-//     try controller.assignRole(req, res);
-// }
-
-// fn adminRemoveRole(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
-//     const controller: *AdminController = @ptrCast(@alignCast(ctx.admin_controller.?));
-//     try controller.removeRole(req, res);
-// }
-
-// fn adminListRoles(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
-//     const controller: *AdminController = @ptrCast(@alignCast(ctx.admin_controller.?));
-//     try controller.listRoles(req, res);
-// }
 
 // Book route handlers
 fn booksList(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {

@@ -58,7 +58,7 @@ pub fn main() !void {
     std.debug.print("\n📦 Running database migrations...\n", .{});
     try db.runMigrations();
     try users.migrate(&db);
-    try books.migrate(&db.db);
+    try books.migrate(&db);
     try genres.migrate(&db.db);
     std.debug.print("✅ All migrations completed\n\n", .{});
 
