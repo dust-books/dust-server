@@ -178,13 +178,9 @@ pub fn login(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !vo
 
 pub fn getCurrentUser(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
     const auth_ctx = &ctx.auth_context;
+    const middleware_helpers = @import("../../middleware/helpers.zig");
     
-    // Create auth middleware and authenticate
-    var auth_mw = auth_middleware.AuthMiddleware.init(&auth_ctx.jwt, auth_ctx.allocator);
-    
-    // Validate token and get user
-    var auth_user = auth_mw.authenticate(req, res) catch |err| {
-        // Error response already sent by middleware
+    var auth_user = middleware_helpers.requireAuth(&auth_ctx.jwt, auth_ctx.allocator, req, res) catch |err| {
         return err;
     };
     defer auth_user.deinit(auth_ctx.allocator);

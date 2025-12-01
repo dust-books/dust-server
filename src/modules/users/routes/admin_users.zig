@@ -2,30 +2,14 @@ const std = @import("std");
 const httpz = @import("httpz");
 const Database = @import("../../../database.zig").Database;
 const User = @import("../model.zig").User;
-const auth_middleware = @import("../../../middleware/auth.zig");
 const JWT = @import("../../../auth/jwt.zig").JWT;
+const middleware_helpers = @import("../../../middleware/helpers.zig");
 
 pub fn listUsers(db: *Database, jwt: *const JWT, allocator: std.mem.Allocator, req: *httpz.Request, res: *httpz.Response) !void {
-    // Verify admin access
-    var auth_mw = auth_middleware.AuthMiddleware.init(jwt, allocator);
-    var auth_user = auth_mw.authenticate(req, res) catch |err| {
+    var auth_user = middleware_helpers.requireAdmin(db, jwt, allocator, req, res) catch |err| {
         return err;
     };
     defer auth_user.deinit(allocator);
-    
-    // Fetch full user to check admin status
-    const maybe_user = db.db.oneAlloc(User, allocator, "SELECT id, username, email, is_admin, created_at FROM users WHERE id = ?", .{}, .{auth_user.user_id}) catch null;
-    const user = maybe_user orelse {
-        res.status = 404;
-        try res.json(.{ .@"error" = "User not found" }, .{});
-        return;
-    };
-    
-    if (!user.is_admin) {
-        res.status = 403;
-        try res.json(.{ .@"error" = "Forbidden: Admin access required" }, .{});
-        return;
-    }
     
     // TODO: Add pagination support
     _ = try req.query();
@@ -59,26 +43,10 @@ pub fn listUsers(db: *Database, jwt: *const JWT, allocator: std.mem.Allocator, r
 }
 
 pub fn getUser(db: *Database, jwt: *const JWT, allocator: std.mem.Allocator, req: *httpz.Request, res: *httpz.Response) !void {
-    // Verify admin access
-    var auth_mw = auth_middleware.AuthMiddleware.init(jwt, allocator);
-    var auth_user = auth_mw.authenticate(req, res) catch |err| {
+    var auth_user = middleware_helpers.requireAdmin(db, jwt, allocator, req, res) catch |err| {
         return err;
     };
     defer auth_user.deinit(allocator);
-    
-    // Fetch full user to check admin status
-    const maybe_user = db.db.oneAlloc(User, allocator, "SELECT id, username, email, is_admin, created_at FROM users WHERE id = ?", .{}, .{auth_user.user_id}) catch null;
-    const user = maybe_user orelse {
-        res.status = 404;
-        try res.json(.{ .@"error" = "User not found" }, .{});
-        return;
-    };
-    
-    if (!user.is_admin) {
-        res.status = 403;
-        try res.json(.{ .@"error" = "Forbidden: Admin access required" }, .{});
-        return;
-    }
     
     const user_id = req.param("id") orelse {
         res.status = 400;
@@ -105,26 +73,10 @@ pub fn getUser(db: *Database, jwt: *const JWT, allocator: std.mem.Allocator, req
 }
 
 pub fn updateUser(db: *Database, jwt: *const JWT, allocator: std.mem.Allocator, req: *httpz.Request, res: *httpz.Response) !void {
-    // Verify admin access
-    var auth_mw = auth_middleware.AuthMiddleware.init(jwt, allocator);
-    var auth_user = auth_mw.authenticate(req, res) catch |err| {
+    var auth_user = middleware_helpers.requireAdmin(db, jwt, allocator, req, res) catch |err| {
         return err;
     };
     defer auth_user.deinit(allocator);
-    
-    // Fetch full user to check admin status
-    const maybe_user = db.db.oneAlloc(User, allocator, "SELECT id, username, email, is_admin, created_at FROM users WHERE id = ?", .{}, .{auth_user.user_id}) catch null;
-    const user = maybe_user orelse {
-        res.status = 404;
-        try res.json(.{ .@"error" = "User not found" }, .{});
-        return;
-    };
-    
-    if (!user.is_admin) {
-        res.status = 403;
-        try res.json(.{ .@"error" = "Forbidden: Admin access required" }, .{});
-        return;
-    }
     
     const user_id = req.param("id") orelse {
         res.status = 400;
@@ -202,26 +154,18 @@ pub fn updateUser(db: *Database, jwt: *const JWT, allocator: std.mem.Allocator, 
 }
 
 pub fn deleteUser(db: *Database, jwt: *const JWT, allocator: std.mem.Allocator, req: *httpz.Request, res: *httpz.Response) !void {
-    // Verify admin access
-    var auth_mw = auth_middleware.AuthMiddleware.init(jwt, allocator);
-    var auth_user_token = auth_mw.authenticate(req, res) catch |err| {
+    var auth_user_token = middleware_helpers.requireAdmin(db, jwt, allocator, req, res) catch |err| {
         return err;
     };
     defer auth_user_token.deinit(allocator);
     
-    // Fetch full user to check admin status
+    // Get auth user details for self-deletion check
     const maybe_user = db.db.oneAlloc(User, allocator, "SELECT id, username, email, is_admin, created_at FROM users WHERE id = ?", .{}, .{auth_user_token.user_id}) catch null;
     const auth_user = maybe_user orelse {
         res.status = 404;
         try res.json(.{ .@"error" = "User not found" }, .{});
         return;
     };
-    
-    if (!auth_user.is_admin) {
-        res.status = 403;
-        try res.json(.{ .@"error" = "Forbidden: Admin access required" }, .{});
-        return;
-    }
     
     const user_id = req.param("id") orelse {
         res.status = 400;
