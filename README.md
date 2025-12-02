@@ -16,7 +16,7 @@ zig build -Doptimize=ReleaseSafe
 
 # Set required environment variables
 export JWT_SECRET=$(openssl rand -base64 32)
-export dirs="/path/to/books"
+export dust_dirs="/path/to/books"
 
 # Run the server
 ./zig-out/bin/dust-server

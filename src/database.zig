@@ -7,11 +7,11 @@ pub const ConnectionPool = @import("database/context.zig").ConnectionPool;
 pub const Database = struct {
     db: sqlite.Db,
     allocator: std.mem.Allocator,
-    
+
     pub fn init(allocator: std.mem.Allocator, path: []const u8) !Database {
         const path_z = try allocator.dupeZ(u8, path);
         defer allocator.free(path_z);
-        
+
         const db = try sqlite.Db.init(.{
             .mode = .{ .File = path_z },
             .open_flags = .{
@@ -20,21 +20,21 @@ pub const Database = struct {
             },
             .threading_mode = .MultiThread,
         });
-        
+
         return Database{
             .db = db,
             .allocator = allocator,
         };
     }
-    
+
     pub fn deinit(self: *Database) void {
         self.db.deinit();
     }
-    
+
     pub fn runMigrations(self: *Database) !void {
         // Enable foreign keys
         try self.db.exec("PRAGMA foreign_keys = ON", .{}, .{});
-        
+
         // Create migrations table
         try self.db.exec(
             \\CREATE TABLE IF NOT EXISTS migrations (
@@ -43,34 +43,34 @@ pub const Database = struct {
             \\  applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             \\)
         , .{}, .{});
-        
-        std.debug.print("📦 Database migrations initialized\n", .{});
+
+        std.debug.print("Database migrations initialized\n", .{});
     }
-    
+
     pub fn hasMigration(self: *Database, name: []const u8) !bool {
         const query = "SELECT COUNT(*) FROM migrations WHERE name = ?";
         var stmt = try self.db.prepare(query);
         defer stmt.deinit();
-        
+
         const row = try stmt.one(i64, .{}, .{name});
         return if (row) |count| count > 0 else false;
     }
-    
+
     pub fn recordMigration(self: *Database, name: []const u8) !void {
         const query = "INSERT INTO migrations (name) VALUES (?)";
         var stmt = try self.db.prepare(query);
         defer stmt.deinit();
-        
+
         try stmt.exec(.{}, .{name});
         std.debug.print("✅ Migration applied: {s}\n", .{name});
     }
-    
+
     pub fn execMultiple(self: *Database, sql: []const u8) !void {
         var stmt = try self.db.prepareDynamic(sql);
         defer stmt.deinit();
         try stmt.exec(.{}, .{});
     }
-    
+
     // Note: For most database operations, access the raw sqlite.Db via db.db
     // The wrapper provides migration tracking and lifecycle management
     // Use .db.db.prepare(), .db.db.exec(), etc. for queries

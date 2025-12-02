@@ -10,9 +10,8 @@ pub const Config = struct {
     allocator: std.mem.Allocator,
 
     pub fn load(allocator: std.mem.Allocator) !Config {
-        const dirs_str = std.process.getEnvVarOwned(allocator, "dirs") catch "";
+        const dirs_str = std.process.getEnvVarOwned(allocator, "dust_dirs") catch "";
         const library_directories = try parseCommaSeparated(allocator, dirs_str);
-
         const google_books_api_key = std.process.getEnvVarOwned(allocator, "GOOGLE_BOOKS_API_KEY") catch null;
 
         const port_str = std.process.getEnvVarOwned(allocator, "PORT") catch

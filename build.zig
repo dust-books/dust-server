@@ -34,10 +34,6 @@ pub fn build(b: *std.Build) void {
         }),
     });
 
-    // Link SQLite3
-    //    exe.linkSystemLibrary("sqlite3");
-    //    exe.linkLibC();
-
     // Install the executable
     b.installArtifact(exe);
 
