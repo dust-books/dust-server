@@ -10,33 +10,9 @@ const PermissionService = @import("../../auth/permission_service.zig").Permissio
 const PermissionRepository = @import("../../auth/permission_repository.zig").PermissionRepository;
 const session = @import("../../session.zig");
 
-pub const AuthContext = struct {
-    auth_service: *AuthService,
-    jwt: JWT,
-    allocator: std.mem.Allocator,
-};
-
-pub const ServerContext = struct {
-    auth_context: AuthContext,
-    permission_service: ?*PermissionService = null,
-    permission_repo: ?*PermissionRepository = null,
-    admin_controller: ?*anyopaque = null, // Use anyopaque to avoid circular dependency
-    book_controller: ?*anyopaque = null,
-    db: ?*@import("../../database.zig").Database = null,
-
-    // httpz special handlers
-    pub fn notFound(_: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
-        std.log.debug("404 Not Found: {s}\n", .{req.url.path});
-        res.status = 404;
-        res.body = "Not Found";
-    }
-
-    pub fn uncaughtError(_: *ServerContext, req: *httpz.Request, res: *httpz.Response, err: anyerror) void {
-        std.log.err("Uncaught error at {s}: {}\n", .{ req.url.path, err });
-        res.status = 500;
-        res.body = "Internal Server Error";
-    }
-};
+const context = @import("../../context.zig");
+const ServerContext = context.ServerContext;
+const AuthContext = context.AuthContext;
 
 pub fn register(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
     const auth_ctx = &ctx.auth_context;
