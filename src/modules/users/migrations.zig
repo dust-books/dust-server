@@ -18,7 +18,7 @@ pub fn migrate(db: *Database) !void {
         );
         try db.recordMigration("001_create_users");
     }
-    
+
     // Migration 2: Create roles table
     if (!try db.hasMigration("002_create_roles")) {
         try db.execMultiple(
@@ -34,7 +34,7 @@ pub fn migrate(db: *Database) !void {
         try db.execMultiple("INSERT INTO roles (name, description) VALUES ('guest', 'Guest with limited access')");
         try db.recordMigration("002_create_roles");
     }
-    
+
     // Migration 3: Create permissions table
     if (!try db.hasMigration("003_create_permissions")) {
         try db.execMultiple(
@@ -49,7 +49,7 @@ pub fn migrate(db: *Database) !void {
             \\
             \\CREATE INDEX idx_permissions_resource_action ON permissions(resource, action);
         );
-        
+
         // Seed default permissions
         try db.execMultiple("INSERT INTO permissions (name, resource, action, description) VALUES ('books.read', 'book', 'read', 'Read books')");
         try db.execMultiple("INSERT INTO permissions (name, resource, action, description) VALUES ('books.write', 'book', 'write', 'Create and edit books')");
@@ -59,10 +59,10 @@ pub fn migrate(db: *Database) !void {
         try db.execMultiple("INSERT INTO permissions (name, resource, action, description) VALUES ('users.manage', 'user', 'manage', 'Manage user roles and permissions')");
         try db.execMultiple("INSERT INTO permissions (name, resource, action, description) VALUES ('admin.full', 'system', 'admin', 'Full administrative access')");
         try db.execMultiple("INSERT INTO permissions (name, resource, action, description) VALUES ('system.admin', 'system', 'admin', 'System administration')");
-        
+
         try db.recordMigration("003_create_permissions");
     }
-    
+
     // Migration 4: Create role_permissions junction table
     if (!try db.hasMigration("004_create_role_permissions")) {
         try db.execMultiple(
@@ -74,16 +74,16 @@ pub fn migrate(db: *Database) !void {
             \\  FOREIGN KEY (permission_id) REFERENCES permissions(id) ON DELETE CASCADE
             \\);
         );
-        
+
         // Assign all permissions to admin role (role_id = 1)
         try db.execMultiple("INSERT INTO role_permissions (role_id, permission_id) SELECT 1, id FROM permissions");
-        
+
         // Assign read permissions to user role (role_id = 2)
         try db.execMultiple("INSERT INTO role_permissions (role_id, permission_id) SELECT 2, id FROM permissions WHERE name LIKE '%.read'");
-        
+
         try db.recordMigration("004_create_role_permissions");
     }
-    
+
     // Migration 5: Create user_roles junction table
     if (!try db.hasMigration("005_create_user_roles")) {
         try db.execMultiple(
@@ -97,7 +97,7 @@ pub fn migrate(db: *Database) !void {
         );
         try db.recordMigration("005_create_user_roles");
     }
-    
+
     // Migration 6: Create sessions table (for JWT tracking)
     if (!try db.hasMigration("006_create_sessions")) {
         try db.execMultiple(
@@ -115,12 +115,12 @@ pub fn migrate(db: *Database) !void {
         );
         try db.recordMigration("006_create_sessions");
     }
-    
+
     // Migration 7: Add is_admin field to users table
     if (!try db.hasMigration("007_add_is_admin_to_users")) {
         try db.execMultiple("ALTER TABLE users ADD COLUMN is_admin INTEGER DEFAULT 0 NOT NULL");
         try db.recordMigration("007_add_is_admin_to_users");
     }
-    
-    std.debug.print("✅ Users module migrations complete\n", .{});
+
+    std.log.info("Users module migrations complete\n", .{});
 }

@@ -177,7 +177,7 @@ pub const DustServer = struct {
     pub fn listen(self: *DustServer) !void {
         try self.setupRoutes();
 
-        std.debug.print("🚀 Dust is bookin' it on port {}\n", .{self.httpz_server.config.port.?});
+        std.log.info("🚀 Dust is bookin' it on port {}\n", .{self.httpz_server.config.port.?});
 
         // Start server in a separate thread
         const thread = try std.Thread.spawn(.{}, listenThread, .{&self.httpz_server});
@@ -195,14 +195,14 @@ pub const DustServer = struct {
     /// Thread function to run the HTTP server
     fn listenThread(server: *httpz.Server(*ServerContext)) void {
         server.listen() catch |err| {
-            std.debug.print("Server error: {}\n", .{err});
+            std.log.err("Server error: {}\n", .{err});
         };
     }
 };
 
 // Route handlers
 fn index(_: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
-    std.debug.print("📥 [{any}] {s} - from {any}\n", .{ req.method, req.url.path, req.address });
+    std.debug.print("[{any}] {s} - from {any}\n", .{ req.method, req.url.path, req.address });
     res.status = 200;
     res.header("content-type", "text/html");
     res.body =
@@ -226,7 +226,7 @@ fn index(_: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
 
 /// Health check handler
 fn health(_: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
-    std.debug.print("📥 [{any}] {s} - from {any}\n", .{ req.method, req.url.path, req.address });
+    std.debug.print("[{any}] {s} - from {any}\n", .{ req.method, req.url.path, req.address });
     res.status = 200;
     try res.json(.{
         .status = "ok",
@@ -237,13 +237,13 @@ fn health(_: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
 
 // Book route handlers
 fn booksList(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
-    std.debug.print("📥 [{any}] {s} - from {any}\n", .{ req.method, req.url.path, req.address });
+    std.debug.print("[{any}] {s} - from {any}\n", .{ req.method, req.url.path, req.address });
     const controller: *BookController = @ptrCast(@alignCast(ctx.book_controller.?));
     try controller.listBooks(req, res);
 }
 
 fn booksGet(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
-    std.debug.print("📥 [{any}] {s} - from {any}\n", .{ req.method, req.url.path, req.address });
+    std.debug.print("[{any}] {s} - from {any}\n", .{ req.method, req.url.path, req.address });
     const controller: *BookController = @ptrCast(@alignCast(ctx.book_controller.?));
     try controller.getBook(req, res);
 }

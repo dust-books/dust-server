@@ -48,7 +48,7 @@ pub const Database = struct {
             \\)
         , .{}, .{});
 
-        std.debug.print("Database migrations initialized\n", .{});
+        std.log.debug("Database migrations initialized\n", .{});
     }
 
     /// Check if a migration has been applied
@@ -68,7 +68,7 @@ pub const Database = struct {
         defer stmt.deinit();
 
         try stmt.exec(.{}, .{name});
-        std.debug.print("✅ Migration applied: {s}\n", .{name});
+        std.log.debug("Migration applied: {s}\n", .{name});
     }
 
     ///

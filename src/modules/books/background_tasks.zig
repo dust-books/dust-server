@@ -12,7 +12,7 @@ const BackgroundTaskContext = struct {
 /// Background task to scan library directories for new books
 fn scanLibraryDirectories(context_ptr: *anyopaque) void {
     const ctx: *BackgroundTaskContext = @ptrCast(@alignCast(context_ptr));
-    std.log.info("📚 Starting library scan...", .{});
+    std.log.info("Starting library scan...", .{});
     const dirs_env = std.posix.getenv("DUST_DIRS") orelse "";
     if (dirs_env.len == 0) {
         std.log.warn("⚠️  DUST_DIRS environment variable not set, skipping scan", .{});

@@ -14,7 +14,7 @@ var should_shutdown = std.atomic.Value(bool).init(false);
 fn handleShutdown(sig: c_int) callconv(.c) void {
     _ = sig;
     should_shutdown.store(true, .seq_cst);
-    std.debug.print("\nReceived shutdown signal, cleaning up...\n", .{});
+    std.log.debug("\nReceived shutdown signal, cleaning up...\n", .{});
 }
 
 pub fn main() !void {
