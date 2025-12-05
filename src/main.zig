@@ -21,7 +21,7 @@ pub fn main() !void {
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
-    std.debug.print("🚀 Dust Server (Zig Edition) - Version 0.1.0\n", .{});
+    std.log.info("🚀 Dust Server (Zig Edition) - Version 0.1.0\n", .{});
 
     // Set up signal handling for graceful shutdown
     const posix = std.posix;
@@ -35,14 +35,14 @@ pub fn main() !void {
 
     // Load configuration
     var cfg = Config.load(allocator) catch |err| {
-        std.debug.print("Failed to load config: {}\n", .{err});
+        std.log.err("Failed to load config: {}\n", .{err});
         return err;
     };
     defer cfg.deinit();
 
-    std.debug.print("Library directories: {d} configured\n", .{cfg.library_directories.len});
-    std.debug.print("Port: {}\n", .{cfg.port});
-    std.debug.print("Database: {s}\n", .{cfg.database_url});
+    std.log.info("Library directories: {d} configured\n", .{cfg.library_directories.len});
+    std.log.info("Port: {}\n", .{cfg.port});
+    std.log.info("Database: {s}\n", .{cfg.database_url});
 
     // Initialize database
     const db_path = if (std.mem.startsWith(u8, cfg.database_url, "file:"))
@@ -54,30 +54,30 @@ pub fn main() !void {
     defer db.deinit();
 
     // Run migrations
-    std.debug.print("\nRunning database migrations...\n", .{});
+    std.log.info("\nRunning database migrations...\n", .{});
     try db.runMigrations();
     try users.migrate(&db);
     try books.migrate(&db);
     try genres.migrate(&db.db);
-    std.debug.print("All migrations completed\n\n", .{});
+    std.log.info("All migrations completed\n\n", .{});
 
     // Initialize timer manager for background tasks
     var timer_manager = TimerManager.init(allocator);
     defer timer_manager.deinit();
 
     // Register background tasks
-    std.debug.print("Registering background tasks...\n", .{});
+    std.log.info("Registering background tasks...\n", .{});
     try books.registerBackgroundTasks(&timer_manager, &db.db, allocator, cfg.library_directories);
-    std.debug.print("Background tasks registered\n\n", .{});
+    std.log.info("Background tasks registered\n\n", .{});
 
     // Start server
     var server = try DustServer.init(allocator, cfg.port, &db, cfg.jwt_secret, &should_shutdown);
     defer server.deinit();
 
-    std.debug.print("Starting HTTP server on port {d}...\n", .{cfg.port});
-    std.debug.print("Listening for connections...\n", .{});
+    std.log.info("Starting HTTP server on port {d}...\n", .{cfg.port});
+    std.log.info("Listening for connections...\n", .{});
 
     try server.listen();
 
-    std.debug.print("Server shutdown complete\n", .{});
+    std.log.info("Server shutdown complete\n", .{});
 }
