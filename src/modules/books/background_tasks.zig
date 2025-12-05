@@ -9,9 +9,8 @@ const BackgroundTaskContext = struct {
     library_directories: []const []const u8,
 };
 
-/// Background task to scan library directories for new books
-fn scanLibraryDirectories(context_ptr: *anyopaque) void {
-    const ctx: *BackgroundTaskContext = @ptrCast(@alignCast(context_ptr));
+/// Background task to scan library directories for new books (typed)
+fn scanLibraryDirectories(ctx: *BackgroundTaskContext) void {
     std.log.info("Starting library scan...", .{});
     const dirs_env = std.posix.getenv("DUST_DIRS") orelse "";
     if (dirs_env.len == 0) {
@@ -100,10 +99,8 @@ fn addBookToDatabase(ctx: *BackgroundTaskContext, path: []const u8) !void {
     };
 }
 
-/// Background task to clean up old archived books
-fn cleanupOldBooks(context_ptr: *anyopaque) void {
-    const ctx: *BackgroundTaskContext = @ptrCast(@alignCast(context_ptr));
-
+/// Background task to clean up old archived books (typed)
+fn cleanupOldBooks(ctx: *BackgroundTaskContext) void {
     const query =
         \\DELETE FROM books
         \\WHERE archived = 1
@@ -119,10 +116,25 @@ fn cleanupOldBooks(context_ptr: *anyopaque) void {
     std.log.info("✅ Cleaned up old archived books", .{});
 }
 
-/// Cleanup function for background task context
-fn cleanupBackgroundContext(context: *anyopaque, allocator: std.mem.Allocator) void {
-    const ctx: *BackgroundTaskContext = @ptrCast(@alignCast(context));
+/// Cleanup function for background task context (typed)
+fn cleanupBackgroundContext(ctx: *BackgroundTaskContext, allocator: std.mem.Allocator) void {
     allocator.destroy(ctx);
+}
+
+/// Wrappers to adapt typed functions to the timer's anyopaque API
+fn scanLibraryDirectoriesWrapper(context_ptr: *anyopaque) void {
+    const ctx: *BackgroundTaskContext = @ptrCast(@alignCast(context_ptr));
+    scanLibraryDirectories(ctx);
+}
+
+fn cleanupOldBooksWrapper(context_ptr: *anyopaque) void {
+    const ctx: *BackgroundTaskContext = @ptrCast(@alignCast(context_ptr));
+    cleanupOldBooks(ctx);
+}
+
+fn cleanupBackgroundContextWrapper(context: *anyopaque, allocator: std.mem.Allocator) void {
+    const ctx: *BackgroundTaskContext = @ptrCast(@alignCast(context));
+    cleanupBackgroundContext(ctx, allocator);
 }
 
 /// Register background tasks for scanning library and cleaning up old books
@@ -135,10 +147,10 @@ pub fn registerBackgroundTasks(timer_manager: *TimerManager, db: *sqlite.Db, all
     };
 
     // Run library scan every 5 minutes (300000 ms)
-    try timer_manager.registerTimer(scanLibraryDirectories, ctx, 300000, cleanupBackgroundContext);
+    try timer_manager.registerTimer(scanLibraryDirectoriesWrapper, ctx, 300000, cleanupBackgroundContextWrapper);
 
     // Run cleanup every hour (3600000 ms)
-    try timer_manager.registerTimer(cleanupOldBooks, ctx, 3600000, cleanupBackgroundContext);
+    try timer_manager.registerTimer(cleanupOldBooksWrapper, ctx, 3600000, cleanupBackgroundContextWrapper);
 
     std.log.info("📅 Registered books background tasks (scan every 5min, cleanup every hour)", .{});
 }
