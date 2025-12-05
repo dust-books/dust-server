@@ -2,7 +2,7 @@ const std = @import("std");
 const Config = @import("config.zig").Config;
 const DustServer = @import("server.zig").DustServer;
 const Database = @import("database.zig").Database;
-const TimerManager = @import("timer.zig").TimerManager;
+// TimerManager is created per-module now (typed); books exposes a factory.
 const users = @import("users.zig");
 const books = @import("books.zig");
 const genres = @import("genres.zig");
@@ -62,13 +62,10 @@ pub fn main() !void {
     try genres.migrate(&db.db);
     std.log.info("All migrations completed\n\n", .{});
 
-    // Initialize timer manager for background tasks
-    var timer_manager = TimerManager.init(allocator);
-    defer timer_manager.deinit();
-
-    // Register background tasks
-    std.log.info("Registering background tasks...\n", .{});
-    try books.registerBackgroundTasks(&timer_manager, &db.db, allocator, cfg.library_directories);
+    // Create typed timer manager for books background tasks
+    const books_timer = try books.createBackgroundTimerManager(allocator, &db.db, cfg.library_directories);
+    defer books_timer.deinit();
+    defer allocator.destroy(books_timer);
     std.log.info("Background tasks registered\n\n", .{});
 
     // Start server

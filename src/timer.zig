@@ -1,33 +1,23 @@
 const std = @import("std");
 
-/// TimerTask represents a single scheduled task
-pub const TimerTask = struct {
-    /// Function to execute for the timer task
-    func: *const fn (*anyopaque) void,
-    /// Context to pass to the function
-    context: *anyopaque,
-    /// Interval in milliseconds between executions
+/// Generic TimerTask for a specific context type `Ctx`.
+pub const TimerTask = struct(comptime Ctx) {
+    func: fn (*Ctx) void,
+    context: *Ctx,
     interval_ms: u64,
-    /// Timestamp of the last execution
     last_run: i64,
-    /// Thread running the timer task
     thread: ?std.Thread = null,
-    /// Optional cleanup function for the context
-    cleanup: ?*const fn (*anyopaque, std.mem.Allocator) void = null,
+    cleanup: ?fn (*Ctx, std.mem.Allocator) void = null,
 };
 
-/// TimerManager manages multiple timer tasks
-pub const TimerManager = struct {
+/// Generic TimerManager that schedules tasks which receive a typed context `Ctx`.
+pub const TimerManager = struct(comptime Ctx) {
     allocator: std.mem.Allocator,
-    /// List of registered timer tasks
-    tasks: std.ArrayListUnmanaged(TimerTask),
-    /// Flag to indicate if the timer manager is running
+    tasks: std.ArrayListUnmanaged(TimerTask(Ctx)),
     running: std.atomic.Value(bool),
-    /// Mutex for thread safety
     mutex: std.Thread.Mutex,
 
-    /// Initialize the TimerManager
-    pub fn init(allocator: std.mem.Allocator) TimerManager {
+    pub fn init(allocator: std.mem.Allocator) TimerManager(Ctx) {
         return .{
             .allocator = allocator,
             .tasks = .{},
@@ -36,36 +26,27 @@ pub const TimerManager = struct {
         };
     }
 
-    /// Deinitialize the TimerManager and stop all tasks
-    pub fn deinit(self: *TimerManager) void {
+    pub fn deinit(self: *TimerManager(Ctx)) void {
         self.stop();
 
-        // Clean up contexts if cleanup function provided
         for (self.tasks.items) |task| {
-            if (task.cleanup) |cleanup_fn| {
-                cleanup_fn(task.context, self.allocator);
-            }
+            if (task.cleanup) |cleanup_fn| cleanup_fn(task.context, self.allocator);
         }
 
         self.tasks.deinit(self.allocator);
     }
 
-    /// Register a timer that runs a function periodically
     pub fn registerTimer(
-        self: *TimerManager,
-        /// Function to execute
-        func: *const fn (*anyopaque) void,
-        /// Context to pass to the function
-        context: *anyopaque,
-        /// Interval in milliseconds
+        self: *TimerManager(Ctx),
+        func: fn (*Ctx) void,
+        context: *Ctx,
         interval_ms: u64,
-        /// Optional cleanup function for the context
-        cleanup: ?*const fn (*anyopaque, std.mem.Allocator) void,
+        cleanup: ?fn (*Ctx, std.mem.Allocator) void,
     ) !void {
         self.mutex.lock();
         defer self.mutex.unlock();
 
-        const task = TimerTask{
+        const task = TimerTask(Ctx){
             .func = func,
             .context = context,
             .interval_ms = interval_ms,
@@ -75,7 +56,6 @@ pub const TimerManager = struct {
 
         try self.tasks.append(self.allocator, task);
 
-        // Spawn thread for this task
         const task_index = self.tasks.items.len - 1;
         const thread = try std.Thread.spawn(.{}, taskLoop, .{ self, task_index });
         self.tasks.items[task_index].thread = thread;
@@ -83,8 +63,7 @@ pub const TimerManager = struct {
         std.log.info("✅ Registered timer task (interval: {}ms)", .{interval_ms});
     }
 
-    /// Stop all timer tasks and the timer manager
-    pub fn stop(self: *TimerManager) void {
+    pub fn stop(self: *TimerManager(Ctx)) void {
         if (!self.running.load(.acquire)) return;
 
         self.running.store(false, .release);
@@ -93,16 +72,13 @@ pub const TimerManager = struct {
         defer self.mutex.unlock();
 
         for (self.tasks.items) |task| {
-            if (task.thread) |thread| {
-                thread.join();
-            }
+            if (task.thread) |thread| thread.join();
         }
 
         std.log.info("⏹️  Timer manager stopped", .{});
     }
 
-    /// Loop function for each timer task thread
-    fn taskLoop(self: *TimerManager, task_index: usize) void {
+    fn taskLoop(self: *TimerManager(Ctx), task_index: usize) void {
         while (self.running.load(.acquire)) {
             const now = std.time.milliTimestamp();
 
@@ -116,7 +92,6 @@ pub const TimerManager = struct {
             }
             self.mutex.unlock();
 
-            // Sleep to avoid busy-waiting
             std.Thread.sleep(std.time.ns_per_s);
         }
     }

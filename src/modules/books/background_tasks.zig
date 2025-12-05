@@ -138,7 +138,14 @@ fn cleanupBackgroundContextWrapper(context: *anyopaque, allocator: std.mem.Alloc
 }
 
 /// Register background tasks for scanning library and cleaning up old books
-pub fn registerBackgroundTasks(timer_manager: *TimerManager, db: *sqlite.Db, allocator: std.mem.Allocator, library_directories: []const []const u8) !void {
+pub const BooksTimerManager = @import("../../timer.zig").TimerManager(BackgroundTaskContext);
+
+/// Create and return a typed TimerManager for background book tasks. Caller owns
+/// the returned pointer and must call `deinit` and destroy it when finished.
+pub fn createBackgroundTimerManager(allocator: std.mem.Allocator, db: *sqlite.Db, library_directories: []const []const u8) !*BooksTimerManager {
+    const mgr = try allocator.create(BooksTimerManager);
+    mgr.* = BooksTimerManager.init(allocator);
+
     const ctx = try allocator.create(BackgroundTaskContext);
     ctx.* = .{
         .db = db,
@@ -147,10 +154,12 @@ pub fn registerBackgroundTasks(timer_manager: *TimerManager, db: *sqlite.Db, all
     };
 
     // Run library scan every 5 minutes (300000 ms)
-    try timer_manager.registerTimer(scanLibraryDirectoriesWrapper, ctx, 300000, cleanupBackgroundContextWrapper);
+    try mgr.registerTimer(scanLibraryDirectories, ctx, 300000, cleanupBackgroundContext);
 
     // Run cleanup every hour (3600000 ms)
-    try timer_manager.registerTimer(cleanupOldBooksWrapper, ctx, 3600000, cleanupBackgroundContextWrapper);
+    try mgr.registerTimer(cleanupOldBooks, ctx, 3600000, cleanupBackgroundContext);
 
     std.log.info("📅 Registered books background tasks (scan every 5min, cleanup every hour)", .{});
+
+    return mgr;
 }
