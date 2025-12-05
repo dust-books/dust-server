@@ -1,14 +1,15 @@
 const std = @import("std");
 
+/// Application configuration loaded from environment variables
 pub const Config = struct {
     library_directories: []const []const u8,
     google_books_api_key: ?[]const u8,
     port: u16,
     database_url: []const u8,
     jwt_secret: []const u8,
-
     allocator: std.mem.Allocator,
 
+    /// Load configuration from environment variables
     pub fn load(allocator: std.mem.Allocator) !Config {
         const dirs_str = std.process.getEnvVarOwned(allocator, "dust_dirs") catch "";
         const library_directories = try parseCommaSeparated(allocator, dirs_str);
@@ -34,6 +35,7 @@ pub const Config = struct {
         };
     }
 
+    /// Deinitialize and free allocated resources
     pub fn deinit(self: *Config) void {
         for (self.library_directories) |dir| {
             self.allocator.free(dir);
@@ -48,6 +50,7 @@ pub const Config = struct {
         self.allocator.free(self.jwt_secret);
     }
 
+    /// Helper function to parse comma-separated strings into an array
     fn parseCommaSeparated(allocator: std.mem.Allocator, input: []const u8) ![]const []const u8 {
         if (input.len == 0) return &[_][]const u8{};
 

@@ -10,6 +10,7 @@ const genres = @import("genres.zig");
 // Global flag for shutdown signal
 var should_shutdown = std.atomic.Value(bool).init(false);
 
+/// Signal handler to set the shutdown flag
 fn handleShutdown(sig: c_int) callconv(.c) void {
     _ = sig;
     should_shutdown.store(true, .seq_cst);
