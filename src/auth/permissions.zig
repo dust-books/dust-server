@@ -203,24 +203,11 @@ pub const ResourceType = enum {
     content,
 
     pub fn toString(self: ResourceType) []const u8 {
-        return switch (self) {
-            .book => "book",
-            .genre => "genre",
-            .user => "user",
-            .system => "system",
-            .content => "content",
-        };
+        return @tagName(self);
     }
 
     pub fn fromString(str: []const u8) ?ResourceType {
-        const map = std.ComptimeStringMap(ResourceType, .{
-            .{ "book", .book },
-            .{ "genre", .genre },
-            .{ "user", .user },
-            .{ "system", .system },
-            .{ "content", .content },
-        });
-        return map.get(str);
+        return std.meta.stringToEnum(ResourceType, str);
     }
 };
 
@@ -232,22 +219,11 @@ pub const RoleName = enum {
     guest,
 
     pub fn toString(self: RoleName) []const u8 {
-        return switch (self) {
-            .admin => "admin",
-            .librarian => "librarian",
-            .user => "user",
-            .guest => "guest",
-        };
+        return @tagName(self);
     }
 
     pub fn fromString(str: []const u8) ?RoleName {
-        const map = std.ComptimeStringMap(RoleName, .{
-            .{ "admin", .admin },
-            .{ "librarian", .librarian },
-            .{ "user", .user },
-            .{ "guest", .guest },
-        });
-        return map.get(str);
+        return std.meta.stringToEnum(RoleName, str);
     }
 };
 
@@ -266,6 +242,34 @@ test "Permission init/deinit with description null" {
     var p = try Permission.init(allocator, 2, "perm2", null, "genre", "write", "2025-01-02T00:00:00Z");
     defer p.deinit(allocator);
     try std.testing.expect(p.description == null);
+}
+
+test "ResourceType enum toString/fromString" {
+    try std.testing.expectEqualStrings("book", ResourceType.book.toString());
+    try std.testing.expectEqualStrings("genre", ResourceType.genre.toString());
+    try std.testing.expectEqualStrings("user", ResourceType.user.toString());
+    try std.testing.expectEqualStrings("system", ResourceType.system.toString());
+    try std.testing.expectEqualStrings("content", ResourceType.content.toString());
+
+    try std.testing.expect(ResourceType.fromString("book") == .book);
+    try std.testing.expect(ResourceType.fromString("genre") == .genre);
+    try std.testing.expect(ResourceType.fromString("user") == .user);
+    try std.testing.expect(ResourceType.fromString("system") == .system);
+    try std.testing.expect(ResourceType.fromString("content") == .content);
+    try std.testing.expect(ResourceType.fromString("unknown") == null);
+}
+
+test "RoleName enum toString/fromString" {
+    try std.testing.expectEqualStrings("admin", RoleName.admin.toString());
+    try std.testing.expectEqualStrings("librarian", RoleName.librarian.toString());
+    try std.testing.expectEqualStrings("user", RoleName.user.toString());
+    try std.testing.expectEqualStrings("guest", RoleName.guest.toString());
+
+    try std.testing.expect(RoleName.fromString("admin") == .admin);
+    try std.testing.expect(RoleName.fromString("librarian") == .librarian);
+    try std.testing.expect(RoleName.fromString("user") == .user);
+    try std.testing.expect(RoleName.fromString("guest") == .guest);
+    try std.testing.expect(RoleName.fromString("unknown") == null);
 }
 
 test "Role init/deinit" {
