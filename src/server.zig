@@ -36,7 +36,7 @@ pub const DustServer = struct {
     should_shutdown: *std.atomic.Value(bool),
 
     /// Initialize the DustServer
-    pub fn init(allocator: std.mem.Allocator, port: u16, db: *Database, jwt_secret: []const u8, should_shutdown: *std.atomic.Value(bool)) !DustServer {
+    pub fn init(allocator: std.mem.Allocator, port: u16, db: *Database, jwt_secret: []const u8, library_directories: []const []const u8, should_shutdown: *std.atomic.Value(bool)) !DustServer {
         const auth_service = try allocator.create(AuthService);
         auth_service.* = AuthService.init(db, allocator);
 
@@ -63,7 +63,7 @@ pub const DustServer = struct {
         book_controller.* = BookController.init(&db.db, book_repo, author_repo, tag_repo, allocator);
 
         const admin_controller = try allocator.create(AdminController);
-        admin_controller.* = AdminController.init(db, allocator);
+        admin_controller.* = AdminController.init(db, allocator, library_directories);
 
         const context_ptr = try allocator.create(ServerContext);
         context_ptr.* = ServerContext{
@@ -143,6 +143,7 @@ pub const DustServer = struct {
 
         // Protected user endpoints
         router.get("/users/me", user_routes.getCurrentUser, .{});
+        router.get("/profile", user_routes.getCurrentUser, .{}); // Alias for /users/me for client compatibility
 
         // Book endpoints
         router.get("/books", booksList, .{});

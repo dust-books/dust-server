@@ -1,4 +1,5 @@
 const std = @import("std");
+const openlibrary = @import("openlibrary.zig");
 
 pub const BookMetadata = struct {
     title: ?[]const u8 = null,
@@ -13,6 +14,7 @@ pub const BookMetadata = struct {
     file_format: ?[]const u8 = null,
     series: ?[]const u8 = null,
     series_number: ?u32 = null,
+    cover_image_url: ?[]const u8 = null,
 
     pub fn deinit(self: *BookMetadata, allocator: std.mem.Allocator) void {
         if (self.title) |t| allocator.free(t);
@@ -24,6 +26,7 @@ pub const BookMetadata = struct {
         if (self.language) |l| allocator.free(l);
         if (self.file_format) |ff| allocator.free(ff);
         if (self.series) |s| allocator.free(s);
+        if (self.cover_image_url) |c| allocator.free(c);
     }
 };
 
@@ -34,9 +37,15 @@ const SeriesInfo = struct {
 
 pub const MetadataExtractor = struct {
     allocator: std.mem.Allocator,
+    ol_client: ?openlibrary.OpenLibraryClient,
+    enable_external_lookup: bool,
 
-    pub fn init(allocator: std.mem.Allocator) MetadataExtractor {
-        return .{ .allocator = allocator };
+    pub fn init(allocator: std.mem.Allocator, enable_external_lookup: bool) MetadataExtractor {
+        return .{
+            .allocator = allocator,
+            .ol_client = if (enable_external_lookup) openlibrary.OpenLibraryClient.init(allocator) else null,
+            .enable_external_lookup = enable_external_lookup,
+        };
     }
 
     pub fn extractMetadata(self: *MetadataExtractor, file_path: []const u8) !BookMetadata {
@@ -51,12 +60,91 @@ pub const MetadataExtractor = struct {
         // Extract from filename/path (works for all formats as fallback)
         try self.extractFromFilename(file_path, &metadata);
 
+        // If we have an ISBN and external lookup is enabled, try to enrich with OpenLibrary
+        if (self.enable_external_lookup and metadata.isbn != null) {
+            if (self.ol_client) |*client| {
+                self.enrichWithOpenLibrary(client, &metadata) catch |err| {
+                    std.log.warn("Failed to enrich metadata from OpenLibrary: {}", .{err});
+                    // Continue with local metadata
+                };
+            }
+        }
+
         // TODO: In future, implement format-specific extraction:
         // - EPUB: Parse OPF file from ZIP structure
         // - PDF: Extract PDF metadata
         // - MOBI/AZW3: Parse MOBI headers
 
         return metadata;
+    }
+
+    fn enrichWithOpenLibrary(self: *MetadataExtractor, client: *openlibrary.OpenLibraryClient, metadata: *BookMetadata) !void {
+        const isbn = metadata.isbn orelse return;
+
+        std.log.info("🔍 Enriching metadata for ISBN: {s}", .{isbn});
+
+        if (try client.lookupByISBN(isbn)) |*external_meta| {
+            defer {
+                var mut_meta = external_meta.*;
+                mut_meta.deinit(self.allocator);
+            }
+
+            // Enrich title if external data is better
+            if (external_meta.title) |ext_title| {
+                if (metadata.title == null or ext_title.len > 0) {
+                    if (metadata.title) |old_title| self.allocator.free(old_title);
+                    metadata.title = try self.allocator.dupe(u8, ext_title);
+                }
+            }
+
+            // Enrich author if available
+            if (external_meta.authors) |authors| {
+                if (authors.len > 0) {
+                    if (metadata.author) |old_author| self.allocator.free(old_author);
+                    metadata.author = try self.allocator.dupe(u8, authors[0]);
+                }
+            }
+
+            // Add publisher
+            if (external_meta.publisher) |publisher| {
+                if (metadata.publisher) |old_pub| self.allocator.free(old_pub);
+                metadata.publisher = try self.allocator.dupe(u8, publisher);
+            }
+
+            // Add publication date
+            if (external_meta.published_date) |date| {
+                if (metadata.publication_date) |old_date| self.allocator.free(old_date);
+                metadata.publication_date = try self.allocator.dupe(u8, date);
+            }
+
+            // Add description
+            if (external_meta.description) |desc| {
+                if (metadata.description) |old_desc| self.allocator.free(old_desc);
+                metadata.description = try self.allocator.dupe(u8, desc);
+            }
+
+            // Add page count
+            if (external_meta.page_count) |pages| {
+                metadata.page_count = pages;
+            }
+
+            // Add language
+            if (external_meta.language) |lang| {
+                if (metadata.language) |old_lang| self.allocator.free(old_lang);
+                metadata.language = try self.allocator.dupe(u8, lang);
+            }
+
+            // Add cover image URL
+            if (external_meta.cover_image_url) |cover| {
+                if (metadata.cover_image_url) |old_cover| self.allocator.free(old_cover);
+                metadata.cover_image_url = try self.allocator.dupe(u8, cover);
+            }
+
+            std.log.info("✨ Enriched metadata: \"{s}\" by {s}", .{
+                metadata.title orelse "Unknown",
+                metadata.author orelse "Unknown",
+            });
+        }
     }
 
     fn getFileFormat(self: *MetadataExtractor, file_path: []const u8) ![]const u8 {
@@ -85,12 +173,12 @@ pub const MetadataExtractor = struct {
 
     fn extractFromFilename(self: *MetadataExtractor, file_path: []const u8, metadata: *BookMetadata) !void {
         // Split path into parts
-        var path_parts = std.ArrayList([]const u8).init(self.allocator);
-        defer path_parts.deinit();
+        var path_parts: std.ArrayList([]const u8) = .empty;
+        defer path_parts.deinit(self.allocator);
 
         var it = std.mem.tokenizeScalar(u8, file_path, '/');
         while (it.next()) |part| {
-            try path_parts.append(part);
+            try path_parts.append(self.allocator, part);
         }
 
         if (path_parts.items.len == 0) return;
@@ -212,7 +300,7 @@ pub const MetadataExtractor = struct {
     }
 
     pub fn detectGenres(self: *MetadataExtractor, metadata: *const BookMetadata, file_path: []const u8) ![][]const u8 {
-        var genres = std.ArrayList([]const u8).init(self.allocator);
+        var genres: std.ArrayList([]const u8) = .empty;
 
         const text_parts = [_]?[]const u8{
             metadata.title,
@@ -220,13 +308,13 @@ pub const MetadataExtractor = struct {
             file_path,
         };
 
-        var combined = std.ArrayList(u8).init(self.allocator);
-        defer combined.deinit();
+        var combined: std.ArrayList(u8) = .empty;
+        defer combined.deinit(self.allocator);
 
         for (text_parts) |part| {
             if (part) |p| {
-                try combined.appendSlice(p);
-                try combined.append(' ');
+                try combined.appendSlice(self.allocator, p);
+                try combined.append(self.allocator, ' ');
             }
         }
 
@@ -261,12 +349,12 @@ pub const MetadataExtractor = struct {
         for (genre_keywords) |gk| {
             for (gk.keywords) |keyword| {
                 if (std.mem.indexOf(u8, text, keyword)) |_| {
-                    try genres.append(try self.allocator.dupe(u8, gk.genre));
+                    try genres.append(self.allocator, try self.allocator.dupe(u8, gk.genre));
                     break;
                 }
             }
         }
 
-        return genres.toOwnedSlice();
+        return genres.toOwnedSlice(self.allocator);
     }
 };

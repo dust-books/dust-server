@@ -30,20 +30,30 @@ pub const PermissionRepository = struct {
             \\WHERE ur.user_id = ?
         ;
 
-        var stmt = try self.db.prepare(query);
+        var stmt = try self.db.db.prepare(query);
         defer stmt.deinit();
 
-        try stmt.bind(1, user_id);
+        const PermRow = struct {
+            id: i64,
+            name: []const u8,
+            description: ?[]const u8,
+            resource: []const u8,
+            action: []const u8,
+            created_at: []const u8,
+        };
 
-        while (try stmt.step()) {
+        const rows = try stmt.allAlloc(PermRow, self.allocator, .{}, .{user_id});
+        defer self.allocator.free(rows);
+        
+        for (rows) |row| {
             const perm = try Permission.init(
                 self.allocator,
-                stmt.columnInt64(0),
-                stmt.columnText(1),
-                if (stmt.columnIsNull(2)) null else stmt.columnText(2),
-                stmt.columnText(3),
-                stmt.columnText(4),
-                stmt.columnText(5),
+                row.id,
+                row.name,
+                row.description,
+                row.resource,
+                row.action,
+                row.created_at,
             );
             try perms.append(self.allocator, perm);
         }

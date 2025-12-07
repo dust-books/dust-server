@@ -6,53 +6,66 @@ const Database = @import("../../database.zig").Database;
 pub const AdminController = struct {
     db: *Database,
     allocator: std.mem.Allocator,
+    library_directories: []const []const u8,
     
-    pub fn init(db: *Database, allocator: std.mem.Allocator) AdminController {
+    pub fn init(db: *Database, allocator: std.mem.Allocator, library_directories: []const []const u8) AdminController {
         return .{
             .db = db,
             .allocator = allocator,
+            .library_directories = library_directories,
         };
     }
     
     pub fn scanLibrary(self: *AdminController, req: *httpz.Request, res: *httpz.Response) !void {
-        const body_opt = try req.json(struct {
-            path: ?[]const u8 = null,
-        });
+        _ = req;
         
-        const scan_path = if (body_opt) |body| body.path orelse "/library" else "/library";
+        std.log.info("🔍 Library scan initiated for configured directories", .{});
         
-        std.log.info("🔍 Library scan initiated at: {s}", .{scan_path});
-        
-        var lib_scanner = scanner.Scanner.init(res.arena, &self.db.db) catch |err| {
-            std.log.err("Failed to initialize scanner: {}", .{err});
-            res.status = 500;
+        if (self.library_directories.len == 0) {
+            std.log.warn("No library directories configured", .{});
+            res.status = 400;
             try res.json(.{ 
-                .message = "Failed to initialize scanner",
-                .@"error" = @errorName(err),
+                .message = "No library directories configured. Set DUST_DIRS environment variable.",
             }, .{});
             return;
-        };
-        defer lib_scanner.deinit();
+        }
         
-        const result = lib_scanner.scanLibrary(scan_path) catch |err| {
-            std.log.err("Scan failed: {}", .{err});
-            res.status = 500;
-            try res.json(.{ 
-                .message = "Library scan failed",
-                .@"error" = @errorName(err),
-            }, .{});
-            return;
-        };
+        var total_books_found: usize = 0;
+        var total_books_added: usize = 0;
+        var total_books_updated: usize = 0;
+        var total_errors: usize = 0;
+        
+        for (self.library_directories) |dir_path| {
+            std.log.info("📂 Scanning directory: {s}", .{dir_path});
+            
+            var lib_scanner = scanner.Scanner.init(self.allocator, &self.db.db) catch |err| {
+                std.log.err("Failed to initialize scanner: {}", .{err});
+                total_errors += 1;
+                continue;
+            };
+            defer lib_scanner.deinit();
+            
+            const result = lib_scanner.scanLibrary(dir_path) catch |err| {
+                std.log.err("Scan failed for {s}: {}", .{dir_path, err});
+                total_errors += 1;
+                continue;
+            };
+            
+            total_books_found += result.books_found;
+            total_books_added += result.books_added;
+            total_books_updated += result.books_updated;
+            total_errors += result.errors;
+        }
         
         try res.json(.{
             .success = true,
             .message = "Library scan completed",
             .results = .{
-                .books_found = result.books_found,
-                .books_added = result.books_added,
-                .books_updated = result.books_updated,
-                .errors = result.errors,
-                .scan_path = result.scan_path,
+                .books_found = total_books_found,
+                .books_added = total_books_added,
+                .books_updated = total_books_updated,
+                .errors = total_errors,
+                .directories_scanned = self.library_directories.len,
             },
         }, .{});
     }

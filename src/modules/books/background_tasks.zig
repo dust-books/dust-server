@@ -33,10 +33,10 @@ fn scanLibraryDirectories(ctx: *BackgroundTaskContext) void {
 
 /// Scan a single directory for book files
 fn scanDirectory(ctx: *BackgroundTaskContext, dir_path: []const u8) !void {
-    var dir = std.fs.openDirAbsolute(dir_path, .{ .iterate = true }) catch |err| {
-        std.log.err("Failed to open directory {s}: {}", .{ dir_path, err });
-        return err;
-    };
+    var dir = if (std.fs.path.isAbsolute(dir_path))
+        try std.fs.openDirAbsolute(dir_path, .{ .iterate = true })
+    else
+        try std.fs.cwd().openDir(dir_path, .{ .iterate = true });
     defer dir.close();
 
     var walker = try dir.walk(ctx.allocator);
@@ -146,18 +146,26 @@ pub fn createBackgroundTimerManager(allocator: std.mem.Allocator, db: *sqlite.Db
     const mgr = try allocator.create(BooksTimerManager);
     mgr.* = BooksTimerManager.init(allocator);
 
-    const ctx = try allocator.create(BackgroundTaskContext);
-    ctx.* = .{
+    // Create separate contexts for each task to avoid double-free
+    const scan_ctx = try allocator.create(BackgroundTaskContext);
+    scan_ctx.* = .{
+        .db = db,
+        .allocator = allocator,
+        .library_directories = library_directories,
+    };
+
+    const cleanup_ctx = try allocator.create(BackgroundTaskContext);
+    cleanup_ctx.* = .{
         .db = db,
         .allocator = allocator,
         .library_directories = library_directories,
     };
 
     // Run library scan every 5 minutes (300000 ms)
-    try mgr.registerTimer(scanLibraryDirectories, ctx, 300000, cleanupBackgroundContext);
+    try mgr.registerTimer(scanLibraryDirectories, scan_ctx, 300000, cleanupBackgroundContext);
 
     // Run cleanup every hour (3600000 ms)
-    try mgr.registerTimer(cleanupOldBooks, ctx, 3600000, cleanupBackgroundContext);
+    try mgr.registerTimer(cleanupOldBooks, cleanup_ctx, 3600000, cleanupBackgroundContext);
 
     std.log.info("📅 Registered books background tasks (scan every 5min, cleanup every hour)", .{});
 

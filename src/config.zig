@@ -11,7 +11,8 @@ pub const Config = struct {
 
     /// Load configuration from environment variables
     pub fn load(allocator: std.mem.Allocator) !Config {
-        const dirs_str = std.process.getEnvVarOwned(allocator, "dust_dirs") catch "";
+        const dirs_str = std.process.getEnvVarOwned(allocator, "DUST_DIRS") catch try allocator.dupe(u8, "");
+        defer allocator.free(dirs_str);
         const library_directories = try parseCommaSeparated(allocator, dirs_str);
         const google_books_api_key = std.process.getEnvVarOwned(allocator, "GOOGLE_BOOKS_API_KEY") catch null;
 

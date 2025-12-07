@@ -140,6 +140,9 @@ pub fn login(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !vo
         return;
     };
 
+    // Use username as displayName, or email if username is null
+    const display_name = user.username orelse user.email;
+
     // Return token and user info (matching Deno format)
     res.status = 200;
     try res.json(.{
@@ -148,6 +151,7 @@ pub fn login(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !vo
             .id = user.id,
             .email = user.email,
             .username = user.username,
+            .displayName = display_name,
         },
     }, .{});
 }
@@ -177,15 +181,36 @@ pub fn getCurrentUser(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Resp
     var user = maybe_user.?;
     defer user.deinit(auth_ctx.allocator);
 
-    // Return user info
+    // Build permissions array (simplified for now - TODO: implement proper permissions)
+    var permission_list: std.ArrayList([]const u8) = .empty;
+    defer permission_list.deinit(auth_ctx.allocator);
+    try permission_list.append(auth_ctx.allocator, "books:read");
+    if (user.is_admin) {
+        try permission_list.append(auth_ctx.allocator, "books:download");
+        try permission_list.append(auth_ctx.allocator, "books:upload");
+        try permission_list.append(auth_ctx.allocator, "books:delete");
+    }
+
+    // Build roles array
+    var role_list: std.ArrayList([]const u8) = .empty;
+    defer role_list.deinit(auth_ctx.allocator);
+
+    if (user.is_admin) try role_list.append(auth_ctx.allocator, "admin");
+    try role_list.append(auth_ctx.allocator, "user");
+
+    // Use username as displayName, or email if username is null
+    const display_name = user.username orelse user.email;
+
+    // Return user info (not nested under .user for client compatibility)
     res.status = 200;
     try res.json(.{
-        .user = .{
-            .id = user.id,
-            .email = user.email,
-            .username = user.username,
-            .created_at = user.created_at,
-        },
+        .id = user.id,
+        .email = user.email,
+        .username = user.username,
+        .displayName = display_name,
+        .roles = role_list.items,
+        .permissions = permission_list.items,
+        .created = user.created_at,
     }, .{});
 }
 

@@ -69,7 +69,7 @@ pub fn main() !void {
     std.log.info("Background tasks registered\n\n", .{});
 
     // Start server
-    var server = try DustServer.init(allocator, cfg.port, &db, cfg.jwt_secret, &should_shutdown);
+    var server = try DustServer.init(allocator, cfg.port, &db, cfg.jwt_secret, cfg.library_directories, &should_shutdown);
     defer server.deinit();
 
     std.log.info("Starting HTTP server on port {d}...\n", .{cfg.port});

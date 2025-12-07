@@ -26,10 +26,13 @@ pub const ScanResult = struct {
     }
 };
 
+const MetadataExtractor = @import("metadata_extractor.zig").MetadataExtractor;
+
 pub const Scanner = struct {
     allocator: std.mem.Allocator,
     db: *sqlite.Db,
     scan_dirs: std.ArrayList([]const u8),
+    metadata_extractor: MetadataExtractor,
     
     pub fn init(allocator: std.mem.Allocator, db: *sqlite.Db) !Scanner {
         // Get directories from environment variable
@@ -44,10 +47,14 @@ pub const Scanner = struct {
             }
         }
         
+        // Enable external metadata lookup by default
+        const metadata_extractor = MetadataExtractor.init(allocator, true);
+        
         return .{
             .allocator = allocator,
             .db = db,
             .scan_dirs = dirs,
+            .metadata_extractor = metadata_extractor,
         };
     }
     
@@ -157,37 +164,52 @@ pub const Scanner = struct {
     }
     
     fn addNewBook(self: *Scanner, path: []const u8) !void {
-        // Extract basic info from filename
-        const basename = std.fs.path.basename(path);
-        const title = try self.extractTitle(basename);
-        defer self.allocator.free(title);
+        // Extract metadata using the enhanced extractor (includes OpenLibrary enrichment)
+        var metadata = try self.metadata_extractor.extractMetadata(path);
+        defer metadata.deinit(self.allocator);
         
-        // Extract file format from extension
-        const ext = std.fs.path.extension(basename);
-        const file_format = if (ext.len > 1) ext[1..] else "unknown";
+        const title = metadata.title orelse blk: {
+            const basename = std.fs.path.basename(path);
+            break :blk try self.extractTitle(basename);
+        };
         
-        // Get file size
-        const file = try std.fs.openFileAbsolute(path, .{});
-        defer file.close();
-        const stat = try file.stat();
+        const file_format = metadata.file_format orelse "unknown";
         
-        // We need an author - create "Unknown" if doesn't exist
-        const author_id = try self.getOrCreateUnknownAuthor();
+        // Handle author
+        var author_id: i64 = undefined;
+        if (metadata.author) |author_name| {
+            author_id = try self.getOrCreateAuthor(author_name);
+        } else {
+            author_id = try self.getOrCreateUnknownAuthor();
+        }
         
+        // Insert book with enriched metadata
         const insert_query =
-            \\INSERT INTO books (name, file_path, file_size, file_format, author, created_at, updated_at)
-            \\VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+            \\INSERT INTO books (name, file_path, file_size, file_format, author, 
+            \\                   publisher, publication_date, description, language, page_count,
+            \\                   created_at, updated_at)
+            \\VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
         ;
         
         try self.db.exec(insert_query, .{}, .{
-            .name = title,
+            .name = if (metadata.title != null) metadata.title.? else title,
             .file_path = path,
-            .file_size = @as(i64, @intCast(stat.size)),
+            .file_size = @as(i64, @intCast(metadata.file_size)),
             .file_format = file_format,
             .author = author_id,
+            .publisher = metadata.publisher,
+            .publication_date = metadata.publication_date,
+            .description = metadata.description,
+            .language = metadata.language,
+            .page_count = if (metadata.page_count) |pc| @as(i64, @intCast(pc)) else null,
         });
         
-        std.log.info("➕ Added book: {s}", .{title});
+        std.log.info("➕ Added book: {s}", .{if (metadata.title != null) metadata.title.? else title});
+        
+        // Cleanup temporary title if allocated
+        if (metadata.title == null) {
+            self.allocator.free(title);
+        }
     }
     
     fn updateBookMetadata(self: *Scanner, path: []const u8) !void {
@@ -208,9 +230,9 @@ pub const Scanner = struct {
         });
     }
     
-    fn getOrCreateUnknownAuthor(self: *Scanner) !i64 {
+    fn getOrCreateAuthor(self: *Scanner, name: []const u8) !i64 {
         const check_query = 
-            \\SELECT id FROM authors WHERE name = 'Unknown'
+            \\SELECT id FROM authors WHERE name = ?
         ;
         
         var stmt = try self.db.prepare(check_query);
@@ -219,22 +241,25 @@ pub const Scanner = struct {
         const row = try stmt.one(
             struct { id: i64 },
             .{},
-            .{},
+            .{name},
         );
         
         if (row) |r| {
             return r.id;
         }
         
-        // Create Unknown author
+        // Create new author
         const insert_query =
-            \\INSERT INTO authors (name, created_at) VALUES ('Unknown', datetime('now'))
+            \\INSERT INTO authors (name, created_at) VALUES (?, datetime('now'))
         ;
         
-        try self.db.exec(insert_query, .{}, .{});
+        try self.db.exec(insert_query, .{}, .{name});
         
-        // Get the ID
         return self.db.getLastInsertRowID();
+    }
+
+    fn getOrCreateUnknownAuthor(self: *Scanner) !i64 {
+        return self.getOrCreateAuthor("Unknown");
     }
     
     fn extractTitle(self: *Scanner, filename: []const u8) ![]const u8 {
