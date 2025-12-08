@@ -101,15 +101,21 @@ fn addBookToDatabase(ctx: *BackgroundTaskContext, path: []const u8) !void {
 
 /// Background task to clean up old archived books (typed)
 fn cleanupOldBooks(ctx: *BackgroundTaskContext) void {
+    std.log.debug("🧹 Starting cleanup of old archived books (older than 1 year)", .{});
+    
     const query =
         \\DELETE FROM books
-        \\WHERE archived = 1
+        \\WHERE status = 'archived'
         \\AND archived_at IS NOT NULL
-        \\AND archived_at < strftime('%s', 'now', '-1 year')
+        \\AND archived_at < datetime('now', '-1 year')
     ;
 
+    std.log.debug("Executing cleanup query: {s}", .{query});
+    
     ctx.db.exec(query, .{}, .{}) catch |err| {
         std.log.err("❌ Failed to cleanup old archived books: {}", .{err});
+        std.log.err("   Query was: {s}", .{query});
+        std.log.err("   This might be due to missing columns or invalid date format", .{});
         return;
     };
 
