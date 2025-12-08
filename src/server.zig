@@ -148,6 +148,7 @@ pub const DustServer = struct {
         // Book endpoints
         router.get("/books", booksList, .{});
         router.get("/books/:id", booksGet, .{});
+        router.get("/books/:id/stream", booksStream, .{});
         router.post("/books", booksCreate, .{});
         router.put("/books/:id", booksUpdate, .{});
         router.delete("/books/:id", booksDelete, .{});
@@ -155,6 +156,10 @@ pub const DustServer = struct {
         // Author endpoints
         router.get("/books/authors", booksAuthors, .{});
         router.get("/books/authors/:id", booksAuthor, .{});
+
+        // Reading progress endpoints
+        router.get("/books/:id/progress", booksGetProgress, .{});
+        router.put("/books/:id/progress", booksUpdateProgress, .{});
 
         // Tag endpoints
         router.get("/tags", booksTags, .{});
@@ -250,6 +255,81 @@ fn booksGet(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !voi
     try controller.getBook(req, res);
 }
 
+fn booksStream(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
+    const auth_ctx = &ctx.auth_context;
+    const middleware_helpers = @import("middleware/helpers.zig");
+
+    var auth_user = middleware_helpers.requireAuth(&auth_ctx.jwt, auth_ctx.allocator, req, res) catch |err| {
+        return err;
+    };
+    defer auth_user.deinit(auth_ctx.allocator);
+
+    const book_id_str = req.param("id") orelse {
+        res.status = 400;
+        try res.json(.{ .@"error" = "Missing book ID" }, .{});
+        return;
+    };
+
+    const book_id = std.fmt.parseInt(i64, book_id_str, 10) catch {
+        res.status = 400;
+        try res.json(.{ .@"error" = "Invalid book ID" }, .{});
+        return;
+    };
+
+    const db = ctx.db orelse {
+        res.status = 500;
+        try res.json(.{ .@"error" = "Database not available" }, .{});
+        return;
+    };
+
+    // Get book file path
+    const query = "SELECT file_path, file_format FROM books WHERE id = ?";
+    var stmt = try db.db.prepare(query);
+    defer stmt.deinit();
+
+    const BookRow = struct {
+        file_path: []const u8,
+        file_format: ?[]const u8,
+    };
+
+    const row = try stmt.oneAlloc(BookRow, res.arena, .{}, .{book_id});
+    
+    if (row == null) {
+        res.status = 404;
+        try res.json(.{ .@"error" = "Book not found" }, .{});
+        return;
+    }
+
+    const book = row.?;
+    
+    // Open and stream file
+    const file = std.fs.cwd().openFile(book.file_path, .{}) catch |err| {
+        std.log.err("Failed to open book file {s}: {}", .{ book.file_path, err });
+        res.status = 404;
+        try res.json(.{ .@"error" = "Book file not found" }, .{});
+        return;
+    };
+    defer file.close();
+
+    // Get file size
+    const stat = try file.stat();
+    
+    // Set content type based on format
+    if (book.file_format) |format| {
+        if (std.mem.eql(u8, format, "pdf")) {
+            res.content_type = .PDF;
+        } else if (std.mem.eql(u8, format, "epub")) {
+            res.header("Content-Type", "application/epub+zip");
+        }
+    }
+
+    // Read entire file into response arena
+    const file_content = try file.readToEndAlloc(res.arena, stat.size);
+    
+    res.status = 200;
+    res.body = file_content;
+}
+
 fn booksCreate(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
     const controller: *BookController = @ptrCast(@alignCast(ctx.book_controller.?));
     try controller.createBook(req, res);
@@ -296,6 +376,161 @@ fn adminDeleteUser(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Respons
 fn adminScanLibrary(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
     const controller: *AdminController = @ptrCast(@alignCast(ctx.admin_controller.?));
     try controller.scanLibrary(req, res);
+}
+
+// Reading progress route handlers
+fn booksGetProgress(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
+    const auth_ctx = &ctx.auth_context;
+    const middleware_helpers = @import("middleware/helpers.zig");
+
+    var auth_user = middleware_helpers.requireAuth(&auth_ctx.jwt, auth_ctx.allocator, req, res) catch |err| {
+        return err;
+    };
+    defer auth_user.deinit(auth_ctx.allocator);
+
+    const book_id_str = req.param("id") orelse {
+        res.status = 400;
+        try res.json(.{ .@"error" = "Missing book ID" }, .{});
+        return;
+    };
+
+    const book_id = std.fmt.parseInt(i64, book_id_str, 10) catch {
+        res.status = 400;
+        try res.json(.{ .@"error" = "Invalid book ID" }, .{});
+        return;
+    };
+
+    const db = ctx.db orelse {
+        res.status = 500;
+        try res.json(.{ .@"error" = "Database not available" }, .{});
+        return;
+    };
+
+    // Query reading progress
+    const query = 
+        \\SELECT current_page, total_pages, percentage_complete, last_read_at 
+        \\FROM reading_progress 
+        \\WHERE user_id = ? AND book_id = ?
+    ;
+
+    var stmt = try db.db.prepare(query);
+    defer stmt.deinit();
+
+    const ProgressRow = struct {
+        current_page: i64,
+        total_pages: ?i64,
+        percentage_complete: f64,
+        last_read_at: []const u8,
+    };
+
+    const row = try stmt.oneAlloc(ProgressRow, res.arena, .{}, .{ auth_user.user_id, book_id });
+
+    if (row) |progress| {
+        res.status = 200;
+        try res.json(.{
+            .book = .{ .id = book_id },
+            .progress = .{
+                .current_page = progress.current_page,
+                .total_pages = progress.total_pages,
+                .percentage_complete = progress.percentage_complete,
+                .last_read_at = progress.last_read_at,
+            },
+        }, .{});
+    } else {
+        res.status = 200;
+        try res.json(.{
+            .book = .{ .id = book_id },
+            .progress = null,
+        }, .{});
+    }
+}
+
+fn booksUpdateProgress(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
+    const auth_ctx = &ctx.auth_context;
+    const middleware_helpers = @import("middleware/helpers.zig");
+
+    var auth_user = middleware_helpers.requireAuth(&auth_ctx.jwt, auth_ctx.allocator, req, res) catch |err| {
+        return err;
+    };
+    defer auth_user.deinit(auth_ctx.allocator);
+
+    const book_id_str = req.param("id") orelse {
+        res.status = 400;
+        try res.json(.{ .@"error" = "Missing book ID" }, .{});
+        return;
+    };
+
+    const book_id = std.fmt.parseInt(i64, book_id_str, 10) catch {
+        res.status = 400;
+        try res.json(.{ .@"error" = "Invalid book ID" }, .{});
+        return;
+    };
+
+    const body = req.body() orelse {
+        res.status = 400;
+        try res.json(.{ .@"error" = "Missing request body" }, .{});
+        return;
+    };
+
+    const parsed = std.json.parseFromSlice(
+        struct {
+            current_page: ?i64 = null,
+            total_pages: ?i64 = null,
+            current_location: ?[]const u8 = null,
+            percentage_complete: ?f64 = null,
+        },
+        auth_ctx.allocator,
+        body,
+        .{},
+    ) catch {
+        res.status = 400;
+        try res.json(.{ .@"error" = "Invalid JSON" }, .{});
+        return;
+    };
+    defer parsed.deinit();
+
+    const data = parsed.value;
+
+    // Validate that we have at least current_page
+    const current_page = data.current_page orelse 0;
+    
+    const db = ctx.db orelse {
+        res.status = 500;
+        try res.json(.{ .@"error" = "Database not available" }, .{});
+        return;
+    };
+
+    // Use provided percentage or calculate it
+    const percentage: f64 = if (data.percentage_complete) |pct|
+        pct
+    else if (data.total_pages) |total|
+        if (total > 0) @as(f64, @floatFromInt(current_page)) / @as(f64, @floatFromInt(total)) * 100.0 else 0.0
+    else
+        0.0;
+
+    // Upsert progress
+    const upsert_query =
+        \\INSERT INTO reading_progress (user_id, book_id, current_page, total_pages, percentage_complete, last_read_at, updated_at)
+        \\VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+        \\ON CONFLICT(user_id, book_id) DO UPDATE SET
+        \\  current_page = excluded.current_page,
+        \\  total_pages = excluded.total_pages,
+        \\  percentage_complete = excluded.percentage_complete,
+        \\  last_read_at = datetime('now'),
+        \\  updated_at = datetime('now')
+    ;
+
+    try db.db.exec(upsert_query, .{}, .{ auth_user.user_id, book_id, current_page, data.total_pages, percentage });
+
+    res.status = 200;
+    try res.json(.{
+        .success = true,
+        .progress = .{
+            .current_page = current_page,
+            .total_pages = data.total_pages,
+            .percentage_complete = percentage,
+        },
+    }, .{});
 }
 
 // Tag route handlers

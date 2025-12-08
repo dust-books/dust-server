@@ -72,12 +72,19 @@ pub const Scanner = struct {
             .scan_path = path,
         };
         
-        // Check if path exists
-        var dir = std.fs.openDirAbsolute(path, .{ .iterate = true }) catch |err| {
-            std.log.err("Failed to open directory {s}: {}", .{ path, err });
-            result.errors += 1;
-            return result;
-        };
+        // Check if path exists and open directory (handle both absolute and relative paths)
+        var dir = if (std.fs.path.isAbsolute(path))
+            std.fs.openDirAbsolute(path, .{ .iterate = true }) catch |err| {
+                std.log.err("Failed to open directory {s}: {}", .{ path, err });
+                result.errors += 1;
+                return result;
+            }
+        else
+            std.fs.cwd().openDir(path, .{ .iterate = true }) catch |err| {
+                std.log.err("Failed to open directory {s}: {}", .{ path, err });
+                result.errors += 1;
+                return result;
+            };
         defer dir.close();
         
         // Iterate through directory
@@ -164,9 +171,17 @@ pub const Scanner = struct {
     }
     
     fn addNewBook(self: *Scanner, path: []const u8) !void {
+        std.log.debug("📖 Adding new book: {s}", .{path});
+        
         // Extract metadata using the enhanced extractor (includes OpenLibrary enrichment)
         var metadata = try self.metadata_extractor.extractMetadata(path);
         defer metadata.deinit(self.allocator);
+        
+        std.log.debug("Metadata extracted - title: {s}, author: {s}, isbn: {s}", .{
+            metadata.title orelse "null",
+            metadata.author orelse "null", 
+            metadata.isbn orelse "null"
+        });
         
         const title = metadata.title orelse blk: {
             const basename = std.fs.path.basename(path);
@@ -178,31 +193,55 @@ pub const Scanner = struct {
         // Handle author
         var author_id: i64 = undefined;
         if (metadata.author) |author_name| {
+            std.log.debug("Getting or creating author: {s}", .{author_name});
             author_id = try self.getOrCreateAuthor(author_name);
         } else {
+            std.log.debug("No author found, using unknown author", .{});
             author_id = try self.getOrCreateUnknownAuthor();
         }
         
-        // Insert book with enriched metadata
+        std.log.debug("Author ID: {d}", .{author_id});
+        
+        // Insert book with enriched metadata (including ISBN)
         const insert_query =
-            \\INSERT INTO books (name, file_path, file_size, file_format, author, 
-            \\                   publisher, publication_date, description, language, page_count,
+            \\INSERT INTO books (name, file_path, file_size, file_format, author, isbn,
+            \\                   publisher, publication_date, description, page_count,
             \\                   created_at, updated_at)
             \\VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
         ;
         
-        try self.db.exec(insert_query, .{}, .{
-            .name = if (metadata.title != null) metadata.title.? else title,
-            .file_path = path,
-            .file_size = @as(i64, @intCast(metadata.file_size)),
-            .file_format = file_format,
-            .author = author_id,
-            .publisher = metadata.publisher,
-            .publication_date = metadata.publication_date,
-            .description = metadata.description,
-            .language = metadata.language,
-            .page_count = if (metadata.page_count) |pc| @as(i64, @intCast(pc)) else null,
+        std.log.debug("Executing INSERT query...", .{});
+        std.log.debug("Values: title={s}, path={s}, size={d}, format={s}, author_id={d}, isbn={s}", .{
+            if (metadata.title != null) metadata.title.? else title,
+            path,
+            @as(i64, @intCast(metadata.file_size)),
+            file_format,
+            author_id,
+            metadata.isbn orelse "null",
         });
+        std.log.debug("       publisher={s}, pub_date={s}, desc={s}, pages={any}", .{
+            metadata.publisher orelse "null",
+            metadata.publication_date orelse "null",
+            if (metadata.description) |d| d[0..@min(50, d.len)] else "null",
+            if (metadata.page_count) |pc| @as(i64, @intCast(pc)) else null,
+        });
+        
+        self.db.exec(insert_query, .{}, .{
+            if (metadata.title != null) metadata.title.? else title,
+            path,
+            @as(i64, @intCast(metadata.file_size)),
+            file_format,
+            author_id,
+            metadata.isbn,
+            metadata.publisher,
+            metadata.publication_date,
+            metadata.description,
+            if (metadata.page_count) |pc| @as(i64, @intCast(pc)) else null,
+        }) catch |err| {
+            std.log.err("Failed to insert book into database: {}", .{err});
+            std.log.err("SQLite error details - Check if column count matches. Query expects 10 values.", .{});
+            return err;
+        };
         
         std.log.info("➕ Added book: {s}", .{if (metadata.title != null) metadata.title.? else title});
         

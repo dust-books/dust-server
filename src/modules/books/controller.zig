@@ -63,9 +63,8 @@ pub const BookController = struct {
             return;
         };
 
-        var arena = std.heap.ArenaAllocator.init(self.allocator);
-        defer arena.deinit();
-        const allocator = arena.allocator();
+        // Use res.arena so memory stays alive for the response
+        const allocator = res.arena;
 
         const book = self.book_repo.getBookById(allocator, id) catch |err| {
             if (err == error.BookNotFound) {
@@ -83,8 +82,11 @@ pub const BookController = struct {
         defer list.deinit(allocator);
         const writer = list.writer(allocator);
 
+        // Wrap in "book" field for client compatibility
+        try writer.writeAll("{\"book\":{");
+        
         try std.fmt.format(writer,
-            \\{{"id":{d},"name":"{s}","author":{{"id":{d},"name":"{s}"}},"file_path":"{s}","status":"{s}"
+            \\"id":{d},"name":"{s}","author":{{"id":{d},"name":"{s}"}},"file_path":"{s}","status":"{s}"
         , .{ book.id, book.name, author.id, author.name, book.file_path, book.status });
 
         if (book.isbn) |isbn| try std.fmt.format(writer, ",\"isbn\":\"{s}\"", .{isbn});
@@ -93,7 +95,7 @@ pub const BookController = struct {
         if (book.file_size) |fs| try std.fmt.format(writer, ",\"file_size\":{d}", .{fs});
         if (book.file_format) |ff| try std.fmt.format(writer, ",\"file_format\":\"{s}\"", .{ff});
 
-        try writer.writeAll(",\"tags\":[");
+        try writer.writeAll("},\"tags\":[");
         for (tags, 0..) |tag, i| {
             if (i > 0) try writer.writeAll(",");
             try std.fmt.format(writer, "{{\"id\":{d},\"name\":\"{s}\",\"category\":\"{s}\"}}", .{ tag.id, tag.name, tag.category });

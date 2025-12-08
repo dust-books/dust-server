@@ -281,11 +281,44 @@ pub const MetadataExtractor = struct {
     }
 
     fn extractISBN(self: *MetadataExtractor, file_path: []const u8) ?[]const u8 {
-        // Look for ISBN-10 or ISBN-13 patterns
-        // Simplified: look for 10 or 13 digit sequences (possibly with dashes/spaces)
-        _ = self;
-        _ = file_path;
-        // TODO: Implement ISBN extraction using regex or pattern matching
+        // Look for ISBN-10 or ISBN-13 patterns in the filename
+        // Extract basename and look for sequences of 10 or 13 digits
+        const basename = std.fs.path.basename(file_path);
+        
+        // Remove extension
+        const name_without_ext = if (std.mem.lastIndexOf(u8, basename, ".")) |idx|
+            basename[0..idx]
+        else
+            basename;
+        
+        // Look for continuous digit sequences
+        var digit_buffer: [20]u8 = undefined;
+        var digit_count: usize = 0;
+        
+        for (name_without_ext) |c| {
+            if (std.ascii.isDigit(c)) {
+                if (digit_count < digit_buffer.len) {
+                    digit_buffer[digit_count] = c;
+                    digit_count += 1;
+                }
+            } else if (digit_count > 0) {
+                // Check if we found a valid ISBN length
+                if (digit_count == 10 or digit_count == 13) {
+                    const isbn = self.allocator.dupe(u8, digit_buffer[0..digit_count]) catch return null;
+                    std.log.debug("Extracted ISBN from filename: {s}", .{isbn});
+                    return isbn;
+                }
+                digit_count = 0;
+            }
+        }
+        
+        // Check final sequence
+        if (digit_count == 10 or digit_count == 13) {
+            const isbn = self.allocator.dupe(u8, digit_buffer[0..digit_count]) catch return null;
+            std.log.debug("Extracted ISBN from filename: {s}", .{isbn});
+            return isbn;
+        }
+        
         return null;
     }
 
