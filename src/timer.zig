@@ -66,7 +66,7 @@ pub fn TimerManager(comptime Ctx: type) type {
             const thread = try std.Thread.spawn(.{}, taskLoop, .{ self, task_index });
             self.tasks.items[task_index].thread = thread;
 
-            std.log.info("✅ Registered timer task (interval: {}ms)", .{interval_ms});
+            std.log.debug("Registered timer task (interval: {}ms)", .{interval_ms});
         }
 
         pub fn stop(self: *Self) void {
@@ -81,7 +81,7 @@ pub fn TimerManager(comptime Ctx: type) type {
                 if (task.thread) |thread| thread.join();
             }
 
-            std.log.info("⏹️  Timer manager stopped", .{});
+            std.log.debug("Timer manager stopped", .{});
         }
 
         fn taskLoop(self: *Self, task_index: usize) void {

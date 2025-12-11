@@ -28,172 +28,110 @@ pub const BookController = struct {
     pub fn listBooks(self: *BookController, req: *httpz.Request, res: *httpz.Response) !void {
         _ = req;
 
-        const books = try self.book_repo.listBooks(self.allocator);
-        defer {
-            for (books) |book| {
-                book.deinit(self.allocator);
-            }
-            self.allocator.free(books);
-        }
+        const allocator = res.arena;
+        const books = try self.book_repo.listBooks(allocator);
 
-        var json_response: std.ArrayList(u8) = .empty;
-        defer json_response.deinit(self.allocator);
-        const writer = json_response.writer(self.allocator);
+        const BookItem = struct {
+            id: i64,
+            name: []const u8,
+            author_id: i64,
+            author_name: []const u8,
+            file_path: []const u8,
+            isbn: ?[]const u8 = null,
+            description: ?[]const u8 = null,
+            page_count: ?i64 = null,
+            status: []const u8,
+            created_at: []const u8,
+        };
 
-        try writer.writeAll("[");
-        for (books, 0..) |book, i| {
-            if (i > 0) try writer.writeAll(",");
-
-            // Get author name
-            const author = self.author_repo.getAuthorById(self.allocator, book.author) catch |err| {
+        var book_list = try std.ArrayList(BookItem).initCapacity(allocator, books.len);
+        for (books) |book| {
+            const author = self.author_repo.getAuthorById(allocator, book.author) catch |err| {
                 if (err == error.AuthorNotFound) {
                     std.log.warn("Author {d} not found for book {d}", .{ book.author, book.id });
                     continue;
                 }
                 return err;
             };
-            defer author.deinit(self.allocator);
 
-            try writer.writeAll("{");
-            try writer.print("\"id\":{d},", .{book.id});
-            try writer.print("\"name\":\"{s}\",", .{book.name});
-            try writer.print("\"author_id\":{d},", .{book.author});
-            try writer.print("\"author_name\":\"{s}\",", .{author.name});
-            try writer.print("\"file_path\":\"{s}\",", .{book.file_path});
-            
-            if (book.isbn) |isbn| {
-                try writer.print("\"isbn\":\"{s}\",", .{isbn});
-            } else {
-                try writer.writeAll("\"isbn\":null,");
-            }
-
-            if (book.description) |desc| {
-                // Escape quotes in description
-                try writer.writeAll("\"description\":\"");
-                for (desc) |c| {
-                    if (c == '"') {
-                        try writer.writeAll("\\\"");
-                    } else if (c == '\\') {
-                        try writer.writeAll("\\\\");
-                    } else if (c == '\n') {
-                        try writer.writeAll("\\n");
-                    } else {
-                        try writer.writeByte(c);
-                    }
-                }
-                try writer.writeAll("\",");
-            } else {
-                try writer.writeAll("\"description\":null,");
-            }
-
-            if (book.page_count) |pc| {
-                try writer.print("\"page_count\":{d},", .{pc});
-            } else {
-                try writer.writeAll("\"page_count\":null,");
-            }
-
-            try writer.print("\"status\":\"{s}\",", .{book.status});
-            try writer.print("\"created_at\":\"{s}\"", .{book.created_at});
-            try writer.writeAll("}");
+            book_list.appendAssumeCapacity(.{
+                .id = book.id,
+                .name = book.name,
+                .author_id = book.author,
+                .author_name = author.name,
+                .file_path = book.file_path,
+                .isbn = book.isbn,
+                .description = book.description,
+                .page_count = book.page_count,
+                .status = book.status,
+                .created_at = book.created_at,
+            });
         }
-        try writer.writeAll("]");
 
         res.status = 200;
-        res.content_type = .JSON;
-        res.body = try self.allocator.dupe(u8, json_response.items);
+        try res.json(book_list.items, .{});
     }
 
     // GET /books/:id - Get book by ID
     pub fn getBook(self: *BookController, req: *httpz.Request, res: *httpz.Response) !void {
         const book_id_str = req.param("id") orelse {
             res.status = 400;
-            res.body = "{\"error\":\"Missing book ID\"}";
+            try res.json(.{ .@"error" = "Missing book ID" }, .{});
             return;
         };
 
         const book_id = std.fmt.parseInt(i64, book_id_str, 10) catch {
             res.status = 400;
-            res.body = "{\"error\":\"Invalid book ID\"}";
+            try res.json(.{ .@"error" = "Invalid book ID" }, .{});
             return;
         };
 
-        const book = self.book_repo.getBookById(self.allocator, book_id) catch |err| {
+        const allocator = res.arena;
+
+        const book = self.book_repo.getBookById(allocator, book_id) catch |err| {
             if (err == error.BookNotFound) {
                 res.status = 404;
-                res.body = "{\"error\":\"Book not found\"}";
+                try res.json(.{ .@"error" = "Book not found" }, .{});
                 return;
             }
             return err;
         };
-        defer book.deinit(self.allocator);
 
-        const author = self.author_repo.getAuthorById(self.allocator, book.author) catch |err| {
+        const author = self.author_repo.getAuthorById(allocator, book.author) catch |err| {
             if (err == error.AuthorNotFound) {
                 res.status = 404;
-                res.body = "{\"error\":\"Author not found\"}";
+                try res.json(.{ .@"error" = "Author not found" }, .{});
                 return;
             }
             return err;
         };
-        defer author.deinit(self.allocator);
 
-        var json_response: std.ArrayList(u8) = .empty;
-        defer json_response.deinit(self.allocator);
-        const writer = json_response.writer(self.allocator);
-
-        try writer.writeAll("{");
-        try writer.print("\"id\":{d},", .{book.id});
-        try writer.print("\"name\":\"{s}\",", .{book.name});
-        try writer.print("\"author_id\":{d},", .{book.author});
-        try writer.print("\"author_name\":\"{s}\",", .{author.name});
-        try writer.print("\"file_path\":\"{s}\",", .{book.file_path});
-        
-        if (book.isbn) |isbn| {
-            try writer.print("\"isbn\":\"{s}\",", .{isbn});
-        } else {
-            try writer.writeAll("\"isbn\":null,");
-        }
-
-        if (book.description) |desc| {
-            try writer.writeAll("\"description\":\"");
-            for (desc) |c| {
-                if (c == '"') {
-                    try writer.writeAll("\\\"");
-                } else if (c == '\\') {
-                    try writer.writeAll("\\\\");
-                } else if (c == '\n') {
-                    try writer.writeAll("\\n");
-                } else {
-                    try writer.writeByte(c);
-                }
-            }
-            try writer.writeAll("\",");
-        } else {
-            try writer.writeAll("\"description\":null,");
-        }
-
-        if (book.page_count) |pc| {
-            try writer.print("\"page_count\":{d},", .{pc});
-        } else {
-            try writer.writeAll("\"page_count\":null,");
-        }
-
-        try writer.print("\"status\":\"{s}\",", .{book.status});
-        try writer.print("\"created_at\":\"{s}\"", .{book.created_at});
-        try writer.writeAll("}");
+        const response = .{
+            .id = book.id,
+            .name = book.name,
+            .author_id = book.author,
+            .author_name = author.name,
+            .file_path = book.file_path,
+            .isbn = book.isbn,
+            .description = book.description,
+            .page_count = book.page_count,
+            .status = book.status,
+            .created_at = book.created_at,
+        };
 
         res.status = 200;
-        res.content_type = .JSON;
-        res.body = try self.allocator.dupe(u8, json_response.items);
+        try res.json(response, .{});
     }
 
     // POST /books - Create new book
     pub fn createBook(self: *BookController, req: *httpz.Request, res: *httpz.Response) !void {
         const body = req.body() orelse {
             res.status = 400;
-            res.body = "{\"error\":\"Missing request body\"}";
+            try res.json(.{ .@"error" = "Missing request body" }, .{});
             return;
         };
+
+        const allocator = res.arena;
 
         var parsed = std.json.parseFromSlice(
             struct {
@@ -202,73 +140,66 @@ pub const BookController = struct {
                 file_path: []const u8,
                 description: ?[]const u8 = null,
             },
-            self.allocator,
+            allocator,
             body,
             .{ .ignore_unknown_fields = true },
         ) catch {
             res.status = 400;
-            res.body = "{\"error\":\"Invalid JSON\"}";
+            try res.json(.{ .@"error" = "Invalid JSON" }, .{});
             return;
         };
         defer parsed.deinit();
 
-        // Get or create author
-        var author = self.author_repo.getAuthorByName(self.allocator, parsed.value.author_name) catch |err| blk: {
+        var author = self.author_repo.getAuthorByName(allocator, parsed.value.author_name) catch |err| blk: {
             if (err == error.AuthorNotFound) {
-                // Create new author
                 const author_id = try self.author_repo.createAuthor(parsed.value.author_name);
-                break :blk try self.author_repo.getAuthorById(self.allocator, author_id);
+                break :blk try self.author_repo.getAuthorById(allocator, author_id);
             } else {
                 return err;
             }
         };
-        defer author.deinit(self.allocator);
 
         const book_id = try self.book_repo.createBook(parsed.value.name, author.id, parsed.value.file_path);
 
-        // Update description if provided
         if (parsed.value.description) |desc| {
             try self.book_repo.updateBook(book_id, parsed.value.name, desc);
         }
 
-        var json_response: std.ArrayList(u8) = .empty;
-        defer json_response.deinit(self.allocator);
-        const writer = json_response.writer(self.allocator);
-
-        try writer.print("{{\"message\":\"Book created successfully\",\"id\":{d}}}", .{book_id});
-
         res.status = 201;
-        res.content_type = .JSON;
-        res.body = try self.allocator.dupe(u8, json_response.items);
+        try res.json(.{
+            .message = "Book created successfully",
+            .id = book_id,
+        }, .{});
     }
 
     // PUT /books/:id - Update book
     pub fn updateBook(self: *BookController, req: *httpz.Request, res: *httpz.Response) !void {
         const book_id_str = req.param("id") orelse {
             res.status = 400;
-            res.body = "{\"error\":\"Missing book ID\"}";
+            try res.json(.{ .@"error" = "Missing book ID" }, .{});
             return;
         };
 
         const book_id = std.fmt.parseInt(i64, book_id_str, 10) catch {
             res.status = 400;
-            res.body = "{\"error\":\"Invalid book ID\"}";
+            try res.json(.{ .@"error" = "Invalid book ID" }, .{});
             return;
         };
 
-        const existing_book = self.book_repo.getBookById(self.allocator, book_id) catch |err| {
+        const allocator = res.arena;
+
+        const existing_book = self.book_repo.getBookById(allocator, book_id) catch |err| {
             if (err == error.BookNotFound) {
                 res.status = 404;
-                res.body = "{\"error\":\"Book not found\"}";
+                try res.json(.{ .@"error" = "Book not found" }, .{});
                 return;
             }
             return err;
         };
-        defer existing_book.deinit(self.allocator);
 
         const body = req.body() orelse {
             res.status = 400;
-            res.body = "{\"error\":\"Missing request body\"}";
+            try res.json(.{ .@"error" = "Missing request body" }, .{});
             return;
         };
 
@@ -277,12 +208,12 @@ pub const BookController = struct {
                 name: ?[]const u8 = null,
                 description: ?[]const u8 = null,
             },
-            self.allocator,
+            allocator,
             body,
             .{ .ignore_unknown_fields = true },
         ) catch {
             res.status = 400;
-            res.body = "{\"error\":\"Invalid JSON\"}";
+            try res.json(.{ .@"error" = "Invalid JSON" }, .{});
             return;
         };
         defer parsed.deinit();
@@ -293,28 +224,29 @@ pub const BookController = struct {
         try self.book_repo.updateBook(book_id, new_name, new_description);
 
         res.status = 200;
-        res.content_type = .JSON;
-        res.body = "{\"message\":\"Book updated successfully\"}";
+        try res.json(.{ .message = "Book updated successfully" }, .{});
     }
 
     // DELETE /books/:id - Delete book
     pub fn deleteBook(self: *BookController, req: *httpz.Request, res: *httpz.Response) !void {
         const book_id_str = req.param("id") orelse {
             res.status = 400;
-            res.body = "{\"error\":\"Missing book ID\"}";
+            try res.json(.{ .@"error" = "Missing book ID" }, .{});
             return;
         };
 
         const book_id = std.fmt.parseInt(i64, book_id_str, 10) catch {
             res.status = 400;
-            res.body = "{\"error\":\"Invalid book ID\"}";
+            try res.json(.{ .@"error" = "Invalid book ID" }, .{});
             return;
         };
 
-        _ = self.book_repo.getBookById(self.allocator, book_id) catch |err| {
+        const allocator = res.arena;
+
+        _ = self.book_repo.getBookById(allocator, book_id) catch |err| {
             if (err == error.BookNotFound) {
                 res.status = 404;
-                res.body = "{\"error\":\"Book not found\"}";
+                try res.json(.{ .@"error" = "Book not found" }, .{});
                 return;
             }
             return err;
@@ -323,8 +255,7 @@ pub const BookController = struct {
         try self.book_repo.deleteBook(book_id);
 
         res.status = 200;
-        res.content_type = .JSON;
-        res.body = "{\"message\":\"Book deleted successfully\"}";
+        try res.json(.{ .message = "Book deleted successfully" }, .{});
     }
 
     pub fn deinit(self: *BookController) void {
@@ -347,104 +278,61 @@ pub const AuthorController = struct {
     pub fn listAuthors(self: *AuthorController, req: *httpz.Request, res: *httpz.Response) !void {
         _ = req;
 
-        const authors = try self.author_repo.listAuthors(self.allocator);
-        defer {
-            for (authors) |author| {
-                author.deinit(self.allocator);
-            }
-            self.allocator.free(authors);
+        const allocator = res.arena;
+        const authors = try self.author_repo.listAuthors(allocator);
+
+        const AuthorItem = struct {
+            id: i64,
+            name: []const u8,
+            biography: ?[]const u8 = null,
+        };
+
+        var author_list = try std.ArrayList(AuthorItem).initCapacity(allocator, authors.len);
+        for (authors) |author| {
+            author_list.appendAssumeCapacity(.{
+                .id = author.id,
+                .name = author.name,
+                .biography = author.biography,
+            });
         }
-
-        var json_response: std.ArrayList(u8) = .empty;
-        defer json_response.deinit(self.allocator);
-        const writer = json_response.writer(self.allocator);
-
-        try writer.writeAll("[");
-        for (authors, 0..) |author, i| {
-            if (i > 0) try writer.writeAll(",");
-
-            try writer.writeAll("{");
-            try writer.print("\"id\":{d},", .{author.id});
-            try writer.print("\"name\":\"{s}\"", .{author.name});
-            
-            if (author.biography) |bio| {
-                try writer.writeAll(",\"biography\":\"");
-                for (bio) |c| {
-                    if (c == '"') {
-                        try writer.writeAll("\\\"");
-                    } else if (c == '\\') {
-                        try writer.writeAll("\\\\");
-                    } else if (c == '\n') {
-                        try writer.writeAll("\\n");
-                    } else {
-                        try writer.writeByte(c);
-                    }
-                }
-                try writer.writeAll("\"");
-            }
-
-            try writer.writeAll("}");
-        }
-        try writer.writeAll("]");
 
         res.status = 200;
-        res.content_type = .JSON;
-        res.body = try self.allocator.dupe(u8, json_response.items);
+        try res.json(author_list.items, .{});
     }
 
     // GET /authors/:id - Get author by ID
     pub fn getAuthor(self: *AuthorController, req: *httpz.Request, res: *httpz.Response) !void {
         const author_id_str = req.param("id") orelse {
             res.status = 400;
-            res.body = "{\"error\":\"Missing author ID\"}";
+            try res.json(.{ .@"error" = "Missing author ID" }, .{});
             return;
         };
 
         const author_id = std.fmt.parseInt(i64, author_id_str, 10) catch {
             res.status = 400;
-            res.body = "{\"error\":\"Invalid author ID\"}";
+            try res.json(.{ .@"error" = "Invalid author ID" }, .{});
             return;
         };
 
-        const author = self.author_repo.getAuthorById(self.allocator, author_id) catch |err| {
+        const allocator = res.arena;
+
+        const author = self.author_repo.getAuthorById(allocator, author_id) catch |err| {
             if (err == error.AuthorNotFound) {
                 res.status = 404;
-                res.body = "{\"error\":\"Author not found\"}";
+                try res.json(.{ .@"error" = "Author not found" }, .{});
                 return;
             }
             return err;
         };
-        defer author.deinit(self.allocator);
 
-        var json_response: std.ArrayList(u8) = .empty;
-        defer json_response.deinit(self.allocator);
-        const writer = json_response.writer(self.allocator);
-
-        try writer.writeAll("{");
-        try writer.print("\"id\":{d},", .{author.id});
-        try writer.print("\"name\":\"{s}\"", .{author.name});
-        
-        if (author.biography) |bio| {
-            try writer.writeAll(",\"biography\":\"");
-            for (bio) |c| {
-                if (c == '"') {
-                    try writer.writeAll("\\\"");
-                } else if (c == '\\') {
-                    try writer.writeAll("\\\\");
-                } else if (c == '\n') {
-                    try writer.writeAll("\\n");
-                } else {
-                    try writer.writeByte(c);
-                }
-            }
-            try writer.writeAll("\"");
-        }
-
-        try writer.writeAll("}");
+        const response = .{
+            .id = author.id,
+            .name = author.name,
+            .biography = author.biography,
+        };
 
         res.status = 200;
-        res.content_type = .JSON;
-        res.body = try self.allocator.dupe(u8, json_response.items);
+        try res.json(response, .{});
     }
 
     pub fn deinit(self: *AuthorController) void {
@@ -474,163 +362,167 @@ pub const TagController = struct {
     pub fn listTags(self: *TagController, req: *httpz.Request, res: *httpz.Response) !void {
         _ = req;
 
-        const tags = try self.tag_repo.getAllTags(self.allocator);
-        defer {
-            for (tags) |tag| {
-                tag.deinit(self.allocator);
-            }
-            self.allocator.free(tags);
-        }
+        const allocator = res.arena;
+        const tags = try self.tag_repo.getAllTags(allocator);
 
-        var json_response: std.ArrayListUnmanaged(u8) = .empty;
-        defer json_response.deinit(self.allocator);
-        const writer = json_response.writer(self.allocator);
+        const TagItem = struct {
+            id: i64,
+            name: []const u8,
+            category: []const u8,
+            description: ?[]const u8 = null,
+            color: ?[]const u8 = null,
+            requires_permission: ?[]const u8 = null,
+            created_at: []const u8,
+        };
 
-        try writer.writeAll("[");
-        for (tags, 0..) |tag, i| {
-            if (i > 0) try writer.writeAll(",");
-            try self.writeTagJSON(&writer, tag);
+        var tag_list = try std.ArrayList(TagItem).initCapacity(allocator, tags.len);
+        for (tags) |tag| {
+            tag_list.appendAssumeCapacity(.{
+                .id = tag.id,
+                .name = tag.name,
+                .category = tag.category,
+                .description = tag.description,
+                .color = tag.color,
+                .requires_permission = tag.requires_permission,
+                .created_at = tag.created_at,
+            });
         }
-        try writer.writeAll("]");
 
         res.status = 200;
-        res.content_type = .JSON;
-        res.body = try self.allocator.dupe(u8, json_response.items);
+        try res.json(tag_list.items, .{});
     }
 
     // GET /tags/categories/:category - Get tags by category
     pub fn getTagsByCategory(self: *TagController, req: *httpz.Request, res: *httpz.Response) !void {
         const category = req.param("category") orelse {
             res.status = 400;
-            res.body = "{\"error\":\"Missing category\"}";
+            try res.json(.{ .@"error" = "Missing category" }, .{});
             return;
         };
 
-        const tags = try self.tag_repo.getTagsByCategory(self.allocator, category);
-        defer {
-            for (tags) |tag| {
-                tag.deinit(self.allocator);
-            }
-            self.allocator.free(tags);
-        }
+        const allocator = res.arena;
+        const tags = try self.tag_repo.getTagsByCategory(allocator, category);
 
-        var json_response: std.ArrayListUnmanaged(u8) = .empty;
-        defer json_response.deinit(self.allocator);
-        const writer = json_response.writer(self.allocator);
+        const TagItem = struct {
+            id: i64,
+            name: []const u8,
+            category: []const u8,
+            description: ?[]const u8 = null,
+            color: ?[]const u8 = null,
+            requires_permission: ?[]const u8 = null,
+            created_at: []const u8,
+        };
 
-        try writer.writeAll("[");
-        for (tags, 0..) |tag, i| {
-            if (i > 0) try writer.writeAll(",");
-            try self.writeTagJSON(&writer, tag);
+        var tag_list = try std.ArrayList(TagItem).initCapacity(allocator, tags.len);
+        for (tags) |tag| {
+            tag_list.appendAssumeCapacity(.{
+                .id = tag.id,
+                .name = tag.name,
+                .category = tag.category,
+                .description = tag.description,
+                .color = tag.color,
+                .requires_permission = tag.requires_permission,
+                .created_at = tag.created_at,
+            });
         }
-        try writer.writeAll("]");
 
         res.status = 200;
-        res.content_type = .JSON;
-        res.body = try self.allocator.dupe(u8, json_response.items);
+        try res.json(tag_list.items, .{});
     }
 
     // POST /books/:id/tags - Add tag to book
     pub fn addTagToBook(self: *TagController, req: *httpz.Request, res: *httpz.Response) !void {
         const book_id_str = req.param("id") orelse {
             res.status = 400;
-            res.body = "{\"error\":\"Missing book ID\"}";
+            try res.json(.{ .@"error" = "Missing book ID" }, .{});
             return;
         };
 
         const book_id = std.fmt.parseInt(i64, book_id_str, 10) catch {
             res.status = 400;
-            res.body = "{\"error\":\"Invalid book ID\"}";
+            try res.json(.{ .@"error" = "Invalid book ID" }, .{});
             return;
         };
 
-        // Parse request body for tag name
         const body = req.body() orelse {
             res.status = 400;
-            res.body = "{\"error\":\"Missing request body\"}";
+            try res.json(.{ .@"error" = "Missing request body" }, .{});
             return;
         };
 
-        // Simple JSON parsing for {"tagName": "value"}
+        const allocator = res.arena;
         const tag_name = self.parseTagName(body) orelse {
             res.status = 400;
-            res.body = "{\"error\":\"Invalid request body or missing tagName\"}";
+            try res.json(.{ .@"error" = "Invalid request body or missing tagName" }, .{});
             return;
         };
 
-        // Get tag by name
-        const tag = try self.tag_repo.getTagByName(self.allocator, tag_name);
-        defer if (tag) |t| t.deinit(self.allocator);
+        const tag = try self.tag_repo.getTagByName(allocator, tag_name);
 
         if (tag == null) {
             res.status = 404;
-            res.body = "{\"error\":\"Tag not found\"}";
+            try res.json(.{ .@"error" = "Tag not found" }, .{});
             return;
         }
 
-        // Add tag to book
         try self.tag_repo.addTagToBook(book_id, tag.?.id, null, false);
 
         res.status = 200;
-        res.body = "{\"success\":true}";
+        try res.json(.{ .success = true }, .{});
     }
 
     // DELETE /books/:id/tags/:tagName - Remove tag from book
     pub fn removeTagFromBook(self: *TagController, req: *httpz.Request, res: *httpz.Response) !void {
         const book_id_str = req.param("id") orelse {
             res.status = 400;
-            res.body = "{\"error\":\"Missing book ID\"}";
+            try res.json(.{ .@"error" = "Missing book ID" }, .{});
             return;
         };
 
         const book_id = std.fmt.parseInt(i64, book_id_str, 10) catch {
             res.status = 400;
-            res.body = "{\"error\":\"Invalid book ID\"}";
+            try res.json(.{ .@"error" = "Invalid book ID" }, .{});
             return;
         };
 
         const tag_name = req.param("tagName") orelse {
             res.status = 400;
-            res.body = "{\"error\":\"Missing tag name\"}";
+            try res.json(.{ .@"error" = "Missing tag name" }, .{});
             return;
         };
 
-        // Get tag by name
-        const tag = try self.tag_repo.getTagByName(self.allocator, tag_name);
-        defer if (tag) |t| t.deinit(self.allocator);
+        const allocator = res.arena;
+        const tag = try self.tag_repo.getTagByName(allocator, tag_name);
 
         if (tag == null) {
             res.status = 404;
-            res.body = "{\"error\":\"Tag not found\"}";
+            try res.json(.{ .@"error" = "Tag not found" }, .{});
             return;
         }
 
-        // Remove tag from book
         try self.tag_repo.removeTagFromBook(book_id, tag.?.id);
 
         res.status = 200;
-        res.body = "{\"success\":true}";
+        try res.json(.{ .success = true }, .{});
     }
 
     // GET /books/by-tag/:tagName - Get books with specific tag
     pub fn getBooksByTag(self: *TagController, req: *httpz.Request, res: *httpz.Response) !void {
         const tag_name = req.param("tagName") orelse {
             res.status = 400;
-            res.body = "{\"error\":\"Missing tag name\"}";
+            try res.json(.{ .@"error" = "Missing tag name" }, .{});
             return;
         };
 
-        // Get tag by name
-        const tag = try self.tag_repo.getTagByName(self.allocator, tag_name);
-        defer if (tag) |t| t.deinit(self.allocator);
+        const allocator = res.arena;
+        const tag = try self.tag_repo.getTagByName(allocator, tag_name);
 
         if (tag == null) {
             res.status = 404;
-            res.body = "{\"error\":\"Tag not found\"}";
+            try res.json(.{ .@"error" = "Tag not found" }, .{});
             return;
         }
 
-        // Query books with this tag
         const query =
             \\SELECT b.id, b.name, b.author, b.file_path, b.isbn, b.description,
             \\       b.page_count, b.status, b.created_at
@@ -642,89 +534,42 @@ pub const TagController = struct {
         var stmt = try self.book_repo.db.prepare(query);
         defer stmt.deinit();
 
-        const books = try stmt.all(Book, self.allocator, .{}, .{tag.?.id});
-        defer {
-            for (books) |book| {
-                book.deinit(self.allocator);
-            }
-            self.allocator.free(books);
-        }
+        const books = try stmt.all(Book, allocator, .{}, .{tag.?.id});
 
-        var json_response: std.ArrayListUnmanaged(u8) = .empty;
-        defer json_response.deinit(self.allocator);
-        const writer = json_response.writer(self.allocator);
+        const BookItem = struct {
+            id: i64,
+            name: []const u8,
+            author_id: i64,
+            file_path: []const u8,
+        };
 
-        try writer.writeAll("[");
-        for (books, 0..) |book, i| {
-            if (i > 0) try writer.writeAll(",");
-            try writer.writeAll("{");
-            try writer.print("\"id\":{d},", .{book.id});
-            try writer.print("\"name\":\"{s}\",", .{book.name});
-            try writer.print("\"author_id\":{d},", .{book.author});
-            try writer.print("\"file_path\":\"{s}\"", .{book.file_path});
-            try writer.writeAll("}");
+        var book_list = try std.ArrayList(BookItem).initCapacity(allocator, books.len);
+        for (books) |book| {
+            book_list.appendAssumeCapacity(.{
+                .id = book.id,
+                .name = book.name,
+                .author_id = book.author,
+                .file_path = book.file_path,
+            });
         }
-        try writer.writeAll("]");
 
         res.status = 200;
-        res.content_type = .JSON;
-        res.body = try self.allocator.dupe(u8, json_response.items);
-    }
-
-    // Helper function to write tag as JSON
-    fn writeTagJSON(self: *TagController, writer: anytype, tag: Tag) !void {
-        _ = self;
-        try writer.writeAll("{");
-        try writer.print("\"id\":{d},", .{tag.id});
-        try writer.print("\"name\":\"{s}\",", .{tag.name});
-        try writer.print("\"category\":\"{s}\",", .{tag.category});
-        
-        if (tag.description) |desc| {
-            try writer.writeAll("\"description\":\"");
-            for (desc) |c| {
-                if (c == '"') try writer.writeAll("\\\"")
-                else if (c == '\\') try writer.writeAll("\\\\")
-                else if (c == '\n') try writer.writeAll("\\n")
-                else try writer.writeByte(c);
-            }
-            try writer.writeAll("\",");
-        } else {
-            try writer.writeAll("\"description\":null,");
-        }
-
-        if (tag.color) |color| {
-            try writer.print("\"color\":\"{s}\",", .{color});
-        } else {
-            try writer.writeAll("\"color\":null,");
-        }
-
-        if (tag.requires_permission) |perm| {
-            try writer.print("\"requires_permission\":\"{s}\",", .{perm});
-        } else {
-            try writer.writeAll("\"requires_permission\":null,");
-        }
-
-        try writer.print("\"created_at\":\"{s}\"", .{tag.created_at});
-        try writer.writeAll("}");
+        try res.json(book_list.items, .{});
     }
 
     // Simple JSON parser to extract tagName from request body
     fn parseTagName(self: *TagController, body: []const u8) ?[]const u8 {
         _ = self;
-        // Look for "tagName": "value"
         const needle = "\"tagName\"";
         const start_idx = std.mem.indexOf(u8, body, needle) orelse return null;
         const after_key = body[start_idx + needle.len..];
         
-        // Find the colon
         const colon_idx = std.mem.indexOf(u8, after_key, ":") orelse return null;
         const after_colon = after_key[colon_idx + 1..];
         
-        // Find the opening quote
         const quote1_idx = std.mem.indexOf(u8, after_colon, "\"") orelse return null;
         const after_quote1 = after_colon[quote1_idx + 1..];
         
-        // Find the closing quote
         const quote2_idx = std.mem.indexOf(u8, after_quote1, "\"") orelse return null;
         
         return after_quote1[0..quote2_idx];

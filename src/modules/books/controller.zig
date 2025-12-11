@@ -40,13 +40,61 @@ pub const BookController = struct {
     pub fn listBooks(self: *BookController, req: *httpz.Request, res: *httpz.Response) !void {
         _ = req;
         
-        // Use the response arena for all allocations
         const arena = res.arena;
-        
         const books = try self.book_repo.listBooks(arena);
         
+        const BookWithAuthor = struct {
+            id: i64,
+            name: []const u8,
+            author: struct {
+                id: i64,
+                name: []const u8,
+            },
+            file_path: []const u8,
+            isbn: ?[]const u8,
+            publication_date: ?[]const u8,
+            publisher: ?[]const u8,
+            description: ?[]const u8,
+            page_count: ?i64,
+            file_size: ?i64,
+            file_format: ?[]const u8,
+            cover_image_path: ?[]const u8,
+            status: []const u8,
+            archived_at: ?[]const u8,
+            archive_reason: ?[]const u8,
+            created_at: []const u8,
+            updated_at: []const u8,
+        };
+        
+        var books_with_authors = try std.ArrayList(BookWithAuthor).initCapacity(arena, books.len);
+        for (books) |book| {
+            const author = try self.author_repo.getAuthorById(arena, book.author);
+            try books_with_authors.append(arena, .{
+                .id = book.id,
+                .name = book.name,
+                .author = .{
+                    .id = author.id,
+                    .name = author.name,
+                },
+                .file_path = book.file_path,
+                .isbn = book.isbn,
+                .publication_date = book.publication_date,
+                .publisher = book.publisher,
+                .description = book.description,
+                .page_count = book.page_count,
+                .file_size = book.file_size,
+                .file_format = book.file_format,
+                .cover_image_path = book.cover_image_path,
+                .status = book.status,
+                .archived_at = book.archived_at,
+                .archive_reason = book.archive_reason,
+                .created_at = book.created_at,
+                .updated_at = book.updated_at,
+            });
+        }
+        
         res.status = 200;
-        try res.json(.{ .books = books }, .{});
+        try res.json(.{ .books = books_with_authors.items }, .{});
     }
 
     // GET /books/:id - Get specific book
@@ -63,7 +111,6 @@ pub const BookController = struct {
             return;
         };
 
-        // Use res.arena so memory stays alive for the response
         const allocator = res.arena;
 
         const book = self.book_repo.getBookById(allocator, id) catch |err| {
@@ -78,68 +125,72 @@ pub const BookController = struct {
         const author = try self.author_repo.getAuthorById(allocator, book.author);
         const tags = try self.tag_repo.getBookTags(allocator, book.id);
 
-        var list = std.ArrayList(u8){};
-        defer list.deinit(allocator);
-        const writer = list.writer(allocator);
+        const TagItem = struct {
+            id: i64,
+            name: []const u8,
+            category: []const u8,
+        };
 
-        // Wrap in "book" field for client compatibility
-        try writer.writeAll("{\"book\":{");
-        
-        try std.fmt.format(writer,
-            \\"id":{d},"name":"{s}","author":{{"id":{d},"name":"{s}"}},"file_path":"{s}","status":"{s}"
-        , .{ book.id, book.name, author.id, author.name, book.file_path, book.status });
-
-        if (book.isbn) |isbn| try std.fmt.format(writer, ",\"isbn\":\"{s}\"", .{isbn});
-        if (book.description) |desc| try std.fmt.format(writer, ",\"description\":\"{s}\"", .{desc});
-        if (book.page_count) |pc| try std.fmt.format(writer, ",\"page_count\":{d}", .{pc});
-        if (book.file_size) |fs| try std.fmt.format(writer, ",\"file_size\":{d}", .{fs});
-        if (book.file_format) |ff| try std.fmt.format(writer, ",\"file_format\":\"{s}\"", .{ff});
-
-        try writer.writeAll("},\"tags\":[");
-        for (tags, 0..) |tag, i| {
-            if (i > 0) try writer.writeAll(",");
-            try std.fmt.format(writer, "{{\"id\":{d},\"name\":\"{s}\",\"category\":\"{s}\"}}", .{ tag.id, tag.name, tag.category });
+        var tag_list = try std.ArrayList(TagItem).initCapacity(allocator, tags.len);
+        for (tags) |tag| {
+            tag_list.appendAssumeCapacity(.{
+                .id = tag.id,
+                .name = tag.name,
+                .category = tag.category,
+            });
         }
-        try writer.writeAll("]}");
+
+        const response = .{
+            .book = .{
+                .id = book.id,
+                .name = book.name,
+                .author = .{
+                    .id = author.id,
+                    .name = author.name,
+                },
+                .file_path = book.file_path,
+                .status = book.status,
+                .isbn = book.isbn,
+                .description = book.description,
+                .page_count = book.page_count,
+                .file_size = book.file_size,
+                .file_format = book.file_format,
+            },
+            .tags = tag_list.items,
+        };
 
         res.status = 200;
-        res.content_type = httpz.ContentType.JSON;
-        res.body = try allocator.dupe(u8, list.items);
+        try res.json(response, .{});
     }
 
     // GET /books/authors - List all authors
     pub fn listAuthors(self: *BookController, req: *httpz.Request, res: *httpz.Response) !void {
         _ = req;
 
-        var arena = std.heap.ArenaAllocator.init(self.allocator);
-        defer arena.deinit();
-        const allocator = arena.allocator();
-
+        const allocator = res.arena;
         const authors = try self.author_repo.listAuthors(allocator);
 
-        var list = std.ArrayList(u8){};
-        defer list.deinit(allocator);
-        const writer = list.writer(allocator);
+        const AuthorItem = struct {
+            id: i64,
+            name: []const u8,
+            biography: ?[]const u8 = null,
+            birth_date: ?[]const u8 = null,
+            nationality: ?[]const u8 = null,
+        };
 
-        try writer.writeAll("{\"authors\":[");
-        for (authors, 0..) |author, i| {
-            if (i > 0) try writer.writeAll(",");
-
-            try std.fmt.format(writer,
-                \\{{"id":{d},"name":"{s}"
-            , .{ author.id, author.name });
-
-            if (author.biography) |bio| try std.fmt.format(writer, ",\"biography\":\"{s}\"", .{bio});
-            if (author.birth_date) |bd| try std.fmt.format(writer, ",\"birth_date\":\"{s}\"", .{bd});
-            if (author.nationality) |nat| try std.fmt.format(writer, ",\"nationality\":\"{s}\"", .{nat});
-
-            try writer.writeAll("}");
+        var author_list = try std.ArrayList(AuthorItem).initCapacity(allocator, authors.len);
+        for (authors) |author| {
+            author_list.appendAssumeCapacity(.{
+                .id = author.id,
+                .name = author.name,
+                .biography = author.biography,
+                .birth_date = author.birth_date,
+                .nationality = author.nationality,
+            });
         }
-        try writer.writeAll("]}");
 
         res.status = 200;
-        res.content_type = httpz.ContentType.JSON;
-        res.body = try allocator.dupe(u8, list.items);
+        try res.json(.{ .authors = author_list.items }, .{});
     }
 
     // GET /books/authors/:id - Get specific author
@@ -156,9 +207,7 @@ pub const BookController = struct {
             return;
         };
 
-        var arena = std.heap.ArenaAllocator.init(self.allocator);
-        defer arena.deinit();
-        const allocator = arena.allocator();
+        const allocator = res.arena;
 
         const author = self.author_repo.getAuthorById(allocator, id) catch |err| {
             if (err == error.AuthorNotFound) {
@@ -169,7 +218,6 @@ pub const BookController = struct {
             return err;
         };
 
-        // Get books by this author
         const query =
             \\SELECT id, name, author, file_path, isbn, publication_date, publisher,
             \\       description, page_count, file_size, file_format, cover_image_path,
@@ -182,61 +230,60 @@ pub const BookController = struct {
 
         const books = try stmt.all(Book, allocator, .{}, .{id});
 
-        var list = std.ArrayList(u8){};
-        defer list.deinit(allocator);
-        const writer = list.writer(allocator);
+        const BookItem = struct {
+            id: i64,
+            name: []const u8,
+            status: []const u8,
+        };
 
-        try std.fmt.format(writer,
-            \\{{"id":{d},"name":"{s}"
-        , .{ author.id, author.name });
-
-        if (author.biography) |bio| try std.fmt.format(writer, ",\"biography\":\"{s}\"", .{bio});
-
-        try writer.writeAll(",\"books\":[");
-        for (books, 0..) |book, i| {
-            if (i > 0) try writer.writeAll(",");
-            try std.fmt.format(writer,
-                \\{{"id":{d},"name":"{s}","status":"{s}"}}
-            , .{ book.id, book.name, book.status });
+        var book_list = try std.ArrayList(BookItem).initCapacity(allocator, books.len);
+        for (books) |book| {
+            book_list.appendAssumeCapacity(.{
+                .id = book.id,
+                .name = book.name,
+                .status = book.status,
+            });
         }
-        try writer.writeAll("]}");
+
+        const response = .{
+            .id = author.id,
+            .name = author.name,
+            .biography = author.biography,
+            .books = book_list.items,
+        };
 
         res.status = 200;
-        res.content_type = httpz.ContentType.JSON;
-        res.body = try allocator.dupe(u8, list.items);
+        try res.json(response, .{});
     }
 
     // GET /tags - List all tags
     pub fn listTags(self: *BookController, req: *httpz.Request, res: *httpz.Response) !void {
         _ = req;
 
-        var arena = std.heap.ArenaAllocator.init(self.allocator);
-        defer arena.deinit();
-        const allocator = arena.allocator();
-
+        const allocator = res.arena;
         const tags = try self.tag_repo.getAllTags(allocator);
 
-        var list = std.ArrayList(u8){};
-        defer list.deinit(allocator);
-        const writer = list.writer(allocator);
+        const TagItem = struct {
+            id: i64,
+            name: []const u8,
+            category: []const u8,
+            description: ?[]const u8 = null,
+            color: ?[]const u8 = null,
+        };
 
-        try writer.writeAll("{\"tags\":[");
-        for (tags, 0..) |tag, i| {
-            if (i > 0) try writer.writeAll(",");
-            try std.fmt.format(writer,
-                \\{{"id":{d},"name":"{s}","category":"{s}"
-            , .{ tag.id, tag.name, tag.category });
-
-            if (tag.description) |desc| try std.fmt.format(writer, ",\"description\":\"{s}\"", .{desc});
-            if (tag.color) |color| try std.fmt.format(writer, ",\"color\":\"{s}\"", .{color});
-
-            try writer.writeAll("}");
+        var tag_list = try std.ArrayList(TagItem).initCapacity(allocator, tags.len);
+        for (tags) |tag| {
+            tag_list.appendAssumeCapacity(.{
+                .id = tag.id,
+                .name = tag.name,
+                .category = tag.category,
+                .description = tag.description,
+                .color = tag.color,
+            });
         }
-        try writer.writeAll("]}");
 
         res.status = 200;
-        res.content_type = httpz.ContentType.JSON;
-        res.body = try allocator.dupe(u8, list.items);
+        try res.json(.{ .tags = tag_list.items }, .{});
     }
 
     // GET /tags/categories/:category - Get tags by category
@@ -247,33 +294,30 @@ pub const BookController = struct {
             return;
         };
 
-        var arena = std.heap.ArenaAllocator.init(self.allocator);
-        defer arena.deinit();
-        const allocator = arena.allocator();
-
+        const allocator = res.arena;
         const tags = try self.tag_repo.getTagsByCategory(allocator, category);
 
-        var list = std.ArrayList(u8){};
-        defer list.deinit(allocator);
-        const writer = list.writer(allocator);
+        const TagItem = struct {
+            id: i64,
+            name: []const u8,
+            category: []const u8,
+        };
 
-        try writer.writeAll("{\"tags\":[");
-        for (tags, 0..) |tag, i| {
-            if (i > 0) try writer.writeAll(",");
-            try std.fmt.format(writer,
-                \\{{"id":{d},"name":"{s}","category":"{s}"}}
-            , .{ tag.id, tag.name, tag.category });
+        var tag_list = try std.ArrayList(TagItem).initCapacity(allocator, tags.len);
+        for (tags) |tag| {
+            tag_list.appendAssumeCapacity(.{
+                .id = tag.id,
+                .name = tag.name,
+                .category = tag.category,
+            });
         }
-        try writer.writeAll("]}");
 
         res.status = 200;
-        res.content_type = httpz.ContentType.JSON;
-        res.body = try allocator.dupe(u8, list.items);
+        try res.json(.{ .tags = tag_list.items }, .{});
     }
 
     // POST /books/:id/tags - Add tag to book
     pub fn addTagToBook(self: *BookController, req: *httpz.Request, res: *httpz.Response) !void {
-        // For now, use a placeholder user ID since we need authentication middleware
         const user_id: i64 = 1;
 
         const id_str = req.param("id") orelse {
@@ -294,9 +338,7 @@ pub const BookController = struct {
             return;
         };
 
-        var arena = std.heap.ArenaAllocator.init(self.allocator);
-        defer arena.deinit();
-        const allocator = arena.allocator();
+        const allocator = res.arena;
 
         const parsed = std.json.parseFromSlice(
             struct { tag_name: []const u8 },
@@ -312,7 +354,6 @@ pub const BookController = struct {
 
         const tag_name = parsed.value.tag_name;
 
-        // Get tag by name
         const maybe_tag = try self.tag_repo.getTagByName(allocator, tag_name);
         const tag = maybe_tag orelse {
             res.status = 404;
@@ -320,7 +361,6 @@ pub const BookController = struct {
             return;
         };
 
-        // Add tag to book
         try self.tag_repo.addTagToBook(book_id, tag.id, user_id, false);
 
         res.status = 200;
@@ -347,11 +387,8 @@ pub const BookController = struct {
             return;
         };
 
-        var arena = std.heap.ArenaAllocator.init(self.allocator);
-        defer arena.deinit();
-        const allocator = arena.allocator();
+        const allocator = res.arena;
 
-        // Get tag by name
         const maybe_tag = try self.tag_repo.getTagByName(allocator, tag_name);
         const tag = maybe_tag orelse {
             res.status = 404;
@@ -359,7 +396,6 @@ pub const BookController = struct {
             return;
         };
 
-        // Remove tag from book
         try self.tag_repo.removeTagFromBook(book_id, tag.id);
 
         res.status = 200;
@@ -387,9 +423,7 @@ pub const BookController = struct {
             return;
         };
 
-        var arena = std.heap.ArenaAllocator.init(self.allocator);
-        defer arena.deinit();
-        const allocator = arena.allocator();
+        const allocator = res.arena;
 
         const parsed = std.json.parseFromSlice(
             struct { reason: ?[]const u8 = null },
@@ -443,9 +477,7 @@ pub const BookController = struct {
     pub fn listArchivedBooks(self: *BookController, req: *httpz.Request, res: *httpz.Response) !void {
         _ = req;
 
-        var arena = std.heap.ArenaAllocator.init(self.allocator);
-        defer arena.deinit();
-        const allocator = arena.allocator();
+        const allocator = res.arena;
 
         const query =
             \\SELECT id, name, author, file_path, isbn, publication_date, publisher,
@@ -460,36 +492,36 @@ pub const BookController = struct {
 
         const books = try stmt.all(Book, allocator, .{}, .{});
 
-        var list = std.ArrayList(u8){};
-        defer list.deinit(allocator);
-        const writer = list.writer(allocator);
+        const BookItem = struct {
+            id: i64,
+            name: []const u8,
+            author: struct {
+                id: i64,
+                name: []const u8,
+            },
+            status: []const u8,
+            archived_at: ?[]const u8 = null,
+            archive_reason: ?[]const u8 = null,
+        };
 
-        try writer.writeAll("{\"books\":[");
-        for (books, 0..) |book, i| {
-            if (i > 0) try writer.writeAll(",");
-
+        var book_list = try std.ArrayList(BookItem).initCapacity(allocator, books.len);
+        for (books) |book| {
             const author = try self.author_repo.getAuthorById(allocator, book.author);
-
-            try std.fmt.format(writer,
-                \\{{"id":{d},"name":"{s}","author":{{"id":{d},"name":"{s}"}},
-            , .{ book.id, book.name, author.id, author.name });
-
-            try std.fmt.format(writer, "\"status\":\"{s}\"", .{book.status});
-
-            if (book.archived_at) |archived_at| {
-                try std.fmt.format(writer, ",\"archived_at\":\"{s}\"", .{archived_at});
-            }
-            if (book.archive_reason) |reason| {
-                try std.fmt.format(writer, ",\"archive_reason\":\"{s}\"", .{reason});
-            }
-
-            try writer.writeAll("}");
+            book_list.appendAssumeCapacity(.{
+                .id = book.id,
+                .name = book.name,
+                .author = .{
+                    .id = author.id,
+                    .name = author.name,
+                },
+                .status = book.status,
+                .archived_at = book.archived_at,
+                .archive_reason = book.archive_reason,
+            });
         }
-        try writer.writeAll("]}");
 
         res.status = 200;
-        res.content_type = httpz.ContentType.JSON;
-        res.body = try allocator.dupe(u8, list.items);
+        try res.json(.{ .books = book_list.items }, .{});
     }
 
     pub fn createBook(self: *BookController, req: *httpz.Request, res: *httpz.Response) !void {
@@ -566,5 +598,188 @@ pub const BookController = struct {
             res.status = 404;
             try res.json(.{ .@"error" = "Book not found" }, .{});
         }
+    }
+
+    pub fn getCurrentlyReading(self: *BookController, user_id: i64, req: *httpz.Request, res: *httpz.Response) !void {
+        _ = req;
+        const allocator = res.arena;
+
+        const query =
+            \\SELECT b.id, b.name, b.file_path, b.file_format, b.isbn,
+            \\       b.description, b.page_count, b.file_size, b.status,
+            \\       a.id as author_id, a.name as author_name,
+            \\       rp.current_page, rp.total_pages, rp.percentage_complete, rp.last_read_at
+            \\FROM books b
+            \\INNER JOIN reading_progress rp ON b.id = rp.book_id
+            \\INNER JOIN authors a ON b.author = a.id
+            \\WHERE rp.user_id = ? AND rp.percentage_complete > 0 AND rp.percentage_complete < 100
+            \\ORDER BY rp.last_read_at DESC
+        ;
+
+        var stmt = try self.db.prepare(query);
+        defer stmt.deinit();
+
+        const BookProgressRow = struct {
+            id: i64,
+            name: []const u8,
+            file_path: []const u8,
+            file_format: ?[]const u8,
+            isbn: ?[]const u8,
+            description: ?[]const u8,
+            page_count: ?i64,
+            file_size: ?i64,
+            status: []const u8,
+            author_id: i64,
+            author_name: []const u8,
+            current_page: i64,
+            total_pages: ?i64,
+            percentage_complete: f64,
+            last_read_at: []const u8,
+        };
+
+        const BookWithProgress = struct {
+            id: i64,
+            name: []const u8,
+            author: struct {
+                id: i64,
+                name: []const u8,
+            },
+            file_path: []const u8,
+            status: []const u8,
+            isbn: ?[]const u8 = null,
+            file_format: ?[]const u8 = null,
+            description: ?[]const u8 = null,
+            page_count: ?i64 = null,
+            file_size: ?i64 = null,
+            progress: struct {
+                current_page: i64,
+                total_pages: ?i64,
+                percentage_complete: f64,
+                last_read_at: []const u8,
+            },
+        };
+
+        var book_list: std.ArrayList(BookWithProgress) = .empty;
+        defer book_list.deinit(allocator);
+        var iter = try stmt.iterator(BookProgressRow, .{user_id});
+        
+        while (try iter.nextAlloc(allocator, .{})) |row| {
+            try book_list.append(allocator, .{
+                .id = row.id,
+                .name = row.name,
+                .author = .{
+                    .id = row.author_id,
+                    .name = row.author_name,
+                },
+                .file_path = row.file_path,
+                .status = row.status,
+                .isbn = row.isbn,
+                .file_format = row.file_format,
+                .description = row.description,
+                .page_count = row.page_count,
+                .file_size = row.file_size,
+                .progress = .{
+                    .current_page = row.current_page,
+                    .total_pages = row.total_pages,
+                    .percentage_complete = row.percentage_complete,
+                    .last_read_at = row.last_read_at,
+                },
+            });
+        }
+
+        res.status = 200;
+        try res.json(.{ .books = book_list.items }, .{});
+    }
+
+    pub fn getCompletedReading(self: *BookController, user_id: i64, req: *httpz.Request, res: *httpz.Response) !void {
+        _ = req;
+        const allocator = res.arena;
+
+        const query =
+            \\SELECT b.id, b.name, b.author, b.file_path, b.file_format, b.isbn,
+            \\       b.description, b.page_count, b.file_size, b.status,
+            \\       a.id as author_id, a.name as author_name,
+            \\       rp.current_page, rp.total_pages, rp.percentage_complete, rp.last_read_at
+            \\FROM books b
+            \\INNER JOIN reading_progress rp ON b.id = rp.book_id
+            \\INNER JOIN authors a ON b.author = a.id
+            \\WHERE rp.user_id = ? AND rp.percentage_complete >= 100
+            \\ORDER BY rp.last_read_at DESC
+        ;
+
+        var stmt = try self.db.prepare(query);
+        defer stmt.deinit();
+
+        const BookProgressRow = struct {
+            id: i64,
+            name: []const u8,
+            author: i64,
+            file_path: []const u8,
+            file_format: ?[]const u8,
+            isbn: ?[]const u8,
+            description: ?[]const u8,
+            page_count: ?i64,
+            file_size: ?i64,
+            status: []const u8,
+            author_id: i64,
+            author_name: []const u8,
+            current_page: i64,
+            total_pages: ?i64,
+            percentage_complete: f64,
+            last_read_at: []const u8,
+        };
+
+        const BookWithProgress = struct {
+            id: i64,
+            name: []const u8,
+            author: struct {
+                id: i64,
+                name: []const u8,
+            },
+            file_path: []const u8,
+            status: []const u8,
+            isbn: ?[]const u8 = null,
+            file_format: ?[]const u8 = null,
+            description: ?[]const u8 = null,
+            page_count: ?i64 = null,
+            file_size: ?i64 = null,
+            progress: struct {
+                current_page: i64,
+                total_pages: ?i64,
+                percentage_complete: f64,
+                last_read_at: []const u8,
+            },
+        };
+
+        var book_list: std.ArrayList(BookWithProgress) = .empty;
+        defer book_list.deinit(allocator);
+        var iter = try stmt.iterator(BookProgressRow, .{user_id});
+        
+        while (try iter.nextAlloc(allocator, .{})) |row| {
+            try book_list.append(allocator, .{
+                .id = row.id,
+                .name = row.name,
+                .author = .{
+                    .id = row.author_id,
+                    .name = row.author_name,
+                },
+                .file_path = row.file_path,
+                .status = row.status,
+                .isbn = row.isbn,
+                .file_format = row.file_format,
+                .description = row.description,
+                .page_count = row.page_count,
+                .file_size = row.file_size,
+                .progress = .{
+                    .current_page = row.current_page,
+                    .total_pages = row.total_pages,
+                    .percentage_complete = row.percentage_complete,
+                    .last_read_at = row.last_read_at,
+                },
+            });
+        }
+
+        res.status = 200;
+        try res.json(.{ .books = book_list.items }, .{});
     }
 };
