@@ -16,6 +16,7 @@ const AuthorRepository = @import("modules/books/model.zig").AuthorRepository;
 const TagRepository = @import("modules/books/model.zig").TagRepository;
 const admin_users = @import("modules/users/routes/admin_users.zig");
 const AdminController = @import("modules/admin/controller.zig").AdminController;
+const logging = @import("middleware/logging.zig");
 
 pub const DustServer = struct {
     /// The underlying HTTP server
@@ -213,7 +214,7 @@ pub const DustServer = struct {
 
 // Route handlers
 fn index(_: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
-    std.debug.print("[{any}] {s} - from {any}\n", .{ req.method, req.url.path, req.address });
+    logging.logRequest(req);
     res.status = 200;
     res.header("content-type", "text/html");
     res.body =
@@ -237,7 +238,7 @@ fn index(_: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
 
 /// Health check handler
 fn health(_: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
-    std.debug.print("[{any}] {s} - from {any}\n", .{ req.method, req.url.path, req.address });
+    logging.logRequest(req);
     res.status = 200;
     try res.json(.{
         .status = "ok",
@@ -248,13 +249,13 @@ fn health(_: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
 
 // Book route handlers
 fn booksList(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
-    std.debug.print("[{any}] {s} - from {any}\n", .{ req.method, req.url.path, req.address });
+    logging.logRequest(req);
     const controller: *BookController = @ptrCast(@alignCast(ctx.book_controller.?));
     try controller.listBooks(req, res);
 }
 
 fn booksGet(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
-    std.debug.print("[{any}] {s} - from {any}\n", .{ req.method, req.url.path, req.address });
+    logging.logRequest(req);
     const controller: *BookController = @ptrCast(@alignCast(ctx.book_controller.?));
     try controller.getBook(req, res);
 }
