@@ -1,35 +1,66 @@
-# Use the official Deno image
-FROM denoland/deno:2.1.4
+# Build stage
+FROM alpine:3.19 AS builder
+
+# Install Zig and dependencies
+RUN apk add --no-cache \
+    wget \
+    xz \
+    curl \
+    sqlite-dev
+
+# Install Zig 0.15.2
+RUN wget https://ziglang.org/download/0.15.2/zig-linux-x86_64-0.15.2.tar.xz && \
+    tar -xf zig-linux-x86_64-0.15.2.tar.xz && \
+    mv zig-linux-x86_64-0.15.2 /usr/local/zig && \
+    ln -s /usr/local/zig/zig /usr/local/bin/zig && \
+    rm zig-linux-x86_64-0.15.2.tar.xz
 
 # Set working directory
 WORKDIR /app
 
-# Copy deno configuration files first (for better layer caching)
-COPY deno.json deno.lock* ./
+# Copy build configuration
+COPY build.zig build.zig.zon ./
 
 # Copy source code
-COPY . .
+COPY src ./src
 
-# Cache dependencies
-RUN deno cache main.ts
+# Build the application in release mode
+RUN zig build -Doptimize=ReleaseSafe
 
-# Create directory for SQLite database with proper permissions
-RUN mkdir -p /app/data && chown -R deno:deno /app/data
+# Runtime stage
+FROM alpine:3.19
+
+# Install runtime dependencies
+RUN apk add --no-cache \
+    sqlite-libs \
+    curl
+
+# Create app user
+RUN addgroup -g 1000 dustapp && \
+    adduser -D -u 1000 -G dustapp dustapp
+
+# Set working directory
+WORKDIR /app
+
+# Copy binary from builder
+COPY --from=builder /app/zig-out/bin/dust-server /app/dust-server
+
+# Create directory for SQLite database
+RUN mkdir -p /app/data && chown -R dustapp:dustapp /app/data
 
 # Set environment variables
 ENV PORT=4001
-ENV DENO_DIR=/deno-dir/
 ENV DATABASE_URL=file:/app/data/dust.db
 
 # Expose the port
 EXPOSE 4001
 
-# Set the user to deno for security
-USER deno
+# Set the user for security
+USER dustapp
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
   CMD curl -f http://localhost:4001/health || exit 1
 
 # Run the application
-CMD ["deno", "run", "--allow-all", "main.ts"]
+CMD ["/app/dust-server"]

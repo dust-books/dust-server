@@ -625,8 +625,9 @@ export class ReaderPage extends LitElement {
   private async loadBookFromRoute() {
     console.log("📖 ReaderPage: Loading book from route");
 
-    // Extract book ID from URL path like /reader/1
-    const pathParts = window.location.pathname.split("/");
+    // Extract book ID from hash like #reader/1
+    const hash = window.location.hash.slice(1); // Remove the leading #
+    const pathParts = hash.split("/");
     const bookIdStr = pathParts[pathParts.length - 1];
     const bookId = parseInt(bookIdStr, 10);
 

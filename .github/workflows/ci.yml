@@ -19,10 +19,13 @@ jobs:
       - name: Clone repo
         uses: actions/checkout@v3
       
-      - name: Install Deno
-        uses: denoland/setup-deno@v2
+      - name: Install Zig
+        uses: mlugg/setup-zig@v2
         with:
-          deno-version: v2.x
+          version: 0.15.2
+        
+      - name: Build
+        run: zig build
         
       - name: Run tests
-        run: "deno test"
+        run: zig build test
