@@ -4,9 +4,10 @@ const AuthService = @import("modules/users/auth.zig").AuthService;
 const JWT = @import("auth/jwt.zig").JWT;
 const PermissionService = @import("auth/permission_service.zig").PermissionService;
 const PermissionRepository = @import("auth/permission_repository.zig").PermissionRepository;
-const AdminController = @import("modules/admin/controller.zig").AdminController;
-const BookController = @import("modules/books/controller.zig").BookController;
 const Database = @import("database.zig").Database;
+const BookRepository = @import("modules/books/model.zig").BookRepository;
+const AuthorRepository = @import("modules/books/model.zig").AuthorRepository;
+const TagRepository = @import("modules/books/model.zig").TagRepository;
 
 /// Context specific to authentication behaviors
 pub const AuthContext = struct {
@@ -15,14 +16,16 @@ pub const AuthContext = struct {
     allocator: std.mem.Allocator,
 };
 
-/// Server-wide context holding services and controllers
+/// Server-wide context holding services and repositories
 pub const ServerContext = struct {
     auth_context: AuthContext,
     permission_service: ?*PermissionService = null,
     permission_repo: ?*PermissionRepository = null,
-    admin_controller: ?*AdminController = null,
-    book_controller: ?*BookController = null,
     db: ?*Database = null,
+    book_repo: ?*BookRepository = null,
+    author_repo: ?*AuthorRepository = null,
+    tag_repo: ?*TagRepository = null,
+    library_directories: []const []const u8 = &[_][]const u8{},
 
     pub fn notFound(_: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
         std.log.debug("404 Not Found: {s}\n", .{req.url.path});

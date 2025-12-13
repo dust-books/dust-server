@@ -10,12 +10,12 @@ const AuthContext = context.AuthContext;
 const PermissionService = @import("auth/permission_service.zig").PermissionService;
 const PermissionRepository = @import("auth/permission_repository.zig").PermissionRepository;
 const PermissionMiddleware = @import("middleware/permission.zig").PermissionMiddleware;
-const BookController = @import("modules/books/controller.zig").BookController;
 const BookRepository = @import("modules/books/model.zig").BookRepository;
 const AuthorRepository = @import("modules/books/model.zig").AuthorRepository;
 const TagRepository = @import("modules/books/model.zig").TagRepository;
 const admin_users = @import("modules/users/routes/admin_users.zig");
-const AdminController = @import("modules/admin/controller.zig").AdminController;
+const admin_routes = @import("modules/admin/routes.zig");
+const book_routes = @import("modules/books/routes.zig");
 const logging = @import("middleware/logging.zig");
 
 pub const DustServer = struct {
@@ -29,10 +29,12 @@ pub const DustServer = struct {
     permission_service: *PermissionService,
     /// Permission repository for database access
     permission_repo: *PermissionRepository,
-    /// Book controller for handling book-related requests
-    book_controller: *BookController,
-    /// Admin controller for handling admin-related requests
-    admin_controller: *AdminController,
+    /// Book repository for database access
+    book_repo: *BookRepository,
+    /// Author repository for database access
+    author_repo: *AuthorRepository,
+    /// Tag repository for database access
+    tag_repo: *TagRepository,
     /// Atomic flag to signal server shutdown
     should_shutdown: *std.atomic.Value(bool),
 
@@ -50,7 +52,7 @@ pub const DustServer = struct {
         const permission_service = try allocator.create(PermissionService);
         permission_service.* = PermissionService.init(permission_repo, allocator);
 
-        // Initialize book repositories and controllers
+        // Initialize book repositories
         const book_repo = try allocator.create(BookRepository);
         book_repo.* = BookRepository.init(&db.db, allocator);
 
@@ -59,12 +61,6 @@ pub const DustServer = struct {
 
         const tag_repo = try allocator.create(TagRepository);
         tag_repo.* = TagRepository.init(&db.db, allocator);
-
-        const book_controller = try allocator.create(BookController);
-        book_controller.* = BookController.init(&db.db, book_repo, author_repo, tag_repo, allocator);
-
-        const admin_controller = try allocator.create(AdminController);
-        admin_controller.* = AdminController.init(db, allocator, library_directories);
 
         const context_ptr = try allocator.create(ServerContext);
         context_ptr.* = ServerContext{
@@ -75,9 +71,11 @@ pub const DustServer = struct {
             },
             .permission_service = permission_service,
             .permission_repo = permission_repo,
-            .admin_controller = admin_controller,
-            .book_controller = book_controller,
             .db = db,
+            .book_repo = book_repo,
+            .author_repo = author_repo,
+            .tag_repo = tag_repo,
+            .library_directories = library_directories,
         };
 
         const httpz_server = try httpz.Server(*ServerContext).init(allocator, .{
@@ -90,8 +88,9 @@ pub const DustServer = struct {
             .allocator = allocator,
             .permission_service = permission_service,
             .permission_repo = permission_repo,
-            .book_controller = book_controller,
-            .admin_controller = admin_controller,
+            .book_repo = book_repo,
+            .author_repo = author_repo,
+            .tag_repo = tag_repo,
             .should_shutdown = should_shutdown,
         };
     }
@@ -106,10 +105,10 @@ pub const DustServer = struct {
         self.allocator.destroy(self.permission_service);
         self.allocator.destroy(self.permission_repo);
 
-        // Clean up controllers and their repositories
-        self.book_controller.deinit();
-        self.allocator.destroy(self.book_controller);
-        self.allocator.destroy(self.admin_controller);
+        // Clean up repositories
+        self.allocator.destroy(self.book_repo);
+        self.allocator.destroy(self.author_repo);
+        self.allocator.destroy(self.tag_repo);
 
         // Clean up auth service
         self.allocator.destroy(self.context_ptr.auth_context.auth_service);
@@ -250,14 +249,12 @@ fn health(_: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
 // Book route handlers
 fn booksList(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
     logging.logRequest(req);
-    const controller: *BookController = @ptrCast(@alignCast(ctx.book_controller.?));
-    try controller.listBooks(req, res);
+    try book_routes.listBooks(ctx.book_repo.?, ctx.author_repo.?, req, res);
 }
 
 fn booksGet(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
     logging.logRequest(req);
-    const controller: *BookController = @ptrCast(@alignCast(ctx.book_controller.?));
-    try controller.getBook(req, res);
+    try book_routes.getBook(ctx.book_repo.?, ctx.author_repo.?, ctx.tag_repo.?, req, res);
 }
 
 fn booksStream(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
@@ -336,29 +333,29 @@ fn booksStream(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !
 }
 
 fn booksCreate(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
-    const controller: *BookController = @ptrCast(@alignCast(ctx.book_controller.?));
-    try controller.createBook(req, res);
+    logging.logRequest(req);
+    try book_routes.createBook(ctx.book_repo.?, req, res);
 }
 
 fn booksUpdate(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
-    const controller: *BookController = @ptrCast(@alignCast(ctx.book_controller.?));
-    try controller.updateBook(req, res);
+    logging.logRequest(req);
+    try book_routes.updateBook(ctx.book_repo.?, req, res);
 }
 
 fn booksDelete(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
-    const controller: *BookController = @ptrCast(@alignCast(ctx.book_controller.?));
-    try controller.deleteBook(req, res);
+    logging.logRequest(req);
+    try book_routes.deleteBook(ctx.book_repo.?, req, res);
 }
 
 // Author route handlers
 fn booksAuthors(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
-    const controller: *BookController = @ptrCast(@alignCast(ctx.book_controller.?));
-    try controller.listAuthors(req, res);
+    logging.logRequest(req);
+    try book_routes.listAuthors(ctx.author_repo.?, req, res);
 }
 
 fn booksAuthor(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
-    const controller: *BookController = @ptrCast(@alignCast(ctx.book_controller.?));
-    try controller.getAuthor(req, res);
+    logging.logRequest(req);
+    try book_routes.getAuthor(&ctx.db.?.db, ctx.author_repo.?, req, res);
 }
 
 // Admin route handlers
@@ -379,8 +376,10 @@ fn adminDeleteUser(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Respons
 }
 
 fn adminScanLibrary(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
-    const controller: *AdminController = @ptrCast(@alignCast(ctx.admin_controller.?));
-    try controller.scanLibrary(req, res);
+    logging.logRequest(req);
+    const db = ctx.db.?;
+    const allocator = ctx.auth_context.allocator;
+    try admin_routes.scanLibrary(db, allocator, ctx.library_directories, req, res);
 }
 
 // Reading progress route handlers
@@ -548,8 +547,7 @@ fn readingCurrentlyReading(ctx: *ServerContext, req: *httpz.Request, res: *httpz
     };
     defer auth_user.deinit(auth_ctx.allocator);
 
-    const controller: *BookController = @ptrCast(@alignCast(ctx.book_controller.?));
-    try controller.getCurrentlyReading(auth_user.user_id, req, res);
+    try book_routes.getCurrentlyReading(&ctx.db.?.db, auth_user.user_id, req, res);
 }
 
 fn readingCompleted(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
@@ -561,45 +559,44 @@ fn readingCompleted(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Respon
     };
     defer auth_user.deinit(auth_ctx.allocator);
 
-    const controller: *BookController = @ptrCast(@alignCast(ctx.book_controller.?));
-    try controller.getCompletedReading(auth_user.user_id, req, res);
+    try book_routes.getCompletedReading(&ctx.db.?.db, auth_user.user_id, req, res);
 }
 
 // Tag route handlers
 fn booksTags(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
-    const controller: *BookController = @ptrCast(@alignCast(ctx.book_controller.?));
-    try controller.listTags(req, res);
+    logging.logRequest(req);
+    try book_routes.listTags(ctx.tag_repo.?, req, res);
 }
 
 fn booksTagsByCategory(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
-    const controller: *BookController = @ptrCast(@alignCast(ctx.book_controller.?));
-    try controller.getTagsByCategory(req, res);
+    logging.logRequest(req);
+    try book_routes.getTagsByCategory(ctx.tag_repo.?, req, res);
 }
 
 fn booksAddTag(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
-    const controller: *BookController = @ptrCast(@alignCast(ctx.book_controller.?));
-    try controller.addTagToBook(req, res);
+    logging.logRequest(req);
+    try book_routes.addTagToBook(ctx.tag_repo.?, req, res);
 }
 
 fn booksRemoveTag(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
-    const controller: *BookController = @ptrCast(@alignCast(ctx.book_controller.?));
-    try controller.removeTagFromBook(req, res);
+    logging.logRequest(req);
+    try book_routes.removeTagFromBook(ctx.tag_repo.?, req, res);
 }
 
 // Archive route handlers
 fn booksArchived(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
-    const controller: *BookController = @ptrCast(@alignCast(ctx.book_controller.?));
-    try controller.listArchivedBooks(req, res);
+    logging.logRequest(req);
+    try book_routes.listArchivedBooks(&ctx.db.?.db, ctx.author_repo.?, req, res);
 }
 
 fn booksArchive(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
-    const controller: *BookController = @ptrCast(@alignCast(ctx.book_controller.?));
-    try controller.archiveBook(req, res);
+    logging.logRequest(req);
+    try book_routes.archiveBook(ctx.book_repo.?, req, res);
 }
 
 fn booksUnarchive(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
-    const controller: *BookController = @ptrCast(@alignCast(ctx.book_controller.?));
-    try controller.unarchiveBook(req, res);
+    logging.logRequest(req);
+    try book_routes.unarchiveBook(&ctx.db.?.db, req, res);
 }
 
 // CORS preflight handler for OPTIONS requests

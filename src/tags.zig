@@ -41,7 +41,9 @@ pub const TagService = struct {
         defer stmt.deinit();
 
         var tags = std.ArrayList(Tag).init(self.allocator);
-        errdefer tags.deinit();
+        errdefer {
+            tags.deinit();
+        }
 
         var iter = try stmt.iterator(Tag, .{});
         while (try iter.next(.{})) |tag| {

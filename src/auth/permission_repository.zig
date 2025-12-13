@@ -20,7 +20,12 @@ pub const PermissionRepository = struct {
     /// Get all permissions for a user (via roles and direct grants)
     pub fn getUserPermissions(self: *PermissionRepository, user_id: i64) !std.ArrayList(Permission) {
         var perms: std.ArrayList(Permission) = .empty;
-        errdefer perms.deinit(self.allocator);
+        errdefer {
+            for (perms) |perm| {
+                perm.deinit(self.allocator);
+            }
+            perms.deinit(self.allocator);
+        }
 
         const query =
             \\SELECT DISTINCT p.id, p.name, p.description, p.resource, p.action, p.created_at
@@ -44,7 +49,7 @@ pub const PermissionRepository = struct {
 
         const rows = try stmt.allAlloc(PermRow, self.allocator, .{}, .{user_id});
         defer self.allocator.free(rows);
-        
+
         for (rows) |row| {
             const perm = try Permission.init(
                 self.allocator,
@@ -87,7 +92,12 @@ pub const PermissionRepository = struct {
     /// Get all roles for a user
     pub fn getUserRoles(self: *PermissionRepository, user_id: i64) !std.ArrayList(Role) {
         var roles: std.ArrayList(Role) = .empty;
-        errdefer roles.deinit(self.allocator);
+        errdefer {
+            for (roles) |role| {
+                role.deinit(self.allocator);
+            }
+            roles.deinit(self.allocator);
+        }
 
         const query =
             \\SELECT r.id, r.name, r.description, r.created_at
@@ -186,7 +196,12 @@ pub const PermissionRepository = struct {
     /// List all roles
     pub fn listRoles(self: *PermissionRepository) !std.ArrayList(Role) {
         var roles: std.ArrayList(Role) = .empty;
-        errdefer roles.deinit(self.allocator);
+        errdefer {
+            for (roles) |role| {
+                role.deinit(self.allocator);
+            }
+            roles.deinit(self.allocator);
+        }
 
         const query = "SELECT id, name, description, created_at FROM roles ORDER BY name";
 
