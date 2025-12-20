@@ -1,3 +1,9 @@
+## [0.0.4](https://github.com/dust-books/dust-server/compare/v0.0.3...v0.0.4) (2025-12-20)
+
+### Bug Fixes
+
+* **install:** handle non-interactive properly ([0d2984d](https://github.com/dust-books/dust-server/commit/0d2984d3604958b6a1c40d96d19f2e16a238f104))
+
 ## [0.0.3](https://github.com/dust-books/dust-server/compare/v0.0.2...v0.0.3) (2025-12-20)
 
 ### Bug Fixes
