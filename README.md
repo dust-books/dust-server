@@ -21,12 +21,12 @@ curl -fsSL https://raw.githubusercontent.com/dust-books/dust-server/main/scripts
 
 This will automatically:
 - Download the latest release
-- Install runtime dependencies (musl, libsqlite3)
+- Install runtime dependencies (musl)
 - Install to `/opt/dust`
 - Set up systemd service
 - Configure environment variables
 
-Interactive mode lets you customize media directories and port during setup. Non-interactive uses defaults (`/media/books:/media/comics`, port `4001`) which you can change later in `/opt/dust/.env`.
+SQLite is bundled with the binary. Interactive mode lets you customize media directories and port during setup. Non-interactive uses defaults (`/media/books:/media/comics`, port `4001`) which you can change later in `/opt/dust/.env`.
 
 **Building from source:**
 

@@ -13,10 +13,11 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
-    // Get sqlite dependency
+    // Get sqlite dependency with bundled SQLite for static linking
     const sqlite = b.dependency("sqlite", .{
         .target = target,
         .optimize = optimize,
+        .bundled = true, // Use bundled SQLite instead of system library
     });
 
     // Create the executable

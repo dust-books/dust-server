@@ -38,7 +38,8 @@ sudo bash /tmp/install-dust.sh
 
 The script will automatically install runtime dependencies:
 - `musl` - C standard library (required by the binary)
-- `libsqlite3-0` - SQLite database library
+
+SQLite is bundled with the binary and does not require system installation.
 
 ### What you'll be asked:
 

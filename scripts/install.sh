@@ -82,11 +82,6 @@ install_runtime_dependencies() {
         packages_to_install+=("musl")
     fi
     
-    # Check for sqlite3 library
-    if ! ldconfig -p | grep -q "libsqlite3.so"; then
-        packages_to_install+=("libsqlite3-0")
-    fi
-    
     if [ ${#packages_to_install[@]} -ne 0 ]; then
         print_info "Installing: ${packages_to_install[*]}"
         apt-get update -qq
@@ -95,6 +90,8 @@ install_runtime_dependencies() {
     else
         print_success "All dependencies already installed"
     fi
+    
+    print_info "SQLite is bundled with the binary (no system installation needed)"
 }
 
 detect_architecture() {
@@ -272,6 +269,7 @@ User=$SERVICE_USER
 Group=$SERVICE_USER
 WorkingDirectory=$INSTALL_DIR
 EnvironmentFile=$INSTALL_DIR/.env
+Environment="LD_LIBRARY_PATH=$INSTALL_DIR"
 ExecStart=$INSTALL_DIR/dust-server
 
 # Security hardening
