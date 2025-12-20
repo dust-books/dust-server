@@ -1,3 +1,9 @@
+## [0.0.3](https://github.com/dust-books/dust-server/compare/v0.0.2...v0.0.3) (2025-12-20)
+
+### Bug Fixes
+
+* **install:** handle unknown term types ([becee7d](https://github.com/dust-books/dust-server/commit/becee7db365e450e7e103b6e3df702710388ee3d))
+
 ## [0.0.2](https://github.com/dust-books/dust-server/compare/v0.0.1...v0.0.2) (2025-12-20)
 
 ### Bug Fixes
