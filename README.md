@@ -21,6 +21,7 @@ curl -fsSL https://raw.githubusercontent.com/dust-books/dust-server/main/scripts
 
 This will automatically:
 - Download the latest release
+- Install runtime dependencies (musl, libsqlite3)
 - Install to `/opt/dust`
 - Set up systemd service
 - Configure environment variables

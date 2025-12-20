@@ -71,6 +71,32 @@ check_dependencies() {
     fi
 }
 
+install_runtime_dependencies() {
+    print_info "Installing runtime dependencies..."
+    
+    # Check if we need to install packages
+    local packages_to_install=()
+    
+    # Check for musl
+    if ! ldconfig -p | grep -q "musl"; then
+        packages_to_install+=("musl")
+    fi
+    
+    # Check for sqlite3 library
+    if ! ldconfig -p | grep -q "libsqlite3.so"; then
+        packages_to_install+=("libsqlite3-0")
+    fi
+    
+    if [ ${#packages_to_install[@]} -ne 0 ]; then
+        print_info "Installing: ${packages_to_install[*]}"
+        apt-get update -qq
+        apt-get install -y -qq ${packages_to_install[*]}
+        print_success "Dependencies installed"
+    else
+        print_success "All dependencies already installed"
+    fi
+}
+
 detect_architecture() {
     local arch=$(uname -m)
     
@@ -349,6 +375,7 @@ main() {
     
     check_root
     check_dependencies
+    install_runtime_dependencies
     
     print_info "Fetching latest release information..."
     local arch=$(detect_architecture)

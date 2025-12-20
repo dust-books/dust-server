@@ -36,6 +36,10 @@ sudo bash /tmp/install-dust.sh
 - curl, tar, systemctl installed
 - Internet connection
 
+The script will automatically install runtime dependencies:
+- `musl` - C standard library (required by the binary)
+- `libsqlite3-0` - SQLite database library
+
 ### What you'll be asked:
 
 **Interactive mode only:**
