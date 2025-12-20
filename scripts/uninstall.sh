@@ -86,16 +86,23 @@ remove_installation() {
         echo -e "  - Data:   $INSTALL_DIR/data/ (includes database)"
         echo ""
         
-        read -p "Remove installation directory and all data? [y/N] " -n 1 -r
-        echo ""
-        
-        if [[ $REPLY =~ ^[Yy]$ ]]; then
-            print_info "Removing installation directory..."
-            rm -rf "$INSTALL_DIR"
-            print_success "Installation directory removed"
+        if [ -t 0 ]; then
+            # Interactive mode
+            read -p "Remove installation directory and all data? [y/N] " -n 1 -r
+            echo ""
+            
+            if [[ $REPLY =~ ^[Yy]$ ]]; then
+                print_info "Removing installation directory..."
+                rm -rf "$INSTALL_DIR"
+                print_success "Installation directory removed"
+            else
+                print_info "Installation directory preserved at: $INSTALL_DIR"
+                print_warning "To manually remove later: sudo rm -rf $INSTALL_DIR"
+            fi
         else
+            # Non-interactive mode - preserve data by default
             print_info "Installation directory preserved at: $INSTALL_DIR"
-            print_warning "To manually remove later: sudo rm -rf $INSTALL_DIR"
+            print_warning "To manually remove: sudo rm -rf $INSTALL_DIR"
         fi
     fi
 }
@@ -103,14 +110,21 @@ remove_installation() {
 remove_user() {
     if id "$SERVICE_USER" &>/dev/null; then
         echo ""
-        read -p "Remove system user '$SERVICE_USER'? [y/N] " -n 1 -r
-        echo ""
         
-        if [[ $REPLY =~ ^[Yy]$ ]]; then
-            print_info "Removing user..."
-            userdel "$SERVICE_USER" 2>/dev/null || true
-            print_success "User removed"
+        if [ -t 0 ]; then
+            # Interactive mode
+            read -p "Remove system user '$SERVICE_USER'? [y/N] " -n 1 -r
+            echo ""
+            
+            if [[ $REPLY =~ ^[Yy]$ ]]; then
+                print_info "Removing user..."
+                userdel "$SERVICE_USER" 2>/dev/null || true
+                print_success "User removed"
+            else
+                print_info "User preserved"
+            fi
         else
+            # Non-interactive mode - preserve user by default
             print_info "User preserved"
         fi
     fi
@@ -154,14 +168,20 @@ main() {
         exit 0
     fi
     
-    echo -e "${YELLOW}WARNING: This will uninstall Dust server${NC}"
-    echo ""
-    read -p "Continue with uninstallation? [y/N] " -n 1 -r
-    echo ""
-    
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-        print_info "Uninstallation cancelled"
-        exit 0
+    if [ -t 0 ]; then
+        # Interactive mode
+        echo -e "${YELLOW}WARNING: This will uninstall Dust server${NC}"
+        echo ""
+        read -p "Continue with uninstallation? [y/N] " -n 1 -r
+        echo ""
+        
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            print_info "Uninstallation cancelled"
+            exit 0
+        fi
+    else
+        # Non-interactive mode
+        print_info "Running in non-interactive mode. Proceeding with uninstallation..."
     fi
     
     echo ""

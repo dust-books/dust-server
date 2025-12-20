@@ -90,7 +90,6 @@ detect_architecture() {
 }
 
 get_latest_version() {
-    print_info "Fetching latest release information..."
     local version=$(curl -fsSL "https://api.github.com/repos/${GITHUB_REPO}/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
     
     if [ -z "$version" ]; then
@@ -166,18 +165,29 @@ configure_environment() {
     local jwt_secret=$(openssl rand -base64 32)
     
     # Prompt for media directories
-    echo ""
-    echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-    echo -e "${BLUE}  Configuration${NC}"
-    echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-    echo ""
-    read -p "Enter directories to scan for media (colon-separated) [/media/books:/media/comics]: " media_dirs
-    media_dirs=${media_dirs:-/media/books:/media/comics}
+    local media_dirs
+    local port
     
-    read -p "Enter server port [4001]: " port
-    port=${port:-4001}
-    
-    echo ""
+    if [ -t 0 ]; then
+        # Interactive mode
+        echo ""
+        echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+        echo -e "${BLUE}  Configuration${NC}"
+        echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+        echo ""
+        read -p "Enter directories to scan for media (colon-separated) [/media/books:/media/comics]: " media_dirs
+        media_dirs=${media_dirs:-/media/books:/media/comics}
+        
+        read -p "Enter server port [4001]: " port
+        port=${port:-4001}
+        echo ""
+    else
+        # Non-interactive mode - use defaults
+        media_dirs="/media/books:/media/comics"
+        port=4001
+        print_info "Using default media directories: $media_dirs"
+        print_info "Using default port: $port"
+    fi
     
     # Create environment file
     cat > "$env_file" <<EOF
@@ -340,6 +350,7 @@ main() {
     check_root
     check_dependencies
     
+    print_info "Fetching latest release information..."
     local arch=$(detect_architecture)
     print_success "Detected architecture: $arch"
     
@@ -347,11 +358,17 @@ main() {
     print_success "Latest version: $version"
     
     echo ""
-    read -p "Install Dust server $version? [Y/n] " -n 1 -r
-    echo ""
-    if [[ ! $REPLY =~ ^[Yy]$ ]] && [[ -n $REPLY ]]; then
-        print_info "Installation cancelled"
-        exit 0
+    if [ -t 0 ]; then
+        # Interactive mode
+        read -p "Install Dust server $version? [Y/n] " -n 1 -r
+        echo ""
+        if [[ ! $REPLY =~ ^[Yy]$ ]] && [[ -n $REPLY ]]; then
+            print_info "Installation cancelled"
+            exit 0
+        fi
+    else
+        # Non-interactive mode (piped from curl)
+        print_info "Running in non-interactive mode. Proceeding with installation..."
     fi
     
     echo ""

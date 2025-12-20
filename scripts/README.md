@@ -4,10 +4,17 @@ This directory contains automated installation and management scripts for Dust s
 
 ## Install Script
 
-**Quick install on Ubuntu/Debian:**
+**Quick install (non-interactive, uses defaults):**
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/dust-books/dust-server/main/scripts/install.sh | sudo bash
+```
+
+**Interactive install (recommended - lets you configure directories and port):**
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/dust-books/dust-server/main/scripts/install.sh -o /tmp/install-dust.sh
+sudo bash /tmp/install-dust.sh
 ```
 
 ### What it does:
@@ -31,9 +38,14 @@ curl -fsSL https://raw.githubusercontent.com/dust-books/dust-server/main/scripts
 
 ### What you'll be asked:
 
+**Interactive mode only:**
 1. **Confirm installation** - Press Y to proceed
 2. **Media directories** - Enter colon-separated paths (e.g., `/media/books:/media/comics`)
 3. **Server port** - Default is 4001
+
+**Non-interactive mode** (when piped from curl):
+- Automatically uses defaults: `/media/books:/media/comics` for directories, port `4001`
+- You can edit `/opt/dust/.env` after installation to change these
 
 ### After installation:
 
