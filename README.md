@@ -4,11 +4,22 @@
 
 Dust is a media server focused around ebooks and comics. Think Plex, but for people who like to read (and more importantly, collect digital books and comics!).
 
-## 🎉 Zig Implementation - **MIGRATION COMPLETE!**
-
-Dust has been **successfully rewritten in Zig 0.15.2**! The migration is complete and the server is production-ready with improved performance, memory safety, and dramatically lower resource usage.
-
 ### Quick Start
+
+**Installation on Ubuntu/Debian (Recommended):**
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/dust-books/dust-server/main/scripts/install.sh | sudo bash
+```
+
+This will automatically:
+
+- Download the latest release
+- Install to `/opt/dust`
+- Set up systemd service
+- Configure environment variables
+
+**Building from source:**
 
 ```bash
 # Build the server
@@ -16,43 +27,11 @@ zig build -Doptimize=ReleaseSafe
 
 # Set required environment variables
 export JWT_SECRET=$(openssl rand -base64 32)
-export DUST_DIRS="/path/to/books:/another/path"  # Optional
+export DUST_DIRS="/path/to/books:/another/path"
 
 # Run the server
 ./zig-out/bin/dust-server
 ```
-
-**📚 See [ZIG-QUICK-START.md](ZIG-QUICK-START.md) for detailed instructions.**
-
-### ✅ Complete Features
-- ✅ User authentication & authorization (JWT)
-- ✅ Permission system with roles
-- ✅ User management (admin routes)
-- ✅ Books CRUD operations
-- ✅ Authors & tags management
-- ✅ Reading progress tracking
-- ✅ Archive management
-- ✅ Genres (via tag categories)
-- ✅ Background tasks (scanning, cleanup)
-- ✅ 25+ API endpoints fully functional
-
-### 📖 Documentation
-- **[ZIG-MIGRATION-COMPLETE.md](ZIG-MIGRATION-COMPLETE.md)** - 🎊 Migration summary & what's next
-- **[ZIG-QUICK-START.md](ZIG-QUICK-START.md)** - Quick reference for running the server
-- **[ZIG-MIGRATION-GUIDE.md](ZIG-MIGRATION-GUIDE.md)** - Technical architecture & implementation details
-
-### 📊 Stats
-- **~2MB binary** (vs 50MB+ Node.js runtime) - **96% smaller!**
-- **36 Zig source files** implementing full server
-- **10 database tables** with full migration system
-- **25+ API endpoints** with authentication & authorization
-- **Background tasks** for automated book scanning & cleanup
-
----
-
-## 📦 Original TypeScript Implementation
-
-The original TypeScript/Deno implementation has been **archived** to `archive/typescript-original/` as of December 6, 2025. The Zig implementation is now the primary codebase and is recommended for all deployments.
 
 ---
 
@@ -84,10 +63,7 @@ M:
 When organizing books, you can optionally use ISBN or ISBN-13 as the filename to enable automatic metadata fetching from external sources. If the filename is a valid ISBN/ISBN-13, Dust will automatically retrieve book metadata including title, author, publication date, and other details.
 
 **Examples:**
+
 - `9781789349917.epub` - Will fetch metadata for "Learn C Programming" by Jeff Szuhay
 - `978-0-123456-78-9.pdf` - ISBN with hyphens (also supported)
 - `regular_filename.epub` - Will still be processed but without automatic metadata fetching
-
-## Development
-
-Dust is written in Deno. Install Deno and run `deno task dev` to get started with local development.
