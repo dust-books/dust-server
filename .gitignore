@@ -12,3 +12,6 @@ zig-out/
 *.swp
 *.swo
 *~
+
+# Node.js (for semantic-release)
+node_modules/
