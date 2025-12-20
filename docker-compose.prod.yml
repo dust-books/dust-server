@@ -7,7 +7,7 @@ services:
       - DATABASE_URL=file:/app/data/dust.db
       - JWT_SECRET=${JWT_SECRET}  # REQUIRED: Generate with: openssl rand -base64 32
       # Set your library directories (comma-separated)
-      - dirs=/app/books,/app/comics
+      - DUST_DIRS=/app/books,/app/comics
       # Set your Google Books API key for metadata enrichment
       # - GOOGLE_BOOKS_API_KEY=${GOOGLE_BOOKS_API_KEY}
     volumes:

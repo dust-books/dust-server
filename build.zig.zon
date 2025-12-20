@@ -1,0 +1,23 @@
+.{
+    .name = .dustserver,
+    .version = "0.1.0",
+    .fingerprint = 0x50e55cf81393de71,
+    .minimum_zig_version = "0.15.2",
+
+    .dependencies = .{
+        .httpz = .{
+            .url = "git+https://github.com/karlseguin/http.zig?ref=master#a4477b1dbdc5b820fd4ad301797ca6399f7eb6e4",
+            .hash = "httpz-0.0.0-PNVzrBgtBwCVkSJyophIX6WHwDR0r8XhBGQr96Kk-1El",
+        },
+        .sqlite = .{
+            .url = "git+https://github.com/vrischmann/zig-sqlite?ref=zig-0.15.1#c1a5f2720bad283f870df77b41430bd461bb9182",
+            .hash = "sqlite-3.48.0-F2R_a9eODgDPCO5CDptJHZINZSIn48IFVIWUhuxxwGTb",
+        },
+    },
+
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+    },
+}

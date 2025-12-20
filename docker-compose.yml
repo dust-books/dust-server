@@ -8,7 +8,7 @@ services:
     environment:
       - PORT=4001
       - DATABASE_URL=file:/app/data/dust.db
-      - dirs=/app/books  # Default library directory inside container
+      - DUST_DIRS=/app/books  # Default library directory inside container
       - JWT_SECRET=${JWT_SECRET}  # REQUIRED: Set this in .env file
       # - GOOGLE_BOOKS_API_KEY=your_api_key_here  # Uncomment and set if needed
     volumes:
