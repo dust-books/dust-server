@@ -1,3 +1,9 @@
+## [0.0.5](https://github.com/dust-books/dust-server/compare/v0.0.4...v0.0.5) (2025-12-20)
+
+### Bug Fixes
+
+* **installer:** dont write logs to stdout ([8d1b275](https://github.com/dust-books/dust-server/commit/8d1b2755c3992c6a074b9863a2c2f90b4d10a095))
+
 ## [0.0.4](https://github.com/dust-books/dust-server/compare/v0.0.3...v0.0.4) (2025-12-20)
 
 ### Bug Fixes
