@@ -71,10 +71,13 @@ A good bug report shouldn't leave others needing to chase you up for more inform
 
 We use GitHub issues to track bugs and errors. If you run into an issue with the project:
 
-- Open an [Issue](https://www.github.com/dust-books/dust-server/issues/new). (Since we can't be sure at this point whether it is a bug or not, we ask you not to talk about a bug yet and not to label the issue.)
+- Open an [Issue](https://www.github.com/dust-books/dust-server/issues/new/choose) and select the **Bug Report** template.
+- Fill out all required fields in the template.
 - Explain the behavior you would expect and the actual behavior.
 - Please provide as much context as possible and describe the *reproduction steps* that someone else can follow to recreate the issue on their own. This usually includes your code. For good bug reports you should isolate the problem and create a reduced test case.
 - Provide the information you collected in the previous section.
+
+**Note:** The bug report template includes guidance on conventional commit format for when you submit a fix!
 
 Once it's filed:
 
@@ -98,22 +101,128 @@ This section guides you through submitting an enhancement suggestion for Dust, *
 
 Enhancement suggestions are tracked as [GitHub issues](https://www.github.com/dust-books/dust-server/issues).
 
+- Open an [Issue](https://www.github.com/dust-books/dust-server/issues/new/choose) and select the **Feature Request** template.
+- Fill out all required fields in the template.
 - Use a **clear and descriptive title** for the issue to identify the suggestion.
 - Provide a **step-by-step description of the suggested enhancement** in as many details as possible.
 - **Describe the current behavior** and **explain which behavior you expected to see instead** and why. At this point you can also tell which alternatives do not work for you.
 - You may want to **include screenshots and animated GIFs** which help you demonstrate the steps or point out the part which the suggestion is related to. You can use [this tool](https://www.cockos.com/licecap/) to record GIFs on macOS and Windows, and [this tool](https://github.com/colinkeenan/silentcast) or [this tool](https://github.com/GNOME/byzanz) on Linux. <!-- this should only be included if the project has a GUI -->
 - **Explain why this enhancement would be useful** to most Dust users. You may also want to point out the other projects that solved it better and which could serve as inspiration.
 
+**Note:** The feature request template includes guidance on conventional commit format for when you implement the feature!
+
 
 ### Your First Code Contribution
-TODO:
+
+Ready to contribute code? Great! Here's how to get started:
+
+1. **Fork the repository** and clone it locally
+2. **Set up your development environment** (see README.md)
+3. **Create a branch** for your changes: `git checkout -b fix/your-bug-fix` or `feat/your-feature`
+4. **Make your changes** following our code style
+5. **Test your changes** thoroughly
+6. **Commit using conventional commit format** (see below)
+7. **Push to your fork** and create a Pull Request
+
+When you create a PR, our Pull Request template will guide you through the process and remind you about commit message conventions.
 
 ### Improving The Documentation
-TODO:
+
+Documentation improvements are always welcome! 
+
+- Open an [Issue](https://www.github.com/dust-books/dust-server/issues/new/choose) using the **Documentation Update** template
+- Or submit a PR with your documentation changes directly
+- Use the `docs:` commit type for documentation changes
 
 ## Styleguides
+
 ### Commit Messages
-TODO:
+
+**This project uses [Conventional Commits](https://www.conventionalcommits.org/) for automated versioning and changelog generation.**
+
+#### Format
+
+```
+<type>(<scope>): <subject>
+
+<body>
+
+<footer>
+```
+
+#### Types
+
+- `feat:` - New feature → triggers **minor** version bump (0.1.0 → 0.2.0)
+- `fix:` - Bug fix → triggers **patch** version bump (0.1.0 → 0.1.1)
+- `perf:` - Performance improvement → triggers **patch** version bump
+- `docs:` - Documentation changes → no release
+- `style:` - Code style changes → no release
+- `refactor:` - Code refactoring → no release (but shown in changelog)
+- `test:` - Test changes → no release
+- `build:` - Build system changes → no release
+- `ci:` - CI/CD changes → no release
+- `chore:` - Other changes → no release
+
+#### Examples
+
+**Bug Fix:**
+```bash
+git commit -m "fix: resolve database connection timeout
+
+Fixed an issue where the database would timeout after
+30 seconds of inactivity by increasing the timeout to 5 minutes.
+
+Fixes #123"
+```
+
+**New Feature:**
+```bash
+git commit -m "feat: add book search by ISBN
+
+Implements ISBN-based search functionality allowing users
+to quickly find books by their ISBN number.
+
+Closes #456"
+```
+
+**Breaking Change (triggers major version bump):**
+```bash
+git commit -m "feat: redesign authentication system
+
+Replaced JWT-based auth with OAuth2.
+
+BREAKING CHANGE: Old JWT tokens are no longer valid.
+All users must re-authenticate after this update.
+
+Closes #789"
+```
+
+**Documentation:**
+```bash
+git commit -m "docs: update installation guide
+
+Added Windows-specific instructions and troubleshooting tips."
+```
+
+#### Scopes (Optional)
+
+You can add a scope to provide more context:
+
+- `feat(api): add new endpoint for book ratings`
+- `fix(auth): correct token expiration logic`
+- `docs(readme): update environment variables section`
+
+#### Why Conventional Commits?
+
+Using conventional commits:
+- ✅ Automatically generates version numbers
+- ✅ Creates detailed changelogs
+- ✅ Triggers appropriate releases (major/minor/patch)
+- ✅ Makes it easy to understand changes at a glance
+
+Our CI/CD pipeline (using semantic-release) reads these commit messages to automate the entire release process!
+
+For more details, see [RELEASE-PROCESS.md](RELEASE-PROCESS.md).
 
 ## Join The Project Team
 TODO:

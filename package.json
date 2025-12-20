@@ -1,0 +1,31 @@
+{
+  "name": "dust-server",
+  "version": "0.1.0",
+  "description": "Dust media server - ebooks and comics",
+  "private": true,
+  "directories": {
+    "example": "examples",
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dust-books/dust-server.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/dust-books/dust-server/issues"
+  },
+  "homepage": "https://github.com/dust-books/dust-server#readme",
+  "devDependencies": {
+    "@semantic-release/changelog": "^6.0.3",
+    "@semantic-release/exec": "^7.1.0",
+    "@semantic-release/git": "^10.0.1",
+    "semantic-release": "^25.0.2"
+  }
+}

@@ -1,0 +1,72 @@
+name: Documentation Update
+description: Suggest improvements to documentation
+title: "[Docs]: "
+labels: ["documentation"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve our documentation!
+        
+  - type: dropdown
+    id: doc-type
+    attributes:
+      label: Documentation Type
+      description: What type of documentation needs updating?
+      options:
+        - README
+        - API Documentation
+        - Setup Guide
+        - Code Comments
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: current
+    attributes:
+      label: Current Documentation
+      description: What's currently documented (if applicable)?
+      placeholder: Link to or describe the current documentation
+    validations:
+      required: false
+
+  - type: textarea
+    id: suggested
+    attributes:
+      label: Suggested Improvement
+      description: What should be added, changed, or clarified?
+    validations:
+      required: true
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Context
+      description: Any other information that might be helpful
+    validations:
+      required: false
+
+  - type: markdown
+    attributes:
+      value: |
+        ---
+        
+        ## 📝 Commit Message Format
+        
+        When updating documentation, please use conventional commit format:
+        
+        ```
+        docs: brief description of the change
+        
+        Closes #<issue-number>
+        ```
+        
+        **Examples:**
+        - `docs: add installation instructions for Windows`
+        - `docs: update API endpoint examples`
+        - `docs(readme): clarify environment variable setup`
+        
+        **Note:** Documentation changes typically don't trigger new releases, but they will appear in the changelog.
+        
+        Learn more: [Conventional Commits](https://www.conventionalcommits.org/)

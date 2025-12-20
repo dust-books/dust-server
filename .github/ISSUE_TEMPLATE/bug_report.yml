@@ -1,0 +1,91 @@
+name: Bug Report
+description: Report a bug or issue
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug! Please fill out the information below to help us resolve it.
+        
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: A clear description of the bug
+      placeholder: What happened?
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to Reproduce
+      description: How can we reproduce this issue?
+      placeholder: |
+        1. Go to...
+        2. Click on...
+        3. See error
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: What did you expect to happen?
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual Behavior
+      description: What actually happened?
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Provide details about your environment
+      placeholder: |
+        - OS: Ubuntu 22.04
+        - Zig Version: 0.15.2
+        - Docker Version: (if applicable)
+    validations:
+      required: false
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or Error Messages
+      description: Include any relevant logs or error messages
+      render: shell
+    validations:
+      required: false
+
+  - type: markdown
+    attributes:
+      value: |
+        ---
+        
+        ## 📝 Commit Message Format
+        
+        When submitting a PR to fix this issue, please use conventional commit format:
+        
+        ```
+        fix: brief description of the fix
+        
+        Fixes #<issue-number>
+        ```
+        
+        **Examples:**
+        - `fix: resolve database connection timeout`
+        - `fix: correct authentication token validation`
+        - `fix(api): handle null response from search endpoint`
+        
+        This helps us automatically generate changelogs and version releases!
+        
+        Learn more: [Conventional Commits](https://www.conventionalcommits.org/)
