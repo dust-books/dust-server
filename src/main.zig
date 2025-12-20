@@ -21,7 +21,6 @@ pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
-
     std.log.info("🚀 Dust Server (Zig Edition) - Version 0.1.0\n", .{});
 
     // Set up signal handling for graceful shutdown

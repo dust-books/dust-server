@@ -249,12 +249,12 @@ fn health(_: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
 // Book route handlers
 fn booksList(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
     logging.logRequest(req);
-    try book_routes.listBooks(ctx.book_repo.?, ctx.author_repo.?, req, res);
+    try book_routes.listBooks(ctx.book_repo, ctx.author_repo, req, res);
 }
 
 fn booksGet(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
     logging.logRequest(req);
-    try book_routes.getBook(ctx.book_repo.?, ctx.author_repo.?, ctx.tag_repo.?, req, res);
+    try book_routes.getBook(ctx.book_repo, ctx.author_repo, ctx.tag_repo, req, res);
 }
 
 fn booksStream(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
@@ -278,11 +278,7 @@ fn booksStream(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !
         return;
     };
 
-    const db = ctx.db orelse {
-        res.status = 500;
-        try res.json(.{ .@"error" = "Database not available" }, .{});
-        return;
-    };
+    const db = ctx.db;
 
     // Get book file path
     const query = "SELECT file_path, file_format FROM books WHERE id = ?";
@@ -334,28 +330,28 @@ fn booksStream(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !
 
 fn booksCreate(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
     logging.logRequest(req);
-    try book_routes.createBook(ctx.book_repo.?, req, res);
+    try book_routes.createBook(ctx.book_repo, req, res);
 }
 
 fn booksUpdate(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
     logging.logRequest(req);
-    try book_routes.updateBook(ctx.book_repo.?, req, res);
+    try book_routes.updateBook(ctx.book_repo, req, res);
 }
 
 fn booksDelete(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
     logging.logRequest(req);
-    try book_routes.deleteBook(ctx.book_repo.?, req, res);
+    try book_routes.deleteBook(ctx.book_repo, req, res);
 }
 
 // Author route handlers
 fn booksAuthors(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
     logging.logRequest(req);
-    try book_routes.listAuthors(ctx.author_repo.?, req, res);
+    try book_routes.listAuthors(ctx.author_repo, req, res);
 }
 
 fn booksAuthor(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
     logging.logRequest(req);
-    try book_routes.getAuthor(&ctx.db.?.db, ctx.author_repo.?, req, res);
+    try book_routes.getAuthor(&ctx.db.db, ctx.author_repo, req, res);
 }
 
 // Admin route handlers
@@ -377,7 +373,7 @@ fn adminDeleteUser(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Respons
 
 fn adminScanLibrary(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
     logging.logRequest(req);
-    const db = ctx.db.?;
+    const db = ctx.db;
     const allocator = ctx.auth_context.allocator;
     try admin_routes.scanLibrary(db, allocator, ctx.library_directories, req, res);
 }
@@ -404,11 +400,7 @@ fn booksGetProgress(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Respon
         return;
     };
 
-    const db = ctx.db orelse {
-        res.status = 500;
-        try res.json(.{ .@"error" = "Database not available" }, .{});
-        return;
-    };
+    const db = ctx.db;
 
     // Query reading progress
     const query = 
@@ -498,11 +490,7 @@ fn booksUpdateProgress(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Res
     // Validate that we have at least current_page
     const current_page = data.current_page orelse 0;
     
-    const db = ctx.db orelse {
-        res.status = 500;
-        try res.json(.{ .@"error" = "Database not available" }, .{});
-        return;
-    };
+    const db = ctx.db;
 
     // Use provided percentage or calculate it
     const percentage: f64 = if (data.percentage_complete) |pct|
@@ -547,7 +535,7 @@ fn readingCurrentlyReading(ctx: *ServerContext, req: *httpz.Request, res: *httpz
     };
     defer auth_user.deinit(auth_ctx.allocator);
 
-    try book_routes.getCurrentlyReading(&ctx.db.?.db, auth_user.user_id, req, res);
+    try book_routes.getCurrentlyReading(&ctx.db.db, auth_user.user_id, req, res);
 }
 
 fn readingCompleted(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
@@ -559,44 +547,44 @@ fn readingCompleted(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Respon
     };
     defer auth_user.deinit(auth_ctx.allocator);
 
-    try book_routes.getCompletedReading(&ctx.db.?.db, auth_user.user_id, req, res);
+    try book_routes.getCompletedReading(&ctx.db.db, auth_user.user_id, req, res);
 }
 
 // Tag route handlers
 fn booksTags(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
     logging.logRequest(req);
-    try book_routes.listTags(ctx.tag_repo.?, req, res);
+    try book_routes.listTags(ctx.tag_repo, req, res);
 }
 
 fn booksTagsByCategory(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
     logging.logRequest(req);
-    try book_routes.getTagsByCategory(ctx.tag_repo.?, req, res);
+    try book_routes.getTagsByCategory(ctx.tag_repo, req, res);
 }
 
 fn booksAddTag(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
     logging.logRequest(req);
-    try book_routes.addTagToBook(ctx.tag_repo.?, req, res);
+    try book_routes.addTagToBook(ctx.tag_repo, req, res);
 }
 
 fn booksRemoveTag(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
     logging.logRequest(req);
-    try book_routes.removeTagFromBook(ctx.tag_repo.?, req, res);
+    try book_routes.removeTagFromBook(ctx.tag_repo, req, res);
 }
 
 // Archive route handlers
 fn booksArchived(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
     logging.logRequest(req);
-    try book_routes.listArchivedBooks(&ctx.db.?.db, ctx.author_repo.?, req, res);
+    try book_routes.listArchivedBooks(&ctx.db.db, ctx.author_repo, req, res);
 }
 
 fn booksArchive(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
     logging.logRequest(req);
-    try book_routes.archiveBook(ctx.book_repo.?, req, res);
+    try book_routes.archiveBook(ctx.book_repo, req, res);
 }
 
 fn booksUnarchive(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
     logging.logRequest(req);
-    try book_routes.unarchiveBook(&ctx.db.?.db, req, res);
+    try book_routes.unarchiveBook(&ctx.db.db, req, res);
 }
 
 // CORS preflight handler for OPTIONS requests

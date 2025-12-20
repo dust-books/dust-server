@@ -19,13 +19,13 @@ pub const AuthContext = struct {
 /// Server-wide context holding services and repositories
 pub const ServerContext = struct {
     auth_context: AuthContext,
-    permission_service: ?*PermissionService = null,
-    permission_repo: ?*PermissionRepository = null,
-    db: ?*Database = null,
-    book_repo: ?*BookRepository = null,
-    author_repo: ?*AuthorRepository = null,
-    tag_repo: ?*TagRepository = null,
-    library_directories: []const []const u8 = &[_][]const u8{},
+    permission_service: *PermissionService,
+    permission_repo: *PermissionRepository,
+    db: *Database,
+    book_repo: *BookRepository,
+    author_repo: *AuthorRepository,
+    tag_repo: *TagRepository,
+    library_directories: []const []const u8,
 
     pub fn notFound(_: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
         std.log.debug("404 Not Found: {s}\n", .{req.url.path});
