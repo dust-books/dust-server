@@ -27,11 +27,37 @@ jobs:
         with:
           node-version: 'lts/*'
       
+      - name: Install Zig
+        uses: mlugg/setup-zig@v2
+        with:
+          version: 0.15.2
+      
       - name: Install dependencies
         run: npm ci
       
-      - name: Verify plugins
-        run: npx semantic-release --version
+      - name: Build release binaries
+        run: |
+          mkdir -p dist
+          
+          # Build for Linux x86_64
+          zig build -Doptimize=ReleaseSafe -Dtarget=x86_64-linux
+          tar -czf dist/dust-server-linux-x86_64.tar.gz -C zig-out/bin dust-server
+          
+          # Build for Linux aarch64
+          zig build -Doptimize=ReleaseSafe -Dtarget=aarch64-linux
+          tar -czf dist/dust-server-linux-aarch64.tar.gz -C zig-out/bin dust-server
+          
+          # Build for macOS x86_64
+          zig build -Doptimize=ReleaseSafe -Dtarget=x86_64-macos
+          tar -czf dist/dust-server-macos-x86_64.tar.gz -C zig-out/bin dust-server
+          
+          # Build for macOS aarch64 (Apple Silicon)
+          zig build -Doptimize=ReleaseSafe -Dtarget=aarch64-macos
+          tar -czf dist/dust-server-macos-aarch64.tar.gz -C zig-out/bin dust-server
+          
+          # Build for Windows x86_64
+          zig build -Doptimize=ReleaseSafe -Dtarget=x86_64-windows
+          cd zig-out/bin && zip ../../dist/dust-server-windows-x86_64.zip dust-server.exe && cd ../..
       
       - name: Release
         env:

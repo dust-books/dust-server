@@ -63,7 +63,28 @@
     [
       "@semantic-release/github",
       {
-        "assets": []
+        "assets": [
+          {
+            "path": "dist/dust-server-linux-x86_64.tar.gz",
+            "label": "dust-server-linux-x86_64.tar.gz"
+          },
+          {
+            "path": "dist/dust-server-linux-aarch64.tar.gz",
+            "label": "dust-server-linux-aarch64.tar.gz"
+          },
+          {
+            "path": "dist/dust-server-macos-x86_64.tar.gz",
+            "label": "dust-server-macos-x86_64.tar.gz"
+          },
+          {
+            "path": "dist/dust-server-macos-aarch64.tar.gz",
+            "label": "dust-server-macos-aarch64.tar.gz (Apple Silicon)"
+          },
+          {
+            "path": "dist/dust-server-windows-x86_64.zip",
+            "label": "dust-server-windows-x86_64.zip"
+          }
+        ]
       }
     ]
   ]

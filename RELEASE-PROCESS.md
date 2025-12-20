@@ -79,10 +79,11 @@ docs: improve API documentation"
 1. **Develop**: Make changes and commit with conventional commit messages
 2. **Push to main**: Push commits to the `main` branch
 3. **Automatic Release**: The GitHub Action runs semantic-release which:
+   - Builds binaries for Linux, macOS, and Windows (x86_64 and ARM64)
    - Determines version based on commits
    - Updates `build.zig.zon` and `CHANGELOG.md`
    - Creates a release commit and tag
-   - Publishes GitHub release
+   - Publishes GitHub release with binary artifacts
 4. **Docker Build**: The new tag triggers the Docker workflow automatically
 
 ## Testing Locally
@@ -110,7 +111,21 @@ Semantic-release runs automatically on push to `main`. There's no need to manual
 - `build.zig.zon` - Version field
 - `CHANGELOG.md` - Release notes
 - Git tags - Created for each release
-- GitHub Releases - Created with release notes
+- GitHub Releases - Created with release notes and binary artifacts
+
+## Binary Artifacts
+
+Each GitHub release includes pre-compiled binaries for:
+
+| Platform | Architecture | File |
+|----------|-------------|------|
+| Linux | x86_64 | `dust-server-linux-x86_64.tar.gz` |
+| Linux | aarch64 (ARM64) | `dust-server-linux-aarch64.tar.gz` |
+| macOS | x86_64 (Intel) | `dust-server-macos-x86_64.tar.gz` |
+| macOS | aarch64 (Apple Silicon) | `dust-server-macos-aarch64.tar.gz` |
+| Windows | x86_64 | `dust-server-windows-x86_64.zip` |
+
+All binaries are built with `ReleaseSafe` optimization for production use.
 
 ## Skipping CI
 

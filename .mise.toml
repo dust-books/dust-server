@@ -4,3 +4,4 @@
 [tools]
 zig = "0.15.2"
 zls = "0.15.0"  # Zig Language Server for IDE support
+node = "lts"    # Required for semantic-release scripts

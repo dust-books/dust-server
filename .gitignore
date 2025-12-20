@@ -6,6 +6,10 @@ zig-cache/
 zig-out/
 .zig-cache/
 
+# Release artifacts
+dist/
+tmp/
+
 # IDE
 .vscode/
 .idea/
