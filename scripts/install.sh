@@ -13,6 +13,11 @@
 
 set -e
 
+# Handle unknown terminal types gracefully
+if [ -n "$TERM" ] && ! tput clear >/dev/null 2>&1; then
+    export TERM=xterm
+fi
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -326,7 +331,7 @@ print_completion_message() {
 
 # Main installation flow
 main() {
-    clear
+    clear 2>/dev/null || echo -e "\n\n"
     echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
     echo -e "${BLUE}  Dust Server Installer${NC}"
     echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
