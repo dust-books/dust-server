@@ -79,10 +79,6 @@
           {
             "path": "dist/dust-server-macos-aarch64.tar.gz",
             "label": "dust-server-macos-aarch64.tar.gz (Apple Silicon)"
-          },
-          {
-            "path": "dist/dust-server-windows-x86_64.zip",
-            "label": "dust-server-windows-x86_64.zip"
           }
         ]
       }

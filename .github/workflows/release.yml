@@ -54,10 +54,6 @@ jobs:
           # Build for macOS aarch64 (Apple Silicon)
           zig build -Doptimize=ReleaseSafe -Dtarget=aarch64-macos
           tar -czf dist/dust-server-macos-aarch64.tar.gz -C zig-out/bin dust-server
-          
-          # Build for Windows x86_64
-          zig build -Doptimize=ReleaseSafe -Dtarget=x86_64-windows
-          cd zig-out/bin && zip ../../dist/dust-server-windows-x86_64.zip dust-server.exe && cd ../..
       
       - name: Release
         env:

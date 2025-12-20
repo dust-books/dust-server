@@ -123,9 +123,10 @@ Each GitHub release includes pre-compiled binaries for:
 | Linux | aarch64 (ARM64) | `dust-server-linux-aarch64.tar.gz` |
 | macOS | x86_64 (Intel) | `dust-server-macos-x86_64.tar.gz` |
 | macOS | aarch64 (Apple Silicon) | `dust-server-macos-aarch64.tar.gz` |
-| Windows | x86_64 | `dust-server-windows-x86_64.zip` |
 
 All binaries are built with `ReleaseSafe` optimization for production use.
+
+> **Note:** Windows builds are not currently supported due to POSIX-specific code (signal handling, etc.). The server is designed for Unix-like systems. Use Docker or WSL on Windows.
 
 ## Skipping CI
 
