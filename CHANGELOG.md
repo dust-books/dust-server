@@ -1,3 +1,9 @@
+## [0.0.6](https://github.com/dust-books/dust-server/compare/v0.0.5...v0.0.6) (2025-12-20)
+
+### Bug Fixes
+
+* static link sqlite ([bd74358](https://github.com/dust-books/dust-server/commit/bd74358c0381290aa7cb1bac8aeffd07845a41e6))
+
 ## [0.0.5](https://github.com/dust-books/dust-server/compare/v0.0.4...v0.0.5) (2025-12-20)
 
 ### Bug Fixes
