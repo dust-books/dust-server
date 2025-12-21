@@ -1,3 +1,9 @@
+## [0.0.7](https://github.com/dust-books/dust-server/compare/v0.0.6...v0.0.7) (2025-12-21)
+
+### Bug Fixes
+
+* **server:** binding on all addresses ([f1f345a](https://github.com/dust-books/dust-server/commit/f1f345ae063c9eaa26f174014491ffbd837e45a1))
+
 ## [0.0.6](https://github.com/dust-books/dust-server/compare/v0.0.5...v0.0.6) (2025-12-20)
 
 ### Bug Fixes
