@@ -83,15 +83,25 @@ pub const AuthService = struct {
 
         const hash_slice = password_hash[0..hash_len];
 
-        // Create user
+        // Check if this is the first user
+        const user_count = try self.user_repo.countUsers();
+        const is_first_user = user_count == 0;
+
+        // Create user (first user gets is_admin = true)
         const user_id = try self.user_repo.create(
             email,
             hash_slice,
             username,
+            is_first_user,
         );
 
-        // Assign default 'user' role
-        try self.user_repo.assignRole(user_id, "user");
+        // Assign appropriate role
+        if (is_first_user) {
+            try self.user_repo.assignRole(user_id, "admin");
+            std.log.info("First user created as admin: {s}", .{email});
+        } else {
+            try self.user_repo.assignRole(user_id, "user");
+        }
 
         return user_id;
     }

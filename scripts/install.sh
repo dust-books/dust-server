@@ -141,6 +141,14 @@ download_and_install() {
     
     print_info "Downloading Dust server ${version} for ${arch}..."
     
+    # Check if this is an upgrade (service already exists and running)
+    local is_upgrade=false
+    if systemctl is-active --quiet "$SERVICE_NAME" 2>/dev/null; then
+        is_upgrade=true
+        print_info "Detected existing installation, stopping service..."
+        systemctl stop "$SERVICE_NAME"
+    fi
+    
     # Create temporary directory
     local tmp_dir=$(mktemp -d)
     cd "$tmp_dir"
@@ -149,6 +157,10 @@ download_and_install() {
     if ! curl -fsSL "$download_url" -o "$filename"; then
         print_error "Failed to download from $download_url"
         rm -rf "$tmp_dir"
+        # Restart service if it was running
+        if [ "$is_upgrade" = true ]; then
+            systemctl start "$SERVICE_NAME"
+        fi
         exit 1
     fi
     
@@ -171,6 +183,19 @@ download_and_install() {
     rm -rf "$tmp_dir"
     
     print_success "Installed to $INSTALL_DIR"
+    
+    # Restart service if it was an upgrade
+    if [ "$is_upgrade" = true ]; then
+        print_info "Restarting service..."
+        systemctl start "$SERVICE_NAME"
+        sleep 2
+        if systemctl is-active --quiet "$SERVICE_NAME"; then
+            print_success "Service restarted successfully"
+        else
+            print_warning "Service may not have restarted properly"
+            print_info "Check logs with: journalctl -u $SERVICE_NAME -n 50"
+        fi
+    fi
 }
 
 configure_environment() {

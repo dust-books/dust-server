@@ -31,10 +31,10 @@ pub const UserRepository = struct {
         };
     }
     
-    pub fn create(self: *UserRepository, email: []const u8, password_hash: []const u8, username: ?[]const u8) !i64 {
+    pub fn create(self: *UserRepository, email: []const u8, password_hash: []const u8, username: ?[]const u8, is_admin: bool) !i64 {
         const query = 
-            \\INSERT INTO users (email, password_hash, username)
-            \\VALUES (?, ?, ?)
+            \\INSERT INTO users (email, password_hash, username, is_admin)
+            \\VALUES (?, ?, ?, ?)
             \\RETURNING id
         ;
         
@@ -44,7 +44,7 @@ pub const UserRepository = struct {
         const result = try stmt.one(
             i64,
             .{},
-            .{ email, password_hash, username },
+            .{ email, password_hash, username, @as(i64, if (is_admin) 1 else 0) },
         );
         
         return result orelse error.InsertFailed;
@@ -140,6 +140,16 @@ pub const UserRepository = struct {
         defer stmt.deinit();
         
         try stmt.exec(.{}, .{ user_id, role_name });
+    }
+    
+    pub fn countUsers(self: *UserRepository) !i64 {
+        const query = "SELECT COUNT(*) FROM users";
+        
+        var stmt = try self.db.db.prepare(query);
+        defer stmt.deinit();
+        
+        const result = try stmt.one(i64, .{}, .{});
+        return result orelse 0;
     }
     
     pub fn listUsers(self: *UserRepository) ![]User {
