@@ -266,6 +266,55 @@ EOF
     
     # Show configured directories
     print_info "Configured media directories: $media_dirs"
+    
+    # Set up media directory permissions
+    setup_media_permissions "$media_dirs"
+}
+
+setup_media_permissions() {
+    local media_dirs=$1
+    
+    print_info "Setting up media directory permissions..."
+    
+    # Split colon-separated paths
+    IFS=':' read -ra DIRS <<< "$media_dirs"
+    
+    for dir in "${DIRS[@]}"; do
+        # Trim whitespace
+        dir=$(echo "$dir" | xargs)
+        
+        if [ -d "$dir" ]; then
+            # Add read/execute permissions for the dust user
+            # We use ACLs if available, otherwise fall back to group permissions
+            if command -v setfacl &> /dev/null; then
+                print_info "Adding ACL permissions for $dir"
+                setfacl -R -m u:$SERVICE_USER:rX "$dir" 2>/dev/null || {
+                    print_warning "Failed to set ACLs on $dir - trying group permissions"
+                    # Fall back to adding dust user to the directory owner's group
+                    local dir_owner=$(stat -c '%U' "$dir")
+                    local dir_group=$(stat -c '%G' "$dir")
+                    usermod -aG "$dir_group" "$SERVICE_USER" 2>/dev/null || true
+                }
+            else
+                print_info "Adding group permissions for $dir"
+                # No setfacl, use group permissions
+                local dir_group=$(stat -c '%G' "$dir")
+                usermod -aG "$dir_group" "$SERVICE_USER" 2>/dev/null || {
+                    print_warning "Could not add $SERVICE_USER to group $dir_group"
+                    print_warning "You may need to manually grant access to $dir"
+                }
+            fi
+            print_success "Configured permissions for $dir"
+        else
+            print_warning "Directory does not exist: $dir"
+            print_info "Please create it and ensure $SERVICE_USER can read it"
+        fi
+    done
+    
+    print_info "Media directory permissions configured"
+    print_info "Note: If you still see permission errors, you may need to:"
+    print_info "  sudo chmod -R +rX /path/to/media"
+    print_info "  Or: sudo chown -R $SERVICE_USER:$SERVICE_USER /path/to/media"
 }
 
 create_systemd_service() {
