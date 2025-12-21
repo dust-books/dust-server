@@ -42,6 +42,27 @@ export DUST_DIRS="/path/to/books:/another/path"
 ./zig-out/bin/dust-server
 ```
 
+### Environment Variables
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `JWT_SECRET` | **Yes** | - | Secret key for JWT authentication |
+| `DUST_DIRS` | No | - | Colon-separated directories to scan for books |
+| `PORT` | No | `4001` | Server port |
+| `DATABASE_URL` | No | `file:./dust.db` | Database file path |
+| `SCAN_INTERVAL_MINUTES` | No | `5` | How often to scan for new books (in minutes) |
+| `CLEANUP_INTERVAL_MINUTES` | No | `60` | How often to cleanup old books (in minutes) |
+| `GOOGLE_BOOKS_API_KEY` | No | - | Google Books API key for metadata |
+
+**Example `.env` file:**
+```bash
+JWT_SECRET=your-secure-random-string
+DUST_DIRS=/media/books:/media/comics
+PORT=4001
+SCAN_INTERVAL_MINUTES=10
+CLEANUP_INTERVAL_MINUTES=120
+```
+
 ---
 
 ## Folder Structure

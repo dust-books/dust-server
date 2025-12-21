@@ -244,13 +244,23 @@ pub fn createBackgroundTimerManager(allocator: std.mem.Allocator, db: *sqlite.Db
         .library_directories = library_directories,
     };
 
-    // Run library scan every 5 minutes (300000 ms)
-    try mgr.registerTimer(scanLibraryDirectories, scan_ctx, 300000, cleanupBackgroundContext);
+    // Get scan interval from environment (in minutes, default 5)
+    const scan_interval_env = std.posix.getenv("SCAN_INTERVAL_MINUTES") orelse "5";
+    const scan_interval_minutes = std.fmt.parseInt(u32, scan_interval_env, 10) catch 5;
+    const scan_interval_ms = scan_interval_minutes * 60 * 1000;
+    
+    // Get cleanup interval from environment (in minutes, default 60)
+    const cleanup_interval_env = std.posix.getenv("CLEANUP_INTERVAL_MINUTES") orelse "60";
+    const cleanup_interval_minutes = std.fmt.parseInt(u32, cleanup_interval_env, 10) catch 60;
+    const cleanup_interval_ms = cleanup_interval_minutes * 60 * 1000;
 
-    // Run cleanup every hour (3600000 ms)
-    try mgr.registerTimer(cleanupOldBooks, cleanup_ctx, 3600000, cleanupBackgroundContext);
+    // Run library scan every N minutes
+    try mgr.registerTimer(scanLibraryDirectories, scan_ctx, scan_interval_ms, cleanupBackgroundContext);
 
-    std.log.info("📅 Registered books background tasks (scan every 5min, cleanup every hour)", .{});
+    // Run cleanup every N minutes
+    try mgr.registerTimer(cleanupOldBooks, cleanup_ctx, cleanup_interval_ms, cleanupBackgroundContext);
+
+    std.log.info("📅 Registered books background tasks (scan every {}min, cleanup every {}min)", .{ scan_interval_minutes, cleanup_interval_minutes });
 
     return mgr;
 }

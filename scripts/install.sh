@@ -254,6 +254,10 @@ PORT=$port
 # Database path
 DATABASE_URL=file:$INSTALL_DIR/data/dust.db
 
+# Background task intervals (in minutes)
+SCAN_INTERVAL_MINUTES=5
+CLEANUP_INTERVAL_MINUTES=60
+
 # OPTIONAL: Google Books API key for enhanced metadata fetching
 # Get your API key from: https://developers.google.com/books/docs/v1/using#APIKey
 # GOOGLE_BOOKS_API_KEY=your-google-books-api-key-here
