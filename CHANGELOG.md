@@ -1,3 +1,9 @@
+## [0.0.9](https://github.com/dust-books/dust-server/compare/v0.0.8...v0.0.9) (2025-12-21)
+
+### Bug Fixes
+
+* **scanner:** scan more book types, not just epub ([47cef13](https://github.com/dust-books/dust-server/commit/47cef13f1a66a233224c59ae914c16a0796b6592))
+
 ## [0.0.8](https://github.com/dust-books/dust-server/compare/v0.0.7...v0.0.8) (2025-12-21)
 
 ### Bug Fixes
