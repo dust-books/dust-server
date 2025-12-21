@@ -45,7 +45,23 @@ fn scanDirectory(ctx: *BackgroundTaskContext, dir_path: []const u8) !void {
     while (try walker.next()) |entry| {
         if (entry.kind != .file) continue;
 
-        if (std.mem.endsWith(u8, entry.basename, ".epub")) {
+        // Check for supported ebook formats
+        const is_ebook = std.mem.endsWith(u8, entry.basename, ".epub") or
+            std.mem.endsWith(u8, entry.basename, ".pdf") or
+            std.mem.endsWith(u8, entry.basename, ".mobi") or
+            std.mem.endsWith(u8, entry.basename, ".azw") or
+            std.mem.endsWith(u8, entry.basename, ".azw3") or
+            std.mem.endsWith(u8, entry.basename, ".cbz") or
+            std.mem.endsWith(u8, entry.basename, ".cbr") or
+            std.mem.endsWith(u8, entry.basename, ".djvu") or
+            // Uppercase variants
+            std.mem.endsWith(u8, entry.basename, ".EPUB") or
+            std.mem.endsWith(u8, entry.basename, ".PDF") or
+            std.mem.endsWith(u8, entry.basename, ".MOBI") or
+            std.mem.endsWith(u8, entry.basename, ".CBZ") or
+            std.mem.endsWith(u8, entry.basename, ".CBR");
+
+        if (is_ebook) {
             const full_path = try std.fs.path.join(ctx.allocator, &.{ dir_path, entry.path });
             defer ctx.allocator.free(full_path);
 

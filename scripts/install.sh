@@ -273,6 +273,7 @@ EOF
 
 setup_media_permissions() {
     local media_dirs=$1
+    local needs_reload=false
     
     print_info "Setting up media directory permissions..."
     
@@ -293,13 +294,13 @@ setup_media_permissions() {
                     # Fall back to adding dust user to the directory owner's group
                     local dir_owner=$(stat -c '%U' "$dir")
                     local dir_group=$(stat -c '%G' "$dir")
-                    usermod -aG "$dir_group" "$SERVICE_USER" 2>/dev/null || true
+                    usermod -aG "$dir_group" "$SERVICE_USER" 2>/dev/null && needs_reload=true || true
                 }
             else
                 print_info "Adding group permissions for $dir"
                 # No setfacl, use group permissions
                 local dir_group=$(stat -c '%G' "$dir")
-                usermod -aG "$dir_group" "$SERVICE_USER" 2>/dev/null || {
+                usermod -aG "$dir_group" "$SERVICE_USER" 2>/dev/null && needs_reload=true || {
                     print_warning "Could not add $SERVICE_USER to group $dir_group"
                     print_warning "You may need to manually grant access to $dir"
                 }
@@ -312,6 +313,52 @@ setup_media_permissions() {
     done
     
     print_info "Media directory permissions configured"
+    
+    # If we added the user to groups, we need to reload systemd
+    if [ "$needs_reload" = true ]; then
+        echo ""
+        echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+        echo -e "${YELLOW}  Important: Group Changes Detected${NC}"
+        echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+        echo ""
+        echo "The 'dust' user was added to one or more groups to access your media."
+        echo "For these changes to take effect, the systemd daemon needs to reload"
+        echo "and the service needs to restart."
+        echo ""
+        
+        if [ -t 0 ]; then
+            # Interactive mode - ask user
+            read -p "Would you like to reload systemd and restart the service now? [Y/n] " -n 1 -r
+            echo ""
+            if [[ $REPLY =~ ^[Yy]$ ]] || [[ -z $REPLY ]]; then
+                print_info "Reloading systemd daemon..."
+                systemctl daemon-reload
+                if systemctl is-active --quiet "$SERVICE_NAME" 2>/dev/null; then
+                    print_info "Restarting service to apply group changes..."
+                    systemctl restart "$SERVICE_NAME"
+                    sleep 2
+                    if systemctl is-active --quiet "$SERVICE_NAME"; then
+                        print_success "Service restarted successfully"
+                    else
+                        print_warning "Service may not have restarted properly"
+                        print_info "Check logs with: journalctl -u $SERVICE_NAME -n 50"
+                    fi
+                fi
+            else
+                print_warning "Skipping reload. To apply changes later, run:"
+                print_info "  sudo systemctl daemon-reload"
+                print_info "  sudo systemctl restart $SERVICE_NAME"
+            fi
+        else
+            # Non-interactive mode - just inform the user
+            print_warning "Running in non-interactive mode."
+            print_info "To apply group changes, please run:"
+            print_info "  sudo systemctl daemon-reload"
+            print_info "  sudo systemctl restart $SERVICE_NAME"
+        fi
+        echo ""
+    fi
+    
     print_info "Note: If you still see permission errors, you may need to:"
     print_info "  sudo chmod -R +rX /path/to/media"
     print_info "  Or: sudo chown -R $SERVICE_USER:$SERVICE_USER /path/to/media"
