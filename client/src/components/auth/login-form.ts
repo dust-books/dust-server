@@ -312,18 +312,22 @@ export class LoginForm extends LitElement {
 
     return html`
       <div class="form-container">
-        ${hasMultipleServers || !currentServer ? html`
-          <div class="server-selector-container">
-            <div class="server-selector-title">Server Connection</div>
+        <div class="server-selector-container">
+          <div class="server-selector-title">Server Connection</div>
+          ${hasMultipleServers || !currentServer ? html`
             <server-selector @server-changed=${this.handleServerChange}></server-selector>
-            <a 
-              class="connect-server-link" 
-              @click=${this.handleConnectServer}
-            >
-              + Add Another Server
-            </a>
-          </div>
-        ` : ''}
+          ` : html`
+            <div style="text-align: center; color: var(--text-light); font-size: 0.9rem; margin-bottom: 0.5rem;">
+              ${currentServer?.name || 'Unknown Server'}
+            </div>
+          `}
+          <a 
+            class="connect-server-link" 
+            @click=${this.handleConnectServer}
+          >
+            ${hasMultipleServers || !currentServer ? '+ Add Another Server' : 'Change Server'}
+          </a>
+        </div>
 
         <div class="form-tabs">
           <button
