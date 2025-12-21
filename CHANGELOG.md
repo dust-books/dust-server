@@ -1,3 +1,9 @@
+## [0.0.10](https://github.com/dust-books/dust-server/compare/v0.0.9...v0.0.10) (2025-12-21)
+
+### Bug Fixes
+
+* **background-jobs:** make interval configurable ([59e342f](https://github.com/dust-books/dust-server/commit/59e342f6d5384a294f4dac8f9332b6d78a4cb04e))
+
 ## [0.0.9](https://github.com/dust-books/dust-server/compare/v0.0.8...v0.0.9) (2025-12-21)
 
 ### Bug Fixes
