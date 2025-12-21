@@ -79,6 +79,7 @@ pub const DustServer = struct {
         };
 
         const httpz_server = try httpz.Server(*ServerContext).init(allocator, .{
+            .address = "0.0.0.0",
             .port = port,
         }, context_ptr);
 
