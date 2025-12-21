@@ -1,3 +1,9 @@
+## [0.0.8](https://github.com/dust-books/dust-server/compare/v0.0.7...v0.0.8) (2025-12-21)
+
+### Bug Fixes
+
+* first user is admin user ([0174055](https://github.com/dust-books/dust-server/commit/017405581e946b84ba72a4155d0655985c77fa29))
+
 ## [0.0.7](https://github.com/dust-books/dust-server/compare/v0.0.6...v0.0.7) (2025-12-21)
 
 ### Bug Fixes
