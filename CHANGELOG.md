@@ -1,3 +1,9 @@
+## [0.0.11](https://github.com/dust-books/dust-server/compare/v0.0.10...v0.0.11) (2025-12-22)
+
+### Bug Fixes
+
+* **scanner:** fix broken sql query ([78fa865](https://github.com/dust-books/dust-server/commit/78fa8655b3045f6b1f17ef5279a779460bf97c4c))
+
 ## [0.0.10](https://github.com/dust-books/dust-server/compare/v0.0.9...v0.0.10) (2025-12-21)
 
 ### Bug Fixes
