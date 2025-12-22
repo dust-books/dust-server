@@ -1,3 +1,9 @@
+## [0.0.12](https://github.com/dust-books/dust-server/compare/v0.0.11...v0.0.12) (2025-12-22)
+
+### Bug Fixes
+
+* **scanner:** fix book insertion query ([16d7fa2](https://github.com/dust-books/dust-server/commit/16d7fa2b537d0beca54f3ca60c1c6f99b2c582a5))
+
 ## [0.0.11](https://github.com/dust-books/dust-server/compare/v0.0.10...v0.0.11) (2025-12-22)
 
 ### Bug Fixes
