@@ -85,7 +85,7 @@ fn scanDirectory(ctx: *BackgroundTaskContext, dir_path: []const u8) !void {
 
 /// Check if a book already exists in the database
 fn checkBookExists(db: *sqlite.Db, path: []const u8) !bool {
-    const query = "SELECT COUNT(*) FROM books WHERE filepath = ?";
+    const query = "SELECT COUNT(*) FROM books WHERE file_path = ?";
     var stmt = try db.prepare(query);
     defer stmt.deinit();
 
