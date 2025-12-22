@@ -1,3 +1,9 @@
+## [0.1.1](https://github.com/dust-books/dust-server/compare/v0.1.0...v0.1.1) (2025-12-22)
+
+### Bug Fixes
+
+* security around filepaths in API endpoints ([ff02c22](https://github.com/dust-books/dust-server/commit/ff02c22080165fd3372b2d46c61abdd479919661))
+
 ## [0.1.0](https://github.com/dust-books/dust-server/compare/v0.0.13...v0.1.0) (2025-12-22)
 
 ### Features
