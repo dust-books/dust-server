@@ -1,3 +1,9 @@
+## [0.1.2](https://github.com/dust-books/dust-server/compare/v0.1.1...v0.1.2) (2025-12-22)
+
+### Bug Fixes
+
+* **scanner:** save isbn in db even if metadata lookup fails ([b4fe00d](https://github.com/dust-books/dust-server/commit/b4fe00d876224562f5c755ce6aa4f8c975402a55))
+
 ## [0.1.1](https://github.com/dust-books/dust-server/compare/v0.1.0...v0.1.1) (2025-12-22)
 
 ### Bug Fixes
