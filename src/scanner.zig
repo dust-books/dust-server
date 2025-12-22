@@ -177,6 +177,10 @@ pub const Scanner = struct {
 
         // Extract metadata using the enhanced extractor (includes OpenLibrary enrichment)
         var metadata = try self.metadata_extractor.extractMetadata(path);
+
+        if (metadata.isbn == null) {
+            metadata.isbn = try self.deriveIsbnFromPath(path);
+        }
         defer metadata.deinit(self.allocator);
 
         std.log.debug("Metadata extracted - title: {s}, author: {s}, isbn: {s}", .{ metadata.title orelse "null", metadata.author orelse "null", metadata.isbn orelse "null" });
@@ -327,5 +331,44 @@ pub const Scanner = struct {
         }
 
         return result;
+    }
+
+    fn deriveIsbnFromPath(self: *Scanner, path: []const u8) !?[]const u8 {
+        const basename = std.fs.path.basename(path);
+        const name_without_ext = if (std.mem.lastIndexOfScalar(u8, basename, '.')) |dot_index|
+            basename[0..dot_index]
+        else
+            basename;
+
+        var digit_buffer: [20]u8 = undefined;
+        var digit_count: usize = 0;
+
+        for (name_without_ext) |c| {
+            if (std.ascii.isDigit(c)) {
+                if (digit_count < digit_buffer.len) {
+                    digit_buffer[digit_count] = c;
+                    digit_count += 1;
+                }
+                continue;
+            }
+
+            if ((c == 'x' or c == 'X') and digit_count == 9) {
+                digit_buffer[digit_count] = 'X';
+                digit_count += 1;
+                continue;
+            }
+
+            // When we hit any other character, finalize current run
+            if (digit_count == 10 or digit_count == 13) {
+                return try self.allocator.dupe(u8, digit_buffer[0..digit_count]);
+            }
+            digit_count = 0;
+        }
+
+        if (digit_count == 10 or digit_count == 13) {
+            return try self.allocator.dupe(u8, digit_buffer[0..digit_count]);
+        }
+
+        return null;
     }
 };
