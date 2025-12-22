@@ -136,6 +136,7 @@ pub fn getBook(
             .page_count = book.page_count,
             .file_size = book.file_size,
             .file_format = book.file_format,
+            .cover_image_path = book.cover_image_path,
         },
         .tags = tag_list.items,
     };

@@ -88,6 +88,10 @@ M:
 | | | | > learn_c_cover.jpg (the cover image for this book)
 ```
 
+### Automatic cover handling
+
+Dust now records the exact cover art that lives next to each book/comic. During scans we look for common filenames such as `cover.jpg`, `folder.png`, or anything ending in `_cover.{jpg,png,jpeg,webp}` that sits beside the media file and store that filesystem path on the book record. If no local cover exists but a metadata provider (e.g. OpenLibrary) returns a cover URL for the ISBN, Dust will download the image into the same directory (as `cover.<ext>`) and link it automatically.
+
 ### ISBN-Based Metadata Fetching
 
 When organizing books, you can optionally use ISBN or ISBN-13 as the filename to enable automatic metadata fetching from external sources. If the filename is a valid ISBN/ISBN-13, Dust will automatically retrieve book metadata including title, author, publication date, and other details.

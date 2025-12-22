@@ -35,7 +35,11 @@ pub fn main() !void {
 
     // Load configuration
     var cfg = Config.load(allocator) catch |err| {
-        std.log.err("Failed to load config: {}\n", .{err});
+        if (err == error.MissingJWTSecret) {
+            std.log.err("Failed to load config: missing JWT secret. Set the JWT_SECRET environment variable (e.g. `export JWT_SECRET=openssl rand -base64 32`).\n", .{});
+        } else {
+            std.log.err("Failed to load config: {}\n", .{err});
+        }
         return err;
     };
     defer cfg.deinit();

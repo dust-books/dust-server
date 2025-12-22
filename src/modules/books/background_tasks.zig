@@ -1,6 +1,7 @@
 const std = @import("std");
 const sqlite = @import("sqlite");
 const TimerManager = @import("../../timer.zig").TimerManager;
+const cover = @import("../../cover_manager.zig");
 
 /// Context structure for background tasks
 const BackgroundTaskContext = struct {
@@ -137,12 +138,19 @@ fn addBookToDatabase(ctx: *BackgroundTaskContext, path: []const u8) !void {
     
     const file_size = file.getEndPos() catch 0;
 
+    var cover_manager = cover.CoverManager.init(ctx.allocator);
+    const cover_path = cover_manager.findLocalCover(path) catch |err| blk: {
+        std.log.warn("Failed to locate cover for {s}: {}", .{ path, err });
+        break :blk null;
+    };
+    defer if (cover_path) |cp| ctx.allocator.free(cp);
+
     const query =
-        \\INSERT INTO books (name, author, file_path, file_format, file_size, created_at, updated_at)
-        \\VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+        \\INSERT INTO books (name, author, file_path, file_format, file_size, cover_image_path, created_at, updated_at)
+        \\VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
     ;
 
-    ctx.db.exec(query, .{}, .{ title, author_id, path, file_format, file_size }) catch |err| {
+    ctx.db.exec(query, .{}, .{ title, author_id, path, file_format, file_size, cover_path }) catch |err| {
         std.log.err("Failed to insert book: {}", .{err});
         return err;
     };

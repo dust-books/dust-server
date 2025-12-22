@@ -22,10 +22,18 @@ const PermissionCache = struct {
     permissions: std.StringHashMap(void),
     cached_at: i64,
     
-    pub fn deinit(self: *PermissionCache) void {
-        self.permissions.deinit();
+    pub fn deinit(self: *PermissionCache, allocator: std.mem.Allocator) void {
+        freePermissionMap(&self.permissions, allocator);
     }
 };
+
+fn freePermissionMap(map: *std.StringHashMap(void), allocator: std.mem.Allocator) void {
+    var it = map.iterator();
+    while (it.next()) |entry| {
+        allocator.free(entry.key_ptr.*);
+    }
+    map.deinit();
+}
 
 pub const PermissionService = struct {
     repo: *PermissionRepository,
@@ -45,7 +53,7 @@ pub const PermissionService = struct {
     pub fn deinit(self: *PermissionService) void {
         var it = self.cache.valueIterator();
         while (it.next()) |cache_entry| {
-            cache_entry.deinit();
+            cache_entry.deinit(self.allocator);
         }
         self.cache.deinit();
     }
@@ -68,7 +76,7 @@ pub const PermissionService = struct {
         
         // Build cache
         var perm_set = std.StringHashMap(void).init(self.allocator);
-        errdefer perm_set.deinit();
+        errdefer freePermissionMap(&perm_set, self.allocator);
         
         for (perms.items) |perm| {
             const name_copy = try self.allocator.dupe(u8, perm.name);
@@ -99,7 +107,7 @@ pub const PermissionService = struct {
             
             // Cache expired - remove it
             var entry = self.cache.fetchRemove(user_id).?;
-            entry.value.deinit();
+            entry.value.deinit(self.allocator);
         }
         
         return null;
@@ -109,7 +117,7 @@ pub const PermissionService = struct {
     pub fn invalidateCache(self: *PermissionService, user_id: i64) void {
         if (self.cache.fetchRemove(user_id)) |entry| {
             var cache_entry = entry.value;
-            cache_entry.deinit();
+            cache_entry.deinit(self.allocator);
         }
     }
     

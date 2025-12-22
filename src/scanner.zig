@@ -1,6 +1,7 @@
 const std = @import("std");
 const sqlite = @import("sqlite");
 const MetadataExtractor = @import("metadata_extractor.zig").MetadataExtractor;
+const CoverManager = @import("cover_manager.zig").CoverManager;
 
 pub const ScanResult = struct {
     books_found: u32 = 0,
@@ -32,6 +33,7 @@ pub const Scanner = struct {
     db: *sqlite.Db,
     scan_dirs: std.ArrayList([]const u8),
     metadata_extractor: MetadataExtractor,
+    cover_manager: CoverManager,
 
     pub fn init(allocator: std.mem.Allocator, db: *sqlite.Db) !Scanner {
         // Get directories from environment variable
@@ -54,6 +56,7 @@ pub const Scanner = struct {
             .db = db,
             .scan_dirs = dirs,
             .metadata_extractor = metadata_extractor,
+            .cover_manager = CoverManager.init(allocator),
         };
     }
 
@@ -197,12 +200,18 @@ pub const Scanner = struct {
 
         std.log.debug("Author ID: {d}", .{author_id});
 
+        const cover_path = self.cover_manager.ensureCover(path, metadata.cover_image_url) catch |err| blk: {
+            std.log.warn("Failed to resolve cover for {s}: {}", .{ path, err });
+            break :blk null;
+        };
+        defer if (cover_path) |cp| self.allocator.free(cp);
+
         // Insert book with enriched metadata (including ISBN)
         const insert_query =
             \\INSERT INTO books (name, file_path, file_size, file_format, author, isbn,
             \\                   publisher, publication_date, description, page_count,
-            \\                   created_at, updated_at)
-            \\VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+            \\                   cover_image_path, created_at, updated_at)
+            \\VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
         ;
 
         std.log.debug("Executing INSERT query...", .{});
@@ -232,6 +241,7 @@ pub const Scanner = struct {
             metadata.publication_date,
             metadata.description,
             if (metadata.page_count) |pc| @as(i64, @intCast(pc)) else null,
+            cover_path,
         }) catch |err| {
             std.log.err("Failed to insert book into database: {}", .{err});
             std.log.err("SQLite error details - Check if column count matches. Query expects 10 values.", .{});
@@ -252,14 +262,21 @@ pub const Scanner = struct {
         defer file.close();
         const stat = try file.stat();
 
+        const cover_path = self.cover_manager.findLocalCover(path) catch |err| blk: {
+            std.log.warn("Failed to refresh cover for {s}: {}", .{ path, err });
+            break :blk null;
+        };
+        defer if (cover_path) |cp| self.allocator.free(cp);
+
         const update_query =
             \\UPDATE books 
-            \\SET file_size = ?, updated_at = datetime('now')
+            \\SET file_size = ?, cover_image_path = ?, updated_at = datetime('now')
             \\WHERE file_path = ?
         ;
 
         try self.db.exec(update_query, .{}, .{
             .file_size = @as(i64, @intCast(stat.size)),
+            .cover_image_path = cover_path,
             .file_path = path,
         });
     }

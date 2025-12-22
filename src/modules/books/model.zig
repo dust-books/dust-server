@@ -1,5 +1,6 @@
 const std = @import("std");
 const sqlite = @import("sqlite");
+const cover = @import("../../cover_manager.zig");
 
 pub const Book = struct {
     id: i64,
@@ -147,30 +148,45 @@ pub const BookRepository = struct {
     }
 
     pub fn createBook(self: *BookRepository, name: []const u8, author_id: i64, file_path: []const u8) !i64 {
+        var cover_manager = cover.CoverManager.init(self.allocator);
+        const cover_path = cover_manager.findLocalCover(file_path) catch |err| blk: {
+            std.log.warn("Failed to locate cover for {s}: {}", .{ file_path, err });
+            break :blk null;
+        };
+        defer if (cover_path) |cp| self.allocator.free(cp);
+
         const query =
-            \\INSERT INTO books (name, author, file_path, status)
-            \\VALUES (?, ?, ?, 'active')
-        ;
-
-        var stmt = try self.db.prepare(query);
-        defer stmt.deinit();
-
-        try stmt.exec(.{}, .{ name, author_id, file_path });
-
-        return self.db.getLastInsertRowID();
-    }
-
-    pub fn create(self: *BookRepository, allocator: std.mem.Allocator, name: []const u8, filepath: []const u8, file_format: []const u8, author_id: ?i64) !Book {
-        const author = author_id orelse 1; // Default author if none provided
-        const query =
-            \\INSERT INTO books (name, author, file_path, file_format, status)
+            \\INSERT INTO books (name, author, file_path, cover_image_path, status)
             \\VALUES (?, ?, ?, ?, 'active')
         ;
 
         var stmt = try self.db.prepare(query);
         defer stmt.deinit();
 
-        try stmt.exec(.{}, .{ name, author, filepath, file_format });
+        try stmt.exec(.{}, .{ name, author_id, file_path, cover_path });
+
+        return self.db.getLastInsertRowID();
+    }
+
+    pub fn create(self: *BookRepository, allocator: std.mem.Allocator, name: []const u8, filepath: []const u8, file_format: []const u8, author_id: ?i64) !Book {
+        const author = author_id orelse 1; // Default author if none provided
+
+        var cover_manager = cover.CoverManager.init(self.allocator);
+        const cover_path = cover_manager.findLocalCover(filepath) catch |err| blk: {
+            std.log.warn("Failed to locate cover for {s}: {}", .{ filepath, err });
+            break :blk null;
+        };
+        defer if (cover_path) |cp| self.allocator.free(cp);
+
+        const query =
+            \\INSERT INTO books (name, author, file_path, file_format, cover_image_path, status)
+            \\VALUES (?, ?, ?, ?, ?, 'active')
+        ;
+
+        var stmt = try self.db.prepare(query);
+        defer stmt.deinit();
+
+        try stmt.exec(.{}, .{ name, author, filepath, file_format, cover_path });
         
         const id = self.db.getLastInsertRowID();
         return try self.getBookById(allocator, id);
@@ -197,16 +213,23 @@ pub const BookRepository = struct {
         const final_format = file_format orelse existing.file_format orelse "";
         const final_author = author_id orelse existing.author;
         
+        var cover_manager = cover.CoverManager.init(self.allocator);
+        const cover_path = cover_manager.findLocalCover(final_filepath) catch |err| blk: {
+            std.log.warn("Failed to refresh cover for {s}: {}", .{ final_filepath, err });
+            break :blk null;
+        };
+        defer if (cover_path) |cp| self.allocator.free(cp);
+
         const update_query =
             \\UPDATE books 
-            \\SET name = ?, file_path = ?, file_format = ?, author = ?, updated_at = CURRENT_TIMESTAMP
+            \\SET name = ?, file_path = ?, file_format = ?, author = ?, cover_image_path = ?, updated_at = CURRENT_TIMESTAMP
             \\WHERE id = ?
         ;
         
         var stmt = try self.db.prepare(update_query);
         defer stmt.deinit();
         
-        try stmt.exec(.{}, .{ final_name, final_filepath, final_format, final_author, id });
+        try stmt.exec(.{}, .{ final_name, final_filepath, final_format, final_author, cover_path, id });
         
         return try self.getBookById(allocator, id);
     }
