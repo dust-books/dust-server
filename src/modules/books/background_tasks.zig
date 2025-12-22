@@ -97,18 +97,16 @@ fn checkBookExists(db: *sqlite.Db, path: []const u8) !bool {
 fn addBookToDatabase(ctx: *BackgroundTaskContext, path: []const u8) !void {
     const basename = std.fs.path.basename(path);
     
-    // Extract title from filename (remove extension)
-    const ext = std.fs.path.extension(basename);
-    const title = if (ext.len > 0)
-        basename[0 .. basename.len - ext.len]
-    else
-        basename;
-
-    const file_format = if (ext.len > 1) ext[1..] else "unknown";
+    // Extract title from parent directory (not filename which is often ISBN)
+    const parent_dir = std.fs.path.dirname(path) orelse "";
+    const title = std.fs.path.basename(parent_dir);
     
-    // Get or create author from directory name
-    const dir = std.fs.path.dirname(path) orelse "";
-    const author_name = std.fs.path.basename(dir);
+    // Extract author from grandparent directory
+    const grandparent_dir = std.fs.path.dirname(parent_dir) orelse "";
+    const author_name = std.fs.path.basename(grandparent_dir);
+
+    const ext = std.fs.path.extension(basename);
+    const file_format = if (ext.len > 1) ext[1..] else "unknown";
     
     // First, ensure the author exists (using a simple insert or ignore approach)
     const author_query = 
