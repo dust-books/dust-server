@@ -1,5 +1,6 @@
 const std = @import("std");
 const httpz = @import("httpz");
+const testing = std.testing;
 
 pub const ExternalBookMetadata = struct {
     isbn: ?[]const u8 = null,
@@ -121,27 +122,26 @@ pub const OpenLibraryClient = struct {
 
         if (book_obj != .object) return null;
 
-        // Extract metadata
+        return try self.parseLookupBook(clean, &book_obj.object);
+    }
+
+    fn parseLookupBook(self: *OpenLibraryClient, clean_isbn: []const u8, book_obj: *const std.json.ObjectMap) !ExternalBookMetadata {
         var metadata = ExternalBookMetadata{};
+        metadata.isbn = try self.allocator.dupe(u8, clean_isbn);
 
-        metadata.isbn = try self.allocator.dupe(u8, clean);
-
-        // Title
-        if (book_obj.object.get("title")) |title_val| {
+        if (book_obj.get("title")) |title_val| {
             if (title_val == .string) {
                 metadata.title = try self.allocator.dupe(u8, title_val.string);
             }
         }
 
-        // Subtitle
-        if (book_obj.object.get("subtitle")) |subtitle_val| {
+        if (book_obj.get("subtitle")) |subtitle_val| {
             if (subtitle_val == .string) {
                 metadata.subtitle = try self.allocator.dupe(u8, subtitle_val.string);
             }
         }
 
-        // Authors
-        if (book_obj.object.get("authors")) |authors_val| {
+        if (book_obj.get("authors")) |authors_val| {
             if (authors_val == .array) {
                 var authors = try std.ArrayList([]const u8).initCapacity(self.allocator, authors_val.array.items.len);
                 for (authors_val.array.items) |author_obj| {
@@ -162,8 +162,7 @@ pub const OpenLibraryClient = struct {
             }
         }
 
-        // Publisher
-        if (book_obj.object.get("publishers")) |pubs_val| {
+        if (book_obj.get("publishers")) |pubs_val| {
             if (pubs_val == .array and pubs_val.array.items.len > 0) {
                 const first_pub = pubs_val.array.items[0];
                 if (first_pub == .object) {
@@ -176,15 +175,13 @@ pub const OpenLibraryClient = struct {
             }
         }
 
-        // Published date
-        if (book_obj.object.get("publish_date")) |date_val| {
+        if (book_obj.get("publish_date")) |date_val| {
             if (date_val == .string) {
                 metadata.published_date = try self.allocator.dupe(u8, date_val.string);
             }
         }
 
-        // Description (can be string or object with "value" field)
-        if (book_obj.object.get("description")) |desc_val| {
+        if (book_obj.get("description")) |desc_val| {
             if (desc_val == .string) {
                 metadata.description = try self.allocator.dupe(u8, desc_val.string);
             } else if (desc_val == .object) {
@@ -196,15 +193,13 @@ pub const OpenLibraryClient = struct {
             }
         }
 
-        // Page count
-        if (book_obj.object.get("number_of_pages")) |pages_val| {
+        if (book_obj.get("number_of_pages")) |pages_val| {
             if (pages_val == .integer) {
                 metadata.page_count = @intCast(pages_val.integer);
             }
         }
 
-        // Categories/subjects
-        if (book_obj.object.get("subjects")) |subjects_val| {
+        if (book_obj.get("subjects")) |subjects_val| {
             if (subjects_val == .array) {
                 var categories = try std.ArrayList([]const u8).initCapacity(self.allocator, subjects_val.array.items.len);
                 for (subjects_val.array.items) |subj_obj| {
@@ -225,8 +220,7 @@ pub const OpenLibraryClient = struct {
             }
         }
 
-        // Cover images
-        if (book_obj.object.get("cover")) |cover_val| {
+        if (book_obj.get("cover")) |cover_val| {
             if (cover_val == .object) {
                 if (cover_val.object.get("large")) |large_val| {
                     if (large_val == .string) {
@@ -430,3 +424,94 @@ pub const OpenLibraryClient = struct {
         return try results.toOwnedSlice(self.allocator);
     }
 };
+
+const sample_lookup_response_with_large_cover =
+    \\{
+    \\  "ISBN:9781098100963": {
+    \\    "title": "Securing AI Systems",
+    \\    "subtitle": "Defensive Playbook",
+    \\    "authors": [
+    \\      {"name": "Ada Lovelace"},
+    \\      {"name": "Grace Hopper"}
+    \\    ],
+    \\    "publishers": [
+    \\      {"name": "Dust Books"}
+    \\    ],
+    \\    "publish_date": "2024",
+    \\    "description": "A field guide for defensive LLM engineering.",
+    \\    "number_of_pages": 256,
+    \\    "subjects": [
+    \\      {"name": "Security"},
+    \\      {"name": "Artificial intelligence"}
+    \\    ],
+    \\    "cover": {
+    \\      "large": "https://covers.openlibrary.org/b/id/12345-L.jpg",
+    \\      "small": "https://covers.openlibrary.org/b/id/12345-S.jpg"
+    \\    }
+    \\  }
+    \\}
+;
+
+const sample_lookup_response_with_medium_cover =
+    \\{
+    \\  "ISBN:9781492094936": {
+    \\    "title": "LLM Security Essentials",
+    \\    "authors": [
+    \\      {"name": "Steve Wilson"}
+    \\    ],
+    \\    "publishers": [
+    \\      {"name": "O'Reilly Media"}
+    \\    ],
+    \\    "publish_date": "2023",
+    \\    "description": {"value": "Deep dive into securing large language models."},
+    \\    "number_of_pages": 312,
+    \\    "subjects": [
+    \\      {"name": "Computers"}
+    \\    ],
+    \\    "cover": {
+    \\      "medium": "https://covers.openlibrary.org/b/id/67890-M.jpg",
+    \\      "small": "https://covers.openlibrary.org/b/id/67890-S.jpg"
+    \\    }
+    \\  }
+    \\}
+;
+
+test "OpenLibraryClient parses lookup metadata" {
+    var client = OpenLibraryClient.init(testing.allocator);
+    const parsed = try std.json.parseFromSlice(std.json.Value, testing.allocator, sample_lookup_response_with_large_cover, .{});
+    defer parsed.deinit();
+
+    const key = "ISBN:9781098100963";
+    const book_val = parsed.value.object.get(key) orelse unreachable;
+    try testing.expect(book_val == .object);
+
+    var metadata = try client.parseLookupBook("9781098100963", &book_val.object);
+    defer metadata.deinit(testing.allocator);
+
+    try testing.expect(metadata.title != null);
+    try testing.expectEqualStrings("Securing AI Systems", metadata.title.?);
+    try testing.expectEqual(@as(?u32, 256), metadata.page_count);
+    try testing.expect(metadata.authors != null and metadata.authors.?.len == 2);
+    try testing.expectEqualStrings("https://covers.openlibrary.org/b/id/12345-L.jpg", metadata.cover_image_url.?);
+    try testing.expectEqualStrings("https://covers.openlibrary.org/b/id/12345-S.jpg", metadata.small_cover_image_url.?);
+}
+
+test "OpenLibraryClient handles description objects and cover fallbacks" {
+    var client = OpenLibraryClient.init(testing.allocator);
+    const parsed = try std.json.parseFromSlice(std.json.Value, testing.allocator, sample_lookup_response_with_medium_cover, .{});
+    defer parsed.deinit();
+
+    const key = "ISBN:9781492094936";
+    const book_val = parsed.value.object.get(key) orelse unreachable;
+    try testing.expect(book_val == .object);
+
+    var metadata = try client.parseLookupBook("9781492094936", &book_val.object);
+    defer metadata.deinit(testing.allocator);
+
+    try testing.expectEqualStrings("LLM Security Essentials", metadata.title.?);
+    try testing.expectEqual(@as(?u32, 312), metadata.page_count);
+    try testing.expect(metadata.description != null);
+    try testing.expectEqualStrings("Deep dive into securing large language models.", metadata.description.?);
+    try testing.expectEqualStrings("https://covers.openlibrary.org/b/id/67890-M.jpg", metadata.cover_image_url.?);
+    try testing.expectEqualStrings("https://covers.openlibrary.org/b/id/67890-S.jpg", metadata.small_cover_image_url.?);
+}
