@@ -1,3 +1,9 @@
+## [0.0.13](https://github.com/dust-books/dust-server/compare/v0.0.12...v0.0.13) (2025-12-22)
+
+### Bug Fixes
+
+* **scanner:** parsing of author and book name ([ebe9c33](https://github.com/dust-books/dust-server/commit/ebe9c33749e02835b91e913948018ab47eec981d))
+
 ## [0.0.12](https://github.com/dust-books/dust-server/compare/v0.0.11...v0.0.12) (2025-12-22)
 
 ### Bug Fixes
