@@ -1,3 +1,9 @@
+## [0.1.0](https://github.com/dust-books/dust-server/compare/v0.0.13...v0.1.0) (2025-12-22)
+
+### Features
+
+* Cover manager for book covers ([56894a0](https://github.com/dust-books/dust-server/commit/56894a089524884a225d2b2a08fce8bd330a641e))
+
 ## [0.0.13](https://github.com/dust-books/dust-server/compare/v0.0.12...v0.0.13) (2025-12-22)
 
 ### Bug Fixes
