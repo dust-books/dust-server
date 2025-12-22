@@ -96,20 +96,55 @@ fn checkBookExists(db: *sqlite.Db, path: []const u8) !bool {
 /// Add a new book to the database
 fn addBookToDatabase(ctx: *BackgroundTaskContext, path: []const u8) !void {
     const basename = std.fs.path.basename(path);
-    const title = if (std.mem.lastIndexOf(u8, basename, ".epub")) |idx|
-        basename[0..idx]
+    
+    // Extract title from filename (remove extension)
+    const ext = std.fs.path.extension(basename);
+    const title = if (ext.len > 0)
+        basename[0 .. basename.len - ext.len]
     else
         basename;
 
-    const ext = std.fs.path.extension(basename);
     const file_format = if (ext.len > 1) ext[1..] else "unknown";
+    
+    // Get or create author from directory name
+    const dir = std.fs.path.dirname(path) orelse "";
+    const author_name = std.fs.path.basename(dir);
+    
+    // First, ensure the author exists (using a simple insert or ignore approach)
+    const author_query = 
+        \\INSERT OR IGNORE INTO authors (name, created_at, updated_at)
+        \\VALUES (?, datetime('now'), datetime('now'))
+    ;
+    
+    ctx.db.exec(author_query, .{}, .{author_name}) catch |err| {
+        std.log.err("Failed to insert/get author: {}", .{err});
+        return err;
+    };
+    
+    // Get the author ID
+    const author_id_query = "SELECT id FROM authors WHERE name = ?";
+    var stmt = try ctx.db.prepare(author_id_query);
+    defer stmt.deinit();
+    
+    const AuthorRow = struct { id: i64 };
+    const author_row = try stmt.one(AuthorRow, .{}, .{author_name});
+    const author_id = if (author_row) |row| row.id else return error.AuthorNotFound;
+
+    // Get file size
+    const file = std.fs.openFileAbsolute(path, .{}) catch |err| {
+        std.log.err("Failed to open file for size: {}", .{err});
+        return err;
+    };
+    defer file.close();
+    
+    const file_size = file.getEndPos() catch 0;
 
     const query =
-        \\INSERT INTO books (name, filepath, file_format, created_at, updated_at)
-        \\VALUES (?, ?, ?, strftime('%s', 'now'), strftime('%s', 'now'))
+        \\INSERT INTO books (name, author, file_path, file_format, file_size, created_at, updated_at)
+        \\VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))
     ;
 
-    ctx.db.exec(query, .{}, .{ title, path, file_format }) catch |err| {
+    ctx.db.exec(query, .{}, .{ title, author_id, path, file_format, file_size }) catch |err| {
         std.log.err("Failed to insert book: {}", .{err});
         return err;
     };
