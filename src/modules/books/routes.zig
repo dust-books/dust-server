@@ -6,6 +6,13 @@ const AuthorRepository = @import("model.zig").AuthorRepository;
 const TagRepository = @import("model.zig").TagRepository;
 const Book = @import("model.zig").Book;
 
+fn sanitizeCoverPath(path: ?[]const u8) ?[]const u8 {
+    if (path) |p| {
+        return std.fs.path.basename(p);
+    }
+    return null;
+}
+
 // GET /books - List all books
 pub fn listBooks(
     book_repo: *BookRepository,
@@ -25,7 +32,6 @@ pub fn listBooks(
             id: i64,
             name: []const u8,
         },
-        file_path: []const u8,
         isbn: ?[]const u8,
         publication_date: ?[]const u8,
         publisher: ?[]const u8,
@@ -51,7 +57,6 @@ pub fn listBooks(
                 .id = author.id,
                 .name = author.name,
             },
-            .file_path = book.file_path,
             .isbn = book.isbn,
             .publication_date = book.publication_date,
             .publisher = book.publisher,
@@ -59,7 +64,7 @@ pub fn listBooks(
             .page_count = book.page_count,
             .file_size = book.file_size,
             .file_format = book.file_format,
-            .cover_image_path = book.cover_image_path,
+            .cover_image_path = sanitizeCoverPath(book.cover_image_path),
             .status = book.status,
             .archived_at = book.archived_at,
             .archive_reason = book.archive_reason,
@@ -129,14 +134,13 @@ pub fn getBook(
                 .id = author.id,
                 .name = author.name,
             },
-            .file_path = book.file_path,
             .status = book.status,
             .isbn = book.isbn,
             .description = book.description,
             .page_count = book.page_count,
             .file_size = book.file_size,
             .file_format = book.file_format,
-            .cover_image_path = book.cover_image_path,
+            .cover_image_path = sanitizeCoverPath(book.cover_image_path),
         },
         .tags = tag_list.items,
     };
@@ -646,7 +650,7 @@ pub fn getCurrentlyReading(
     const allocator = res.arena;
 
     const query =
-        \\SELECT b.id, b.name, b.file_path, b.file_format, b.isbn,
+        \\SELECT b.id, b.name, b.file_format, b.isbn,
         \\       b.description, b.page_count, b.file_size, b.status,
         \\       a.id as author_id, a.name as author_name,
         \\       rp.current_page, rp.total_pages, rp.percentage_complete, rp.last_read_at
@@ -663,7 +667,6 @@ pub fn getCurrentlyReading(
     const BookProgressRow = struct {
         id: i64,
         name: []const u8,
-        file_path: []const u8,
         file_format: ?[]const u8,
         isbn: ?[]const u8,
         description: ?[]const u8,
@@ -685,7 +688,6 @@ pub fn getCurrentlyReading(
             id: i64,
             name: []const u8,
         },
-        file_path: []const u8,
         status: []const u8,
         isbn: ?[]const u8 = null,
         file_format: ?[]const u8 = null,
@@ -712,7 +714,6 @@ pub fn getCurrentlyReading(
                 .id = row.author_id,
                 .name = row.author_name,
             },
-            .file_path = row.file_path,
             .status = row.status,
             .isbn = row.isbn,
             .file_format = row.file_format,
@@ -743,7 +744,7 @@ pub fn getCompletedReading(
     const allocator = res.arena;
 
     const query =
-        \\SELECT b.id, b.name, b.author, b.file_path, b.file_format, b.isbn,
+        \\SELECT b.id, b.name, b.file_format, b.isbn,
         \\       b.description, b.page_count, b.file_size, b.status,
         \\       a.id as author_id, a.name as author_name,
         \\       rp.current_page, rp.total_pages, rp.percentage_complete, rp.last_read_at
@@ -760,8 +761,6 @@ pub fn getCompletedReading(
     const BookProgressRow = struct {
         id: i64,
         name: []const u8,
-        author: i64,
-        file_path: []const u8,
         file_format: ?[]const u8,
         isbn: ?[]const u8,
         description: ?[]const u8,
@@ -783,7 +782,6 @@ pub fn getCompletedReading(
             id: i64,
             name: []const u8,
         },
-        file_path: []const u8,
         status: []const u8,
         isbn: ?[]const u8 = null,
         file_format: ?[]const u8 = null,
@@ -810,7 +808,6 @@ pub fn getCompletedReading(
                 .id = row.author_id,
                 .name = row.author_name,
             },
-            .file_path = row.file_path,
             .status = row.status,
             .isbn = row.isbn,
             .file_format = row.file_format,

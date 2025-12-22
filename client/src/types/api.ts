@@ -17,7 +17,6 @@ export interface User {
 export interface Book {
   id: number;
   name: string;
-  filepath: string;
   author: {
     id: number;
     name: string;

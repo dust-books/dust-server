@@ -22,7 +22,6 @@ interface CurrentlyReadingBook {
   updated_at: string;
   // Book data
   name: string;
-  filepath: string;
   author: number;
 }
 

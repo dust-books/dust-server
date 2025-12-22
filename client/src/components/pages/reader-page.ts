@@ -663,18 +663,16 @@ export class ReaderPage extends LitElement {
   private async initializeReader() {
     if (!this.book) return;
 
-    // Determine file type from filepath or file_format field
+    // Determine file type using reported format or the book name as a fallback
     let fileExtension: string | undefined;
 
     if (this.book.file_format) {
-      // Use the file_format field if available
       fileExtension = this.book.file_format.toLowerCase();
-    } else if (this.book.filepath) {
-      // Extract extension from filepath as fallback
-      fileExtension = this.book.filepath.toLowerCase().split(".").pop();
     } else {
-      // Final fallback to book name
-      fileExtension = this.book.name.toLowerCase().split(".").pop();
+      const parts = this.book.name.toLowerCase().split(".");
+      if (parts.length > 1) {
+        fileExtension = parts.pop();
+      }
     }
 
     this.readerType = fileExtension === "pdf" ? "pdf" : "epub";
