@@ -2,6 +2,7 @@ const std = @import("std");
 const sqlite = @import("sqlite");
 const MetadataExtractor = @import("metadata_extractor.zig").MetadataExtractor;
 const CoverManager = @import("cover_manager.zig").CoverManager;
+const testing = std.testing;
 
 pub const ScanResult = struct {
     books_found: u32 = 0,
@@ -335,40 +336,84 @@ pub const Scanner = struct {
 
     fn deriveIsbnFromPath(self: *Scanner, path: []const u8) !?[]const u8 {
         const basename = std.fs.path.basename(path);
+        const candidate = try deriveIsbnFromText(self.allocator, basename);
+        if (candidate) |isbn| return isbn;
+
         const name_without_ext = if (std.mem.lastIndexOfScalar(u8, basename, '.')) |dot_index|
             basename[0..dot_index]
         else
             basename;
 
-        var digit_buffer: [20]u8 = undefined;
-        var digit_count: usize = 0;
+        return try deriveIsbnFromText(self.allocator, name_without_ext);
+    }
+};
 
-        for (name_without_ext) |c| {
-            if (std.ascii.isDigit(c)) {
-                if (digit_count < digit_buffer.len) {
-                    digit_buffer[digit_count] = c;
-                    digit_count += 1;
-                }
-                continue;
-            }
+fn deriveIsbnFromText(allocator: std.mem.Allocator, input: []const u8) !?[]const u8 {
+    var digit_buffer: [20]u8 = undefined;
+    var digit_count: usize = 0;
 
-            if ((c == 'x' or c == 'X') and digit_count == 9) {
-                digit_buffer[digit_count] = 'X';
+    for (input) |c| {
+        if (std.ascii.isDigit(c)) {
+            if (digit_count < digit_buffer.len) {
+                digit_buffer[digit_count] = c;
                 digit_count += 1;
-                continue;
             }
+            continue;
+        }
 
-            // When we hit any other character, finalize current run
-            if (digit_count == 10 or digit_count == 13) {
-                return try self.allocator.dupe(u8, digit_buffer[0..digit_count]);
-            }
-            digit_count = 0;
+        if ((c == 'x' or c == 'X') and digit_count == 9) {
+            digit_buffer[digit_count] = 'X';
+            digit_count += 1;
+            continue;
+        }
+
+        if (c == '-' or c == '_' or c == ' ' or c == '.') {
+            continue;
         }
 
         if (digit_count == 10 or digit_count == 13) {
-            return try self.allocator.dupe(u8, digit_buffer[0..digit_count]);
+            return try allocator.dupe(u8, digit_buffer[0..digit_count]);
         }
-
-        return null;
+        digit_count = 0;
     }
-};
+
+    if (digit_count == 10 or digit_count == 13) {
+        return try allocator.dupe(u8, digit_buffer[0..digit_count]);
+    }
+
+    return null;
+}
+
+test "deriveIsbnFromText extracts 13-digit ISBN with separators" {
+    const sample = "978-1-098-16220-7 - The Developer.pdf";
+    const extracted = (try deriveIsbnFromText(testing.allocator, sample)) orelse return testing.expect(false);
+    defer testing.allocator.free(extracted);
+    try testing.expectEqualStrings("9781098162207", extracted);
+}
+
+test "deriveIsbnFromText supports ISBN-10 with X suffix" {
+    const sample = "TheBook_123456789X.epub";
+    const extracted = (try deriveIsbnFromText(testing.allocator, sample)) orelse return testing.expect(false);
+    defer testing.allocator.free(extracted);
+    try testing.expectEqualStrings("123456789X", extracted);
+}
+
+test "deriveIsbnFromText returns null when digits missing" {
+    const sample = "book-without-isbn.pdf";
+    const extracted = try deriveIsbnFromText(testing.allocator, sample);
+    try testing.expect(extracted == null);
+}
+
+test "deriveIsbnFromText extracts plain 13-digit ISBN" {
+    const sample = "9781098162207.pdf";
+    const extracted = (try deriveIsbnFromText(testing.allocator, sample)) orelse return testing.expect(false);
+    defer testing.allocator.free(extracted);
+    try testing.expectEqualStrings("9781098162207", extracted);
+}
+
+test "deriveIsbnFromText extracts plain 10-digit ISBN" {
+    const sample = "1234567890.epub";
+    const extracted = (try deriveIsbnFromText(testing.allocator, sample)) orelse return testing.expect(false);
+    defer testing.allocator.free(extracted);
+    try testing.expectEqualStrings("1234567890", extracted);
+}

@@ -82,3 +82,9 @@ pub fn main() !void {
 
     std.log.info("Server shutdown complete\n", .{});
 }
+
+// Import test modules to ensure they're included
+comptime {
+    _ = @import("scanner.zig");
+    _ = @import("openlibrary.zig");
+}
