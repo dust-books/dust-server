@@ -1,3 +1,13 @@
+## [0.1.3](https://github.com/dust-books/dust-server/compare/v0.1.2...v0.1.3) (2025-12-23)
+
+### Bug Fixes
+
+* **scanner:** tighten up ISBN parsing ([fc51d90](https://github.com/dust-books/dust-server/commit/fc51d9011762761a8540583aaea56e973b534b4a))
+
+### Code Refactoring
+
+* **OpenLibraryClient:** decouple from http layer ([421eef5](https://github.com/dust-books/dust-server/commit/421eef5b61d7c100497611ad9ed329705ccb2a5f))
+
 ## [0.1.2](https://github.com/dust-books/dust-server/compare/v0.1.1...v0.1.2) (2025-12-22)
 
 ### Bug Fixes
