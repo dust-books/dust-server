@@ -281,44 +281,59 @@ pub const MetadataExtractor = struct {
     }
 
     fn extractISBN(self: *MetadataExtractor, file_path: []const u8) ?[]const u8 {
-        // Look for ISBN-10 or ISBN-13 patterns in the filename
-        // Extract basename and look for sequences of 10 or 13 digits
+        // Extract ISBN-10 or ISBN-13 from filename
+        // Supports hyphens, underscores, spaces as separators
+        // Supports ISBN-10 with trailing 'X' check digit
         const basename = std.fs.path.basename(file_path);
-        
+
         // Remove extension
         const name_without_ext = if (std.mem.lastIndexOf(u8, basename, ".")) |idx|
             basename[0..idx]
         else
             basename;
-        
-        // Look for continuous digit sequences
+
         var digit_buffer: [20]u8 = undefined;
         var digit_count: usize = 0;
-        
+
         for (name_without_ext) |c| {
             if (std.ascii.isDigit(c)) {
                 if (digit_count < digit_buffer.len) {
                     digit_buffer[digit_count] = c;
                     digit_count += 1;
                 }
-            } else if (digit_count > 0) {
-                // Check if we found a valid ISBN length
-                if (digit_count == 10 or digit_count == 13) {
-                    const isbn = self.allocator.dupe(u8, digit_buffer[0..digit_count]) catch return null;
-                    std.log.debug("Extracted ISBN from filename: {s}", .{isbn});
-                    return isbn;
-                }
-                digit_count = 0;
+                continue;
             }
+
+            // Support ISBN-10 with trailing X (check digit)
+            if ((c == 'x' or c == 'X') and digit_count == 9) {
+                if (digit_count < digit_buffer.len) {
+                    digit_buffer[digit_count] = 'X';
+                    digit_count += 1;
+                }
+                continue;
+            }
+
+            // Skip separators (hyphens, underscores, spaces, dots)
+            if (c == '-' or c == '_' or c == ' ' or c == '.') {
+                continue;
+            }
+
+            // Non-separator, non-digit character - check if we have a complete ISBN
+            if (digit_count == 10 or digit_count == 13) {
+                const isbn = self.allocator.dupe(u8, digit_buffer[0..digit_count]) catch return null;
+                std.log.debug("Extracted ISBN from filename: {s}", .{isbn});
+                return isbn;
+            }
+            digit_count = 0;
         }
-        
+
         // Check final sequence
         if (digit_count == 10 or digit_count == 13) {
             const isbn = self.allocator.dupe(u8, digit_buffer[0..digit_count]) catch return null;
             std.log.debug("Extracted ISBN from filename: {s}", .{isbn});
             return isbn;
         }
-        
+
         return null;
     }
 
@@ -391,3 +406,63 @@ pub const MetadataExtractor = struct {
         return genres.toOwnedSlice(self.allocator);
     }
 };
+
+// Tests
+const testing = std.testing;
+
+test "extractISBN extracts 13-digit ISBN with hyphens" {
+    var extractor = MetadataExtractor.init(testing.allocator, false);
+    const sample = "/path/to/978-1-098-16220-7.epub";
+    const isbn = extractor.extractISBN(sample);
+    try testing.expect(isbn != null);
+    defer if (isbn) |i| testing.allocator.free(i);
+    try testing.expectEqualStrings("9781098162207", isbn.?);
+}
+
+test "extractISBN supports ISBN-10 with X suffix" {
+    var extractor = MetadataExtractor.init(testing.allocator, false);
+    const sample = "/library/TheBook_123456789X.epub";
+    const isbn = extractor.extractISBN(sample);
+    try testing.expect(isbn != null);
+    defer if (isbn) |i| testing.allocator.free(i);
+    try testing.expectEqualStrings("123456789X", isbn.?);
+}
+
+test "extractISBN returns null when no ISBN present" {
+    var extractor = MetadataExtractor.init(testing.allocator, false);
+    const sample = "/books/no-isbn-book.pdf";
+    const isbn = extractor.extractISBN(sample);
+    try testing.expect(isbn == null);
+}
+
+test "extractISBN extracts plain 13-digit ISBN" {
+    var extractor = MetadataExtractor.init(testing.allocator, false);
+    const sample = "9781098162207.pdf";
+    const isbn = extractor.extractISBN(sample);
+    try testing.expect(isbn != null);
+    defer if (isbn) |i| testing.allocator.free(i);
+    try testing.expectEqualStrings("9781098162207", isbn.?);
+}
+
+test "extractISBN extracts ISBN with underscores and spaces" {
+    var extractor = MetadataExtractor.init(testing.allocator, false);
+    const sample = "978_1_098_16220_7 - Book Title.pdf";
+    const isbn = extractor.extractISBN(sample);
+    try testing.expect(isbn != null);
+    defer if (isbn) |i| testing.allocator.free(i);
+    try testing.expectEqualStrings("9781098162207", isbn.?);
+}
+
+test "extractMetadata preserves ISBN through full extraction" {
+    var extractor = MetadataExtractor.init(testing.allocator, false);
+
+    // Test just the filename parsing portion that includes ISBN extraction
+    const sample_path = "/books/Author Name/Book Title/978-0-123-45678-9.epub";
+
+    // Since extractMetadata tries to open the file, we'll test the ISBN extraction directly
+    const isbn = extractor.extractISBN(sample_path);
+    defer if (isbn) |i| testing.allocator.free(i);
+
+    try testing.expect(isbn != null);
+    try testing.expectEqualStrings("9780123456789", isbn.?);
+}

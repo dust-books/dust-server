@@ -83,8 +83,16 @@ pub fn main() !void {
     std.log.info("Server shutdown complete\n", .{});
 }
 
-// Import test modules to ensure they're included
-comptime {
+// Import test modules to ensure they're included in the test build
+test {
+    // Core functionality tests
     _ = @import("scanner.zig");
+    _ = @import("metadata_extractor.zig");
     _ = @import("openlibrary.zig");
+    _ = @import("cover_manager.zig");
+    _ = @import("validation.zig");
+
+    // Auth module tests
+    _ = @import("auth/jwt.zig");
+    _ = @import("auth/permissions.zig");
 }

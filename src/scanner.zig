@@ -69,7 +69,7 @@ pub const Scanner = struct {
     }
 
     pub fn scanLibrary(self: *Scanner, path: []const u8) !ScanResult {
-        std.log.info("📚 Starting library scan at: {s}", .{path});
+        std.log.info("Starting library scan at: {s}", .{path});
 
         var result = ScanResult{
             .scan_path = path,
@@ -112,7 +112,7 @@ pub const Scanner = struct {
             }
         }
 
-        std.log.info("✅ Library scan complete: {any}", .{result});
+        std.log.info("Library scan complete: {any}", .{result});
         return result;
     }
 

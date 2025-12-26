@@ -149,6 +149,7 @@ export class DustApp extends LitElement {
     // Subscribe to state changes
     this.unsubscribe = this.appStateService.subscribe(() => {
       this.appState = this.appStateService.getState();
+      this.requestUpdate();
     });
     
     window.addEventListener("popstate", this.handleNavigation);
