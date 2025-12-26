@@ -12,24 +12,34 @@ const BackgroundTaskContext = struct {
 
 /// Background task to scan library directories for new books (typed)
 fn scanLibraryDirectories(ctx: *BackgroundTaskContext) void {
+    var arena = std.heap.ArenaAllocator.init(ctx.allocator);
+    defer arena.deinit();
+    const run_allocator = &arena.allocator;
+
     std.log.info("Starting library scan...", .{});
     const dirs_env = std.posix.getenv("DUST_DIRS") orelse "";
     if (dirs_env.len == 0) {
-        std.log.warn("⚠️  DUST_DIRS environment variable not set, skipping scan", .{});
+        std.log.warn("DUST_DIRS environment variable not set, skipping scan", .{});
         return;
     }
+
+    var run_ctx = BackgroundTaskContext{
+        .db = ctx.db,
+        .allocator = run_allocator,
+        .library_directories = ctx.library_directories,
+    };
 
     var it = std.mem.splitScalar(u8, dirs_env, ':');
     while (it.next()) |dir| {
         if (dir.len == 0) continue;
         std.log.info("🔍 Scanning directory: {s}", .{dir});
-        scanDirectory(ctx, dir) catch |err| {
-            std.log.err("❌ Failed to scan directory {s}: {}", .{ dir, err });
+        scanDirectory(&run_ctx, dir) catch |err| {
+            std.log.err("Failed to scan directory {s}: {}", .{ dir, err });
             continue;
         };
     }
 
-    std.log.info("✅ Library scan completed", .{});
+    std.log.info("Library scan completed", .{});
 }
 
 /// Scan a single directory for book files
@@ -337,21 +347,6 @@ fn cleanupBackgroundContext(ctx: *BackgroundTaskContext, allocator: std.mem.Allo
 }
 
 /// Wrappers to adapt typed functions to the timer's anyopaque API
-fn scanLibraryDirectoriesWrapper(context_ptr: *anyopaque) void {
-    const ctx: *BackgroundTaskContext = @ptrCast(@alignCast(context_ptr));
-    scanLibraryDirectories(ctx);
-}
-
-fn cleanupOldBooksWrapper(context_ptr: *anyopaque) void {
-    const ctx: *BackgroundTaskContext = @ptrCast(@alignCast(context_ptr));
-    cleanupOldBooks(ctx);
-}
-
-fn cleanupBackgroundContextWrapper(context: *anyopaque, allocator: std.mem.Allocator) void {
-    const ctx: *BackgroundTaskContext = @ptrCast(@alignCast(context));
-    cleanupBackgroundContext(ctx, allocator);
-}
-
 /// Register background tasks for scanning library and cleaning up old books
 pub const BooksTimerManager = @import("../../timer.zig").TimerManager(BackgroundTaskContext);
 
