@@ -34,6 +34,17 @@ fn scanLibraryDirectories(ctx: *BackgroundTaskContext) void {
 
 /// Scan a single directory for book files
 fn scanDirectory(ctx: *BackgroundTaskContext, dir_path: []const u8) !void {
+    // Convert to absolute path if needed
+    const abs_dir_path = if (std.fs.path.isAbsolute(dir_path))
+        dir_path
+    else blk: {
+        const cwd_path = try std.fs.cwd().realpathAlloc(ctx.allocator, ".");
+        defer ctx.allocator.free(cwd_path);
+        const result = try std.fs.path.join(ctx.allocator, &.{ cwd_path, dir_path });
+        break :blk result;
+    };
+    defer if (!std.fs.path.isAbsolute(dir_path)) ctx.allocator.free(abs_dir_path);
+
     var dir = if (std.fs.path.isAbsolute(dir_path))
         try std.fs.openDirAbsolute(dir_path, .{ .iterate = true })
     else
@@ -63,7 +74,7 @@ fn scanDirectory(ctx: *BackgroundTaskContext, dir_path: []const u8) !void {
             std.mem.endsWith(u8, entry.basename, ".CBR");
 
         if (is_ebook) {
-            const full_path = try std.fs.path.join(ctx.allocator, &.{ dir_path, entry.path });
+            const full_path = try std.fs.path.join(ctx.allocator, &.{ abs_dir_path, entry.path });
             defer ctx.allocator.free(full_path);
 
             std.log.info("📖 Found book: {s}", .{full_path});
@@ -96,46 +107,64 @@ fn checkBookExists(db: *sqlite.Db, path: []const u8) !bool {
 
 /// Add a new book to the database
 fn addBookToDatabase(ctx: *BackgroundTaskContext, path: []const u8) !void {
+    std.log.debug("[ISBN] addBookToDatabase called for: {s}", .{path});
     const basename = std.fs.path.basename(path);
-    
+    std.log.debug("[ISBN] Basename: {s}", .{basename});
+
     // Extract title from parent directory (not filename which is often ISBN)
     const parent_dir = std.fs.path.dirname(path) orelse "";
     const title = std.fs.path.basename(parent_dir);
-    
+
     // Extract author from grandparent directory
     const grandparent_dir = std.fs.path.dirname(parent_dir) orelse "";
     const author_name = std.fs.path.basename(grandparent_dir);
 
     const ext = std.fs.path.extension(basename);
     const file_format = if (ext.len > 1) ext[1..] else "unknown";
-    
+
+    // Extract ISBN from filename (often the filename is just the ISBN)
+    std.log.debug("[ISBN] Attempting to extract ISBN from filename: {s}", .{basename});
+    const isbn = try deriveIsbnFromFilename(ctx.allocator, basename);
+    if (isbn) |i| {
+        std.log.debug("[ISBN] ✅ Extracted ISBN: {s}", .{i});
+    } else {
+        std.log.debug("[ISBN] ⚠️  No ISBN found in filename", .{});
+    }
+    defer if (isbn) |i| ctx.allocator.free(i);
+
     // First, ensure the author exists (using a simple insert or ignore approach)
-    const author_query = 
+    const author_query =
         \\INSERT OR IGNORE INTO authors (name, created_at, updated_at)
         \\VALUES (?, datetime('now'), datetime('now'))
     ;
-    
+
     ctx.db.exec(author_query, .{}, .{author_name}) catch |err| {
         std.log.err("Failed to insert/get author: {}", .{err});
         return err;
     };
-    
+
     // Get the author ID
     const author_id_query = "SELECT id FROM authors WHERE name = ?";
     var stmt = try ctx.db.prepare(author_id_query);
     defer stmt.deinit();
-    
+
     const AuthorRow = struct { id: i64 };
     const author_row = try stmt.one(AuthorRow, .{}, .{author_name});
     const author_id = if (author_row) |row| row.id else return error.AuthorNotFound;
 
     // Get file size
-    const file = std.fs.openFileAbsolute(path, .{}) catch |err| {
-        std.log.err("Failed to open file for size: {}", .{err});
-        return err;
-    };
+    const file = if (std.fs.path.isAbsolute(path))
+        std.fs.openFileAbsolute(path, .{}) catch |err| {
+            std.log.err("Failed to open file for size: {}", .{err});
+            return err;
+        }
+    else
+        std.fs.cwd().openFile(path, .{}) catch |err| {
+            std.log.err("Failed to open file for size: {}", .{err});
+            return err;
+        };
     defer file.close();
-    
+
     const file_size = file.getEndPos() catch 0;
 
     var cover_manager = cover.CoverManager.init(ctx.allocator);
@@ -145,15 +174,77 @@ fn addBookToDatabase(ctx: *BackgroundTaskContext, path: []const u8) !void {
     };
     defer if (cover_path) |cp| ctx.allocator.free(cp);
 
+    std.log.debug("[ISBN] Preparing INSERT query with ISBN: {s}", .{isbn orelse "<null>"});
     const query =
-        \\INSERT INTO books (name, author, file_path, file_format, file_size, cover_image_path, created_at, updated_at)
-        \\VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+        \\INSERT INTO books (name, author, file_path, file_format, file_size, isbn, cover_image_path, created_at, updated_at)
+        \\VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
     ;
 
-    ctx.db.exec(query, .{}, .{ title, author_id, path, file_format, file_size, cover_path }) catch |err| {
+    ctx.db.exec(query, .{}, .{ title, author_id, path, file_format, file_size, isbn, cover_path }) catch |err| {
         std.log.err("Failed to insert book: {}", .{err});
+        std.log.err("[ISBN] Failed to insert with ISBN: {s}", .{isbn orelse "<null>"});
         return err;
     };
+
+    std.log.debug("[ISBN] ✅ Book inserted successfully with ISBN: {s}", .{isbn orelse "<none>"});
+}
+
+/// Extract ISBN from filename - supports ISBN-10 (with optional X) and ISBN-13
+fn deriveIsbnFromFilename(allocator: std.mem.Allocator, filename: []const u8) !?[]const u8 {
+    std.log.debug("[ISBN] deriveIsbnFromFilename parsing: {s}", .{filename});
+
+    // Remove extension first
+    const name_without_ext = if (std.mem.lastIndexOfScalar(u8, filename, '.')) |dot_index|
+        filename[0..dot_index]
+    else
+        filename;
+
+    std.log.debug("[ISBN] Filename without extension: {s}", .{name_without_ext});
+
+    var digit_buffer: [20]u8 = undefined;
+    var digit_count: usize = 0;
+
+    for (name_without_ext) |c| {
+        if (std.ascii.isDigit(c)) {
+            if (digit_count < digit_buffer.len) {
+                digit_buffer[digit_count] = c;
+                digit_count += 1;
+            }
+            continue;
+        }
+
+        // Support ISBN-10 with trailing X (check digit)
+        if ((c == 'x' or c == 'X') and digit_count == 9) {
+            if (digit_count < digit_buffer.len) {
+                digit_buffer[digit_count] = 'X';
+                digit_count += 1;
+            }
+            continue;
+        }
+
+        // Skip separators (hyphens, underscores, spaces, dots)
+        if (c == '-' or c == '_' or c == ' ' or c == '.') {
+            continue;
+        }
+
+        // Non-separator, non-digit character - check if we have a complete ISBN
+        if (digit_count == 10 or digit_count == 13) {
+            const isbn = try allocator.dupe(u8, digit_buffer[0..digit_count]);
+            std.log.debug("[ISBN] Found ISBN (mid-string): {s}", .{isbn});
+            return isbn;
+        }
+        digit_count = 0;
+    }
+
+    // Check final sequence
+    if (digit_count == 10 or digit_count == 13) {
+        const isbn = try allocator.dupe(u8, digit_buffer[0..digit_count]);
+        std.log.debug("[ISBN] Found ISBN (at end): {s}", .{isbn});
+        return isbn;
+    }
+
+    std.log.debug("[ISBN] No valid ISBN found (had {d} digits)", .{digit_count});
+    return null;
 }
 
 /// Background task to clean up old archived books (typed)
@@ -166,14 +257,14 @@ fn cleanupOldBooks(ctx: *BackgroundTaskContext) void {
     ;
 
     var count_stmt = ctx.db.prepare(count_query) catch |err| {
-        std.log.err("❌ Failed to prepare count query: {}", .{err});
+        std.log.err("Failed to prepare count query: {}", .{err});
         return;
     };
     defer count_stmt.deinit();
 
     const CountRow = struct { count: i64 };
     const count_result = count_stmt.one(CountRow, .{}, .{}) catch |err| {
-        std.log.err("❌ Failed to execute count query: {}", .{err});
+        std.log.err("Failed to execute count query: {}", .{err});
         return;
     };
 
@@ -190,14 +281,14 @@ fn cleanupOldBooks(ctx: *BackgroundTaskContext) void {
     ;
 
     var old_count_stmt = ctx.db.prepare(old_count_query) catch |err| {
-        std.log.err("❌ Failed to prepare old count query: {}", .{err});
+        std.log.err("Failed to prepare old count query: {}", .{err});
         return;
     };
     defer old_count_stmt.deinit();
 
     const old_count_result = old_count_stmt.one(CountRow, .{}, .{}) catch |err| {
-        std.log.err("❌ Failed to execute old count query: {}", .{err});
-        std.log.err("   This suggests there may be an issue with the datetime comparison", .{});
+        std.log.err("Failed to execute old count query: {}", .{err});
+        std.log.err("This suggests there may be an issue with the datetime comparison", .{});
         return;
     };
 
@@ -220,7 +311,7 @@ fn cleanupOldBooks(ctx: *BackgroundTaskContext) void {
     std.log.debug("Executing cleanup query: {s}", .{query});
 
     ctx.db.exec(query, .{}, .{}) catch |err| {
-        std.log.err("❌ Failed to cleanup old archived books: {}", .{err});
+        std.log.err("Failed to cleanup old archived books: {}", .{err});
         std.log.err("   Query was: {s}", .{query});
         std.log.err("   Error type suggests: {s}", .{@errorName(err)});
 
@@ -289,7 +380,7 @@ pub fn createBackgroundTimerManager(allocator: std.mem.Allocator, db: *sqlite.Db
     const scan_interval_env = std.posix.getenv("SCAN_INTERVAL_MINUTES") orelse "5";
     const scan_interval_minutes = std.fmt.parseInt(u32, scan_interval_env, 10) catch 5;
     const scan_interval_ms = scan_interval_minutes * 60 * 1000;
-    
+
     // Get cleanup interval from environment (in minutes, default 60)
     const cleanup_interval_env = std.posix.getenv("CLEANUP_INTERVAL_MINUTES") orelse "60";
     const cleanup_interval_minutes = std.fmt.parseInt(u32, cleanup_interval_env, 10) catch 60;
@@ -301,7 +392,7 @@ pub fn createBackgroundTimerManager(allocator: std.mem.Allocator, db: *sqlite.Db
     // Run cleanup every N minutes
     try mgr.registerTimer(cleanupOldBooks, cleanup_ctx, cleanup_interval_ms, cleanupBackgroundContext);
 
-    std.log.info("📅 Registered books background tasks (scan every {}min, cleanup every {}min)", .{ scan_interval_minutes, cleanup_interval_minutes });
+    std.log.info("Registered books background tasks (scan every {}min, cleanup every {}min)", .{ scan_interval_minutes, cleanup_interval_minutes });
 
     return mgr;
 }

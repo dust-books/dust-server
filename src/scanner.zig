@@ -175,12 +175,23 @@ pub const Scanner = struct {
 
     fn addNewBook(self: *Scanner, path: []const u8) !void {
         std.log.debug("📖 Adding new book: {s}", .{path});
+        std.log.debug("[ISBN] Starting metadata extraction for: {s}", .{path});
 
         // Extract metadata using the enhanced extractor (includes OpenLibrary enrichment)
         var metadata = try self.metadata_extractor.extractMetadata(path);
 
+        std.log.debug("[ISBN] After metadata extraction - ISBN: {s}", .{metadata.isbn orelse "<null>"});
+
         if (metadata.isbn == null) {
+            std.log.debug("[ISBN] No ISBN found in metadata, attempting to derive from path...", .{});
             metadata.isbn = try self.deriveIsbnFromPath(path);
+            if (metadata.isbn) |isbn| {
+                std.log.debug("[ISBN] ✅ Successfully derived ISBN from path: {s}", .{isbn});
+            } else {
+                std.log.debug("[ISBN] ⚠️  Failed to derive ISBN from path", .{});
+            }
+        } else {
+            std.log.debug("[ISBN] ✅ ISBN already present in metadata: {s}", .{metadata.isbn.?});
         }
         defer metadata.deinit(self.allocator);
 
@@ -219,6 +230,8 @@ pub const Scanner = struct {
             \\VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
         ;
 
+        std.log.debug("[ISBN] Preparing to insert book into database...", .{});
+        std.log.debug("[ISBN] Final ISBN value being inserted: {s}", .{metadata.isbn orelse "<NULL>"});
         std.log.debug("Executing INSERT query...", .{});
         std.log.debug("Values: title={s}, path={s}, size={d}, format={s}, author_id={d}, isbn={s}", .{
             if (metadata.title != null) metadata.title.? else title,
@@ -249,11 +262,13 @@ pub const Scanner = struct {
             cover_path,
         }) catch |err| {
             std.log.err("Failed to insert book into database: {}", .{err});
+            std.log.err("[ISBN] ISBN value that failed to insert: {s}", .{metadata.isbn orelse "<NULL>"});
             std.log.err("SQLite error details - Check if column count matches. Query expects 10 values.", .{});
             return err;
         };
 
         std.log.info("Added book: {s}", .{if (metadata.title != null) metadata.title.? else title});
+        std.log.debug("[ISBN] ✅ Book inserted successfully with ISBN: {s}", .{metadata.isbn orelse "<none>"});
 
         // Cleanup temporary title if allocated
         if (metadata.title == null) {
@@ -336,15 +351,27 @@ pub const Scanner = struct {
 
     fn deriveIsbnFromPath(self: *Scanner, path: []const u8) !?[]const u8 {
         const basename = std.fs.path.basename(path);
+        std.log.debug("[ISBN] deriveIsbnFromPath called for basename: {s}", .{basename});
+
         const candidate = try deriveIsbnFromText(self.allocator, basename);
-        if (candidate) |isbn| return isbn;
+        if (candidate) |isbn| {
+            std.log.debug("[ISBN] Found ISBN in full basename: {s}", .{isbn});
+            return isbn;
+        }
+        std.log.debug("[ISBN] No ISBN found in full basename, trying without extension...", .{});
 
         const name_without_ext = if (std.mem.lastIndexOfScalar(u8, basename, '.')) |dot_index|
             basename[0..dot_index]
         else
             basename;
 
-        return try deriveIsbnFromText(self.allocator, name_without_ext);
+        const result = try deriveIsbnFromText(self.allocator, name_without_ext);
+        if (result) |isbn| {
+            std.log.debug("[ISBN] Found ISBN in basename without extension: {s}", .{isbn});
+        } else {
+            std.log.debug("[ISBN] No ISBN found in basename without extension", .{});
+        }
+        return result;
     }
 };
 
