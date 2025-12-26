@@ -1,3 +1,9 @@
+## [0.1.5](https://github.com/dust-books/dust-server/compare/v0.1.4...v0.1.5) (2025-12-26)
+
+### Bug Fixes
+
+* **scanner:** adjustments to ISBN parsing ([02f282c](https://github.com/dust-books/dust-server/commit/02f282cd94739f3e14e2e35b2a8b4d3cc835beb1))
+
 ## [0.1.4](https://github.com/dust-books/dust-server/compare/v0.1.3...v0.1.4) (2025-12-26)
 
 ### Bug Fixes
