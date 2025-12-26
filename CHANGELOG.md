@@ -1,3 +1,9 @@
+## [0.1.4](https://github.com/dust-books/dust-server/compare/v0.1.3...v0.1.4) (2025-12-26)
+
+### Bug Fixes
+
+* **metadata:** inconsistencies between scanner and metadata extractor (may want to DRY this up) ([ccb0839](https://github.com/dust-books/dust-server/commit/ccb083909e551d6caa6fbea476d8fc1058e263b6))
+
 ## [0.1.3](https://github.com/dust-books/dust-server/compare/v0.1.2...v0.1.3) (2025-12-23)
 
 ### Bug Fixes
