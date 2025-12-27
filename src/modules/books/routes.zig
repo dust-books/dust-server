@@ -21,10 +21,10 @@ pub fn listBooks(
     res: *httpz.Response,
 ) !void {
     _ = req;
-    
+
     const arena = res.arena;
     const books = try book_repo.listBooks(arena);
-    
+
     const BookWithAuthor = struct {
         id: i64,
         name: []const u8,
@@ -46,10 +46,14 @@ pub fn listBooks(
         created_at: []const u8,
         updated_at: []const u8,
     };
-    
+
     var books_with_authors = try std.ArrayList(BookWithAuthor).initCapacity(arena, books.len);
     for (books) |book| {
         const author = try author_repo.getAuthorById(arena, book.author);
+        var cover_path: ?[]const u8 = null;
+        if (book.cover_image_path != null) {
+            cover_path = try std.fmt.allocPrint(arena, "covers/{d}", .{book.id});
+        }
         try books_with_authors.append(arena, .{
             .id = book.id,
             .name = book.name,
@@ -64,7 +68,7 @@ pub fn listBooks(
             .page_count = book.page_count,
             .file_size = book.file_size,
             .file_format = book.file_format,
-            .cover_image_path = sanitizeCoverPath(book.cover_image_path),
+            .cover_image_path = cover_path,
             .status = book.status,
             .archived_at = book.archived_at,
             .archive_reason = book.archive_reason,
@@ -72,7 +76,7 @@ pub fn listBooks(
             .updated_at = book.updated_at,
         });
     }
-    
+
     res.status = 200;
     try res.json(.{ .books = books_with_authors.items }, .{});
 }
@@ -126,6 +130,10 @@ pub fn getBook(
         });
     }
 
+    var cover_path: ?[]const u8 = null;
+    if (book.cover_image_path != null) {
+        cover_path = try std.fmt.allocPrint(allocator, "covers/{d}", .{book.id});
+    }
     const response = .{
         .book = .{
             .id = book.id,
@@ -140,7 +148,7 @@ pub fn getBook(
             .page_count = book.page_count,
             .file_size = book.file_size,
             .file_format = book.file_format,
-            .cover_image_path = sanitizeCoverPath(book.cover_image_path),
+            .cover_image_path = cover_path,
         },
         .tags = tag_list.items,
     };
@@ -156,7 +164,7 @@ pub fn createBook(
     res: *httpz.Response,
 ) !void {
     const allocator = res.arena;
-    
+
     const body = try req.json(struct {
         name: []const u8,
         filepath: []const u8,
@@ -180,13 +188,13 @@ pub fn updateBook(
     res: *httpz.Response,
 ) !void {
     const allocator = res.arena;
-    
+
     const id_str = req.param("id") orelse {
         res.status = 400;
         try res.json(.{ .@"error" = "Missing book id" }, .{});
         return;
     };
-    
+
     const id = std.fmt.parseInt(i64, id_str, 10) catch {
         res.status = 400;
         try res.json(.{ .@"error" = "Invalid book id" }, .{});
@@ -224,7 +232,7 @@ pub fn deleteBook(
         try res.json(.{ .@"error" = "Missing book id" }, .{});
         return;
     };
-    
+
     const id = std.fmt.parseInt(i64, id_str, 10) catch {
         res.status = 400;
         try res.json(.{ .@"error" = "Invalid book id" }, .{});
@@ -705,7 +713,7 @@ pub fn getCurrentlyReading(
     var book_list: std.ArrayList(BookWithProgress) = .empty;
     defer book_list.deinit(allocator);
     var iter = try stmt.iterator(BookProgressRow, .{user_id});
-    
+
     while (try iter.nextAlloc(allocator, .{})) |row| {
         try book_list.append(allocator, .{
             .id = row.id,
@@ -799,7 +807,7 @@ pub fn getCompletedReading(
     var book_list: std.ArrayList(BookWithProgress) = .empty;
     defer book_list.deinit(allocator);
     var iter = try stmt.iterator(BookProgressRow, .{user_id});
-    
+
     while (try iter.nextAlloc(allocator, .{})) |row| {
         try book_list.append(allocator, .{
             .id = row.id,
@@ -825,4 +833,49 @@ pub fn getCompletedReading(
 
     res.status = 200;
     try res.json(.{ .books = book_list.items }, .{});
+}
+
+// GET /covers/isbn - Get completed books
+pub fn getCover(
+    db: *sqlite.Db,
+    book_id: i64,
+    req: *httpz.Request,
+    res: *httpz.Response,
+) !void {
+    _ = req;
+    const allocator = res.arena;
+    var book_repo = @import("model.zig").BookRepository.init(db, allocator);
+    const book = book_repo.getBookById(allocator, book_id) catch |err| {
+        if (err == error.BookNotFound) {
+            res.status = 404;
+            try res.json(.{ .@"error" = "Book not found" }, .{});
+            return;
+        }
+        return err;
+    };
+
+    var cover_manager = @import("../../cover_manager.zig").CoverManager.init(allocator);
+    const cover_path = cover_manager.findLocalCover(book.file_path) catch |err| blk: {
+        std.log.warn("Failed to locate cover for {s}: {}", .{ book.file_path, err });
+        break :blk null;
+    };
+    if (cover_path) |path| {
+        // Guess content type from extension
+        const ext = std.fs.path.extension(path);
+        const content_type = if (std.ascii.eqlIgnoreCase(ext, ".png")) "image/png" else if (std.ascii.eqlIgnoreCase(ext, ".webp")) "image/webp" else if (std.ascii.eqlIgnoreCase(ext, ".jpeg")) "image/jpeg" else "image/jpeg";
+        res.header("Content-Type", content_type);
+        // Read file and send
+        const file = try std.fs.openFileAbsolute(path, .{});
+        defer file.close();
+        const stat = try file.stat();
+        const bytes = try allocator.alloc(u8, stat.size);
+        _ = try file.readAll(bytes);
+        res.status = 200;
+        res.body = bytes;
+        return;
+    } else {
+        res.status = 404;
+        try res.json(.{ .@"error" = "Cover not found" }, .{});
+        return;
+    }
 }

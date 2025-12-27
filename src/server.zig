@@ -150,6 +150,7 @@ pub const DustServer = struct {
         router.get("/books", booksList, .{});
         router.get("/books/:id", booksGet, .{});
         router.get("/books/:id/stream", booksStream, .{});
+        router.get("/covers/:id", booksCover, .{}); // <-- new cover route
         router.post("/books", booksCreate, .{});
         router.put("/books/:id", booksUpdate, .{});
         router.delete("/books/:id", booksDelete, .{});
@@ -161,7 +162,7 @@ pub const DustServer = struct {
         // Reading progress endpoints
         router.get("/books/:id/progress", booksGetProgress, .{});
         router.put("/books/:id/progress", booksUpdateProgress, .{});
-        
+
         // Reading lists
         router.get("/reading/currently-reading", readingCurrentlyReading, .{});
         router.get("/reading/completed", readingCompleted, .{});
@@ -292,7 +293,7 @@ fn booksStream(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !
     };
 
     const row = try stmt.oneAlloc(BookRow, res.arena, .{}, .{book_id});
-    
+
     if (row == null) {
         res.status = 404;
         try res.json(.{ .@"error" = "Book not found" }, .{});
@@ -300,7 +301,7 @@ fn booksStream(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !
     }
 
     const book = row.?;
-    
+
     // Open and stream file
     const file = std.fs.cwd().openFile(book.file_path, .{}) catch |err| {
         std.log.err("Failed to open book file {s}: {}", .{ book.file_path, err });
@@ -312,7 +313,7 @@ fn booksStream(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !
 
     // Get file size
     const stat = try file.stat();
-    
+
     // Set content type based on format
     if (book.file_format) |format| {
         if (std.mem.eql(u8, format, "pdf")) {
@@ -324,7 +325,7 @@ fn booksStream(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !
 
     // Read entire file into response arena
     const file_content = try file.readToEndAlloc(res.arena, stat.size);
-    
+
     res.status = 200;
     res.body = file_content;
 }
@@ -404,7 +405,7 @@ fn booksGetProgress(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Respon
     const db = ctx.db;
 
     // Query reading progress
-    const query = 
+    const query =
         \\SELECT current_page, total_pages, percentage_complete, last_read_at 
         \\FROM reading_progress 
         \\WHERE user_id = ? AND book_id = ?
@@ -490,7 +491,7 @@ fn booksUpdateProgress(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Res
 
     // Validate that we have at least current_page
     const current_page = data.current_page orelse 0;
-    
+
     const db = ctx.db;
 
     // Use provided percentage or calculate it
@@ -586,6 +587,22 @@ fn booksArchive(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) 
 fn booksUnarchive(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
     logging.logRequest(req);
     try book_routes.unarchiveBook(&ctx.db.db, req, res);
+}
+
+// Cover route handler
+fn booksCover(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
+    logging.logRequest(req);
+    const id_str = req.param("id") orelse {
+        res.status = 400;
+        try res.json(.{ .@"error" = "Missing book ID" }, .{});
+        return;
+    };
+    const book_id = std.fmt.parseInt(i64, id_str, 10) catch {
+        res.status = 400;
+        try res.json(.{ .@"error" = "Invalid book ID" }, .{});
+        return;
+    };
+    try book_routes.getCover(&ctx.db.db, book_id, req, res);
 }
 
 // CORS preflight handler for OPTIONS requests

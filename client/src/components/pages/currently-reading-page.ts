@@ -7,6 +7,7 @@ import { customElement, property, state } from 'lit/decorators.js';
 import { consume } from '@lit/context';
 
 import { appStateContext, AppStateService } from '../../services/app-state.js';
+import { getBookCoverUrl } from '@/services/server-manager.js';
 // Unused import removed
 
 interface CurrentlyReadingBook {
@@ -598,7 +599,7 @@ export class CurrentlyReadingPage extends LitElement {
   private renderBookCard(book: CurrentlyReadingBook) {
     const isRecent = this.isRecentlyRead(book.last_read_at);
     const isBookStalled = this.isStalled(book.last_read_at);
-
+    const coverUrl = getBookCoverUrl(book as any);
     return html`
       <div class="book-card" @click=${() => this.handleBookClick(book)}>
         ${isRecent ? html`<div class="recently-read-indicator">Recently Read</div>` : ''}
@@ -606,7 +607,9 @@ export class CurrentlyReadingPage extends LitElement {
         
         <div class="book-header">
           <div class="book-cover">
-            📖
+            ${coverUrl
+              ? html`<img src="${coverUrl}" alt="${book.name}" />`
+              : '📖'}
           </div>
           
           <div class="book-info">

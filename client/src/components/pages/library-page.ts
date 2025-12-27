@@ -568,17 +568,12 @@ export class LibraryPage extends LitElement {
 
   private renderBookCard(book: Book) {
     const progress = this.getReadingProgress(book.id);
-
+    const coverUrl = getBookCoverUrl(book);
     return html`
       <div class="book-card" @click=${() => this.handleBookClick(book)}>
         <div class="book-cover">
-          ${book.cover_image_url || book.cover_image_path
-            ? html`
-                <img
-                  src="${book.cover_image_url || book.cover_image_path}"
-                  alt="${book.name}"
-                />
-              `
+          ${coverUrl
+            ? html`<img src="${coverUrl}" alt="${book.name}" />`
             : "📖"}
         </div>
 

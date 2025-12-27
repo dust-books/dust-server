@@ -1,4 +1,16 @@
 /**
+ * Utility to get the full cover image URL for a book object
+ */
+export function getBookCoverUrl(book: { cover_image_path?: string; cover_image_url?: string }): string | null {
+  const server = serverManager.getActiveServer();
+  if (book.cover_image_path) {
+    return server ? `${server.baseUrl.replace(/\/$/, '')}/${book.cover_image_path.replace(/^\//, '')}` : book.cover_image_path;
+  } else if (book.cover_image_url) {
+    return book.cover_image_url;
+  }
+  return null;
+}
+/**
  * Server Manager Service - Handles multiple server connections
  */
 

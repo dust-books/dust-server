@@ -9,6 +9,7 @@ const AuthUser = auth_middleware.AuthUser;
 const PermissionService = @import("../../auth/permission_service.zig").PermissionService;
 const PermissionRepository = @import("../../auth/permission_repository.zig").PermissionRepository;
 const session = @import("../../session.zig");
+const middleware_helpers = @import("../../middleware/helpers.zig");
 
 const context = @import("../../context.zig");
 const ServerContext = context.ServerContext;
@@ -158,7 +159,6 @@ pub fn login(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !vo
 
 pub fn getCurrentUser(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
     const auth_ctx = &ctx.auth_context;
-    const middleware_helpers = @import("../../middleware/helpers.zig");
 
     var auth_user = middleware_helpers.requireAuth(&auth_ctx.jwt, auth_ctx.allocator, req, res) catch |err| {
         return err;

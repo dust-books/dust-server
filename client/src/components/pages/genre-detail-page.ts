@@ -8,6 +8,7 @@ import { consume } from '@lit/context';
 
 import { appStateContext, AppStateService } from '../../services/app-state.js';
 import type { Book } from '../../types/app.js';
+import { getBookCoverUrl } from '@/services/server-manager.js';
 
 interface GenreDetails {
   genre: {
@@ -532,9 +533,12 @@ export class GenreDetailPage extends LitElement {
     return html`
       <div class="book-card" @click=${() => this.handleBookClick(book)}>
         <div class="book-cover" style="--genre-color: ${genreColor}">
-          ${book.cover_image_url
-            ? html`<img src="${book.cover_image_url}" alt="${book.name}" />`
-            : '📖'}
+          ${(() => {
+            const coverUrl = getBookCoverUrl(book);
+            return coverUrl
+              ? html`<img src="${coverUrl}" alt="${book.name}" />`
+              : '📖';
+          })()}
         </div>
 
         <div class="book-info">

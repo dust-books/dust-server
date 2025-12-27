@@ -9,6 +9,7 @@ import { consume } from '@lit/context';
 import { appStateContext, AppStateService } from '../../services/app-state.js';
 import { apiService } from '../../services/api.js';
 import type { Book, ReadingProgress } from '../../types/app.js';
+import { getBookCoverUrl } from '@/services/server-manager.js';
 
 @customElement('completed-reading-page')
 export class CompletedReadingPage extends LitElement {
@@ -296,9 +297,12 @@ export class CompletedReadingPage extends LitElement {
     return html`
       <div class="book-card" @click=${() => this.handleBookClick(actualBook)}>
         <div class="book-cover">
-          ${actualBook.cover_image_url || actualBook.cover_image_path
-            ? html`<img src="${actualBook.cover_image_url || actualBook.cover_image_path}" alt="${actualBook.name}" />`
-            : "📖"}
+          ${(() => {
+            const coverUrl = getBookCoverUrl(actualBook);
+            return coverUrl
+              ? html`<img src="${coverUrl}" alt="${actualBook.name}" />`
+              : '📖';
+          })()}
         </div>
 
         <div class="book-info">

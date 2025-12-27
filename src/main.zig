@@ -58,7 +58,7 @@ pub fn main() !void {
     defer db.deinit();
 
     // Run migrations
-    std.log.info("\nRunning database migrations...", .{});
+    std.log.info("Running database migrations...", .{});
     try db.runMigrations();
     try users.migrate(&db);
     try books.migrate(&db);
