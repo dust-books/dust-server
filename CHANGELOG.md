@@ -1,3 +1,9 @@
+## [0.3.0](https://github.com/dust-books/dust-server/compare/v0.2.0...v0.3.0) (2025-12-27)
+
+### Features
+
+* cover manager ([6a9ed61](https://github.com/dust-books/dust-server/commit/6a9ed61411d7a6ebf963868589a2e5815b640e0d))
+
 ## [0.2.0](https://github.com/dust-books/dust-server/compare/v0.1.5...v0.2.0) (2025-12-27)
 
 ### Features
