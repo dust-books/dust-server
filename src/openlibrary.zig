@@ -50,7 +50,6 @@ pub const OpenLibraryClient = struct {
         // Clean ISBN (remove non-alphanumeric characters)
         var clean_isbn = try self.allocator.alloc(u8, isbn.len);
         defer self.allocator.free(clean_isbn);
-
         var clean_len: usize = 0;
         for (isbn) |c| {
             if (std.ascii.isAlphanumeric(c)) {
@@ -73,38 +72,36 @@ pub const OpenLibraryClient = struct {
         );
         defer self.allocator.free(url);
 
+        std.log.info("[OpenLibrary] Request URL: {s}", .{url});
         std.log.info("📚 Looking up ISBN {s} via OpenLibrary...", .{clean});
 
-        // Make HTTP request
+        // Use Zig 0.15.2's std.http.Client.fetch for a one-shot request
         var client = std.http.Client{ .allocator = self.allocator };
         defer client.deinit();
 
-        const uri = try std.Uri.parse(url);
+        var body = std.Io.Writer.Allocating.init(self.allocator);
+        defer body.deinit();
+        const fetch_result = try client.fetch(.{
+            .location = .{ .url = url },
+            .method = .GET,
+            .response_writer = &body.writer,
+        });
 
-        var req = try client.request(.GET, uri, .{});
-        defer req.deinit();
+        std.log.info("[OpenLibrary] HTTP status: {d}", .{@intFromEnum(fetch_result.status)});
 
-        try req.sendBodiless();
-        var response = try req.receiveHead(&.{});
-
-        if (response.head.status != .ok) {
-            std.log.warn("OpenLibrary API error: {}", .{response.head.status});
+        if (fetch_result.status != .ok) {
+            std.log.warn("OpenLibrary API error: {d}", .{@intFromEnum(fetch_result.status)});
             return null;
         }
 
-        // Read response body
-        var reader_buffer: [4096]u8 = undefined;
-        const body_reader = response.reader(&reader_buffer);
-
-        const max_size = 1024 * 1024; // 1MB max
-        const body = try body_reader.allocRemaining(self.allocator, std.Io.Limit.limited(max_size));
-        defer self.allocator.free(body);
+        // Log raw response body for debugging TODO: REMOVE THIS
+        std.log.warn("[OpenLibrary] Raw response: {s}", .{body.written()});
 
         // Parse JSON response
         const parsed = try std.json.parseFromSlice(
             std.json.Value,
             self.allocator,
-            body,
+            body.written(),
             .{},
         );
         defer parsed.deinit();

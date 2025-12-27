@@ -102,8 +102,10 @@ pub const CoverManager = struct {
         var req = try client.request(.GET, uri, .{});
         defer req.deinit();
 
+        var buffer: [4096]u8 = undefined;
+
         try req.sendBodiless();
-        var response = try req.receiveHead(&.{ });
+        var response = try req.receiveHead(&buffer);
 
         if (response.head.status != .ok) {
             std.log.warn("Failed to download cover ({s}): {}", .{ url, response.head.status });

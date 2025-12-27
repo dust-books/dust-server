@@ -51,11 +51,9 @@ pub const MetadataExtractor = struct {
     pub fn extractMetadata(self: *MetadataExtractor, file_path: []const u8) !BookMetadata {
         var metadata = BookMetadata{};
 
-        std.log.debug("Is this failing?", .{});
         // Get file format from extension
         metadata.file_format = try self.getFileFormat(file_path);
 
-        std.log.debug("How about this?", .{});
         // Get file size
         metadata.file_size = try self.getFileSize(file_path);
 

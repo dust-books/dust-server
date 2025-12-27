@@ -122,5 +122,5 @@ pub fn migrate(db: *Database) !void {
         try db.recordMigration("007_add_is_admin_to_users");
     }
 
-    std.log.info("Users module migrations complete\n", .{});
+    std.log.info("Users module migrations complete", .{});
 }
