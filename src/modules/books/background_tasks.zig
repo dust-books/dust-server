@@ -2,6 +2,7 @@ const std = @import("std");
 const sqlite = @import("sqlite");
 const TimerManager = @import("../../timer.zig").TimerManager;
 const cover = @import("../../cover_manager.zig");
+const Scanner = @import("../../scanner.zig").Scanner;
 
 /// Context structure for background tasks
 const BackgroundTaskContext = struct {
@@ -14,252 +15,51 @@ const BackgroundTaskContext = struct {
 fn scanLibraryDirectories(ctx: *BackgroundTaskContext) void {
     var arena = std.heap.ArenaAllocator.init(ctx.allocator);
     defer arena.deinit();
-    const run_allocator = &arena.allocator;
+    const run_allocator = arena.allocator();
 
-    std.log.info("Starting library scan...", .{});
+    std.log.info("Starting background library scan...", .{});
     const dirs_env = std.posix.getenv("DUST_DIRS") orelse "";
     if (dirs_env.len == 0) {
         std.log.warn("DUST_DIRS environment variable not set, skipping scan", .{});
         return;
     }
 
-    var run_ctx = BackgroundTaskContext{
-        .db = ctx.db,
-        .allocator = run_allocator,
-        .library_directories = ctx.library_directories,
+    // Create a Scanner instance using the same allocator and db
+    var scanner = Scanner.init(run_allocator, ctx.db) catch |err| {
+        std.log.err("Failed to init Scanner: {}", .{err});
+        return;
     };
+    defer scanner.deinit();
 
     var it = std.mem.splitScalar(u8, dirs_env, ':');
     while (it.next()) |dir| {
         if (dir.len == 0) continue;
-        std.log.info("🔍 Scanning directory: {s}", .{dir});
-        scanDirectory(&run_ctx, dir) catch |err| {
-            std.log.err("Failed to scan directory {s}: {}", .{ dir, err });
-            continue;
-        };
-    }
-
-    std.log.info("Library scan completed", .{});
-}
-
-/// Scan a single directory for book files
-fn scanDirectory(ctx: *BackgroundTaskContext, dir_path: []const u8) !void {
-    // Convert to absolute path if needed
-    const abs_dir_path = if (std.fs.path.isAbsolute(dir_path))
-        dir_path
-    else blk: {
-        const cwd_path = try std.fs.cwd().realpathAlloc(ctx.allocator, ".");
-        defer ctx.allocator.free(cwd_path);
-        const result = try std.fs.path.join(ctx.allocator, &.{ cwd_path, dir_path });
-        break :blk result;
-    };
-    defer if (!std.fs.path.isAbsolute(dir_path)) ctx.allocator.free(abs_dir_path);
-
-    var dir = if (std.fs.path.isAbsolute(dir_path))
-        try std.fs.openDirAbsolute(dir_path, .{ .iterate = true })
-    else
-        try std.fs.cwd().openDir(dir_path, .{ .iterate = true });
-    defer dir.close();
-
-    var walker = try dir.walk(ctx.allocator);
-    defer walker.deinit();
-
-    while (try walker.next()) |entry| {
-        if (entry.kind != .file) continue;
-
-        // Check for supported ebook formats
-        const is_ebook = std.mem.endsWith(u8, entry.basename, ".epub") or
-            std.mem.endsWith(u8, entry.basename, ".pdf") or
-            std.mem.endsWith(u8, entry.basename, ".mobi") or
-            std.mem.endsWith(u8, entry.basename, ".azw") or
-            std.mem.endsWith(u8, entry.basename, ".azw3") or
-            std.mem.endsWith(u8, entry.basename, ".cbz") or
-            std.mem.endsWith(u8, entry.basename, ".cbr") or
-            std.mem.endsWith(u8, entry.basename, ".djvu") or
-            // Uppercase variants
-            std.mem.endsWith(u8, entry.basename, ".EPUB") or
-            std.mem.endsWith(u8, entry.basename, ".PDF") or
-            std.mem.endsWith(u8, entry.basename, ".MOBI") or
-            std.mem.endsWith(u8, entry.basename, ".CBZ") or
-            std.mem.endsWith(u8, entry.basename, ".CBR");
-
-        if (is_ebook) {
-            const full_path = try std.fs.path.join(ctx.allocator, &.{ abs_dir_path, entry.path });
-            defer ctx.allocator.free(full_path);
-
-            std.log.info("📖 Found book: {s}", .{full_path});
-
-            const exists = checkBookExists(ctx.db, full_path) catch |err| {
-                std.log.err("Failed to check if book exists: {}", .{err});
+        // Ensure absolute path
+        const abs_dir = if (std.fs.path.isAbsolute(dir)) dir else blk: {
+            const cwd = std.fs.cwd().realpathAlloc(run_allocator, ".") catch |err| {
+                std.log.err("Failed to get cwd: {}", .{err});
                 continue;
             };
-
-            if (!exists) {
-                addBookToDatabase(ctx, full_path) catch |err| {
-                    std.log.err("Failed to add book {s}: {}", .{ full_path, err });
-                    continue;
-                };
-                std.log.info("✅ Added book: {s}", .{full_path});
-            }
-        }
-    }
-}
-
-/// Check if a book already exists in the database
-fn checkBookExists(db: *sqlite.Db, path: []const u8) !bool {
-    const query = "SELECT COUNT(*) FROM books WHERE file_path = ?";
-    var stmt = try db.prepare(query);
-    defer stmt.deinit();
-
-    const row = try stmt.one(struct { count: i64 }, .{}, .{path});
-    return if (row) |r| r.count > 0 else false;
-}
-
-/// Add a new book to the database
-fn addBookToDatabase(ctx: *BackgroundTaskContext, path: []const u8) !void {
-    std.log.debug("[ISBN] addBookToDatabase called for: {s}", .{path});
-    const basename = std.fs.path.basename(path);
-    std.log.debug("[ISBN] Basename: {s}", .{basename});
-
-    // Extract title from parent directory (not filename which is often ISBN)
-    const parent_dir = std.fs.path.dirname(path) orelse "";
-    const title = std.fs.path.basename(parent_dir);
-
-    // Extract author from grandparent directory
-    const grandparent_dir = std.fs.path.dirname(parent_dir) orelse "";
-    const author_name = std.fs.path.basename(grandparent_dir);
-
-    const ext = std.fs.path.extension(basename);
-    const file_format = if (ext.len > 1) ext[1..] else "unknown";
-
-    // Extract ISBN from filename (often the filename is just the ISBN)
-    std.log.debug("[ISBN] Attempting to extract ISBN from filename: {s}", .{basename});
-    const isbn = try deriveIsbnFromFilename(ctx.allocator, basename);
-    if (isbn) |i| {
-        std.log.debug("[ISBN] ✅ Extracted ISBN: {s}", .{i});
-    } else {
-        std.log.debug("[ISBN] ⚠️  No ISBN found in filename", .{});
-    }
-    defer if (isbn) |i| ctx.allocator.free(i);
-
-    // First, ensure the author exists (using a simple insert or ignore approach)
-    const author_query =
-        \\INSERT OR IGNORE INTO authors (name, created_at, updated_at)
-        \\VALUES (?, datetime('now'), datetime('now'))
-    ;
-
-    ctx.db.exec(author_query, .{}, .{author_name}) catch |err| {
-        std.log.err("Failed to insert/get author: {}", .{err});
-        return err;
-    };
-
-    // Get the author ID
-    const author_id_query = "SELECT id FROM authors WHERE name = ?";
-    var stmt = try ctx.db.prepare(author_id_query);
-    defer stmt.deinit();
-
-    const AuthorRow = struct { id: i64 };
-    const author_row = try stmt.one(AuthorRow, .{}, .{author_name});
-    const author_id = if (author_row) |row| row.id else return error.AuthorNotFound;
-
-    // Get file size
-    const file = if (std.fs.path.isAbsolute(path))
-        std.fs.openFileAbsolute(path, .{}) catch |err| {
-            std.log.err("Failed to open file for size: {}", .{err});
-            return err;
-        }
-    else
-        std.fs.cwd().openFile(path, .{}) catch |err| {
-            std.log.err("Failed to open file for size: {}", .{err});
-            return err;
+            defer run_allocator.free(cwd);
+            break :blk std.fs.path.join(run_allocator, &.{ cwd, dir }) catch |err| {
+                std.log.err("Failed to join cwd and dir: {}", .{err});
+                continue;
+            };
         };
-    defer file.close();
-
-    const file_size = file.getEndPos() catch 0;
-
-    var cover_manager = cover.CoverManager.init(ctx.allocator);
-    const cover_path = cover_manager.findLocalCover(path) catch |err| blk: {
-        std.log.warn("Failed to locate cover for {s}: {}", .{ path, err });
-        break :blk null;
-    };
-    defer if (cover_path) |cp| ctx.allocator.free(cp);
-
-    std.log.debug("[ISBN] Preparing INSERT query with ISBN: {s}", .{isbn orelse "<null>"});
-    const query =
-        \\INSERT INTO books (name, author, file_path, file_format, file_size, isbn, cover_image_path, created_at, updated_at)
-        \\VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
-    ;
-
-    ctx.db.exec(query, .{}, .{ title, author_id, path, file_format, file_size, isbn, cover_path }) catch |err| {
-        std.log.err("Failed to insert book: {}", .{err});
-        std.log.err("[ISBN] Failed to insert with ISBN: {s}", .{isbn orelse "<null>"});
-        return err;
-    };
-
-    std.log.debug("[ISBN] ✅ Book inserted successfully with ISBN: {s}", .{isbn orelse "<none>"});
-}
-
-/// Extract ISBN from filename - supports ISBN-10 (with optional X) and ISBN-13
-fn deriveIsbnFromFilename(allocator: std.mem.Allocator, filename: []const u8) !?[]const u8 {
-    std.log.debug("[ISBN] deriveIsbnFromFilename parsing: {s}", .{filename});
-
-    // Remove extension first
-    const name_without_ext = if (std.mem.lastIndexOfScalar(u8, filename, '.')) |dot_index|
-        filename[0..dot_index]
-    else
-        filename;
-
-    std.log.debug("[ISBN] Filename without extension: {s}", .{name_without_ext});
-
-    var digit_buffer: [20]u8 = undefined;
-    var digit_count: usize = 0;
-
-    for (name_without_ext) |c| {
-        if (std.ascii.isDigit(c)) {
-            if (digit_count < digit_buffer.len) {
-                digit_buffer[digit_count] = c;
-                digit_count += 1;
-            }
+        defer if (!std.fs.path.isAbsolute(dir)) run_allocator.free(abs_dir);
+        std.log.info("Scanning directory: {s}", .{abs_dir});
+        _ = scanner.scanLibrary(abs_dir) catch |err| {
+            std.log.err("Failed to scan directory {s}: {}", .{ abs_dir, err });
             continue;
-        }
-
-        // Support ISBN-10 with trailing X (check digit)
-        if ((c == 'x' or c == 'X') and digit_count == 9) {
-            if (digit_count < digit_buffer.len) {
-                digit_buffer[digit_count] = 'X';
-                digit_count += 1;
-            }
-            continue;
-        }
-
-        // Skip separators (hyphens, underscores, spaces, dots)
-        if (c == '-' or c == '_' or c == ' ' or c == '.') {
-            continue;
-        }
-
-        // Non-separator, non-digit character - check if we have a complete ISBN
-        if (digit_count == 10 or digit_count == 13) {
-            const isbn = try allocator.dupe(u8, digit_buffer[0..digit_count]);
-            std.log.debug("[ISBN] Found ISBN (mid-string): {s}", .{isbn});
-            return isbn;
-        }
-        digit_count = 0;
+        };
     }
 
-    // Check final sequence
-    if (digit_count == 10 or digit_count == 13) {
-        const isbn = try allocator.dupe(u8, digit_buffer[0..digit_count]);
-        std.log.debug("[ISBN] Found ISBN (at end): {s}", .{isbn});
-        return isbn;
-    }
-
-    std.log.debug("[ISBN] No valid ISBN found (had {d} digits)", .{digit_count});
-    return null;
+    std.log.info("Background library scan completed", .{});
 }
 
 /// Background task to clean up old archived books (typed)
 fn cleanupOldBooks(ctx: *BackgroundTaskContext) void {
-    std.log.debug("🧹 Starting cleanup of old archived books (older than 1 year)", .{});
+    std.log.debug("Starting cleanup of old archived books (older than 1 year)", .{});
 
     // First, check if we have any archived books
     const count_query =

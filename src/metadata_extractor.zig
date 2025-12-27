@@ -51,14 +51,17 @@ pub const MetadataExtractor = struct {
     pub fn extractMetadata(self: *MetadataExtractor, file_path: []const u8) !BookMetadata {
         var metadata = BookMetadata{};
 
+        std.log.debug("Is this failing?", .{});
         // Get file format from extension
         metadata.file_format = try self.getFileFormat(file_path);
 
+        std.log.debug("How about this?", .{});
         // Get file size
         metadata.file_size = try self.getFileSize(file_path);
 
         // Extract from filename/path (works for all formats as fallback)
         try self.extractFromFilename(file_path, &metadata);
+        std.log.debug("Extracted metadata from filename: {}", .{metadata});
 
         // If we have an ISBN and external lookup is enabled, try to enrich with OpenLibrary
         if (self.enable_external_lookup and metadata.isbn != null) {
