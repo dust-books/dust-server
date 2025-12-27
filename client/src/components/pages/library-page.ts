@@ -7,7 +7,7 @@ import { customElement, state } from "lit/decorators.js";
 import { consume } from "@lit/context";
 
 import { appStateContext, AppStateService } from "../../services/app-state.js";
-import { serverManager } from "../../services/server-manager.js";
+import { getBookCoverUrl, serverManager } from "../../services/server-manager.js";
 // Unused import removed
 import type { Book } from "../../types/app.js";
 
