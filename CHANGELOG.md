@@ -1,3 +1,13 @@
+## [0.2.0](https://github.com/dust-books/dust-server/compare/v0.1.5...v0.2.0) (2025-12-27)
+
+### Features
+
+* **background-jobs:** move to arena allocators ([c3e648b](https://github.com/dust-books/dust-server/commit/c3e648bdd57a45fc86f2790de72ec91059ad96b4))
+
+### Code Refactoring
+
+* wire up new scanner ([6b165d7](https://github.com/dust-books/dust-server/commit/6b165d739d82a539abd0fcc3d9c41e2c9ef16e11))
+
 ## [0.1.5](https://github.com/dust-books/dust-server/compare/v0.1.4...v0.1.5) (2025-12-26)
 
 ### Bug Fixes
