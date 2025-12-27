@@ -9,7 +9,7 @@ import { consume } from '@lit/context';
 import { appStateContext, AppStateService } from '../../services/app-state.js';
 import { apiService } from '../../services/api.js';
 import type { Book, ReadingProgress } from '../../types/app.js';
-import { getBookCoverUrl } from '@/services/server-manager.js';
+import { getBookCoverUrl } from '../../services/server-manager.js';
 
 @customElement('completed-reading-page')
 export class CompletedReadingPage extends LitElement {

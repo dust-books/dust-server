@@ -7,7 +7,7 @@ import { customElement, property, state } from 'lit/decorators.js';
 import { consume } from '@lit/context';
 
 import { appStateContext, AppStateService } from '../../services/app-state.js';
-import { getBookCoverUrl } from '@/services/server-manager.js';
+import { getBookCoverUrl } from '../../services/server-manager.js';
 // Unused import removed
 
 interface CurrentlyReadingBook {
