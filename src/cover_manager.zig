@@ -24,7 +24,10 @@ pub const CoverManager = struct {
 
     /// Look for an existing cover image alongside the provided book.
     pub fn findLocalCover(self: *CoverManager, book_path: []const u8) !?[]const u8 {
-        const dir_path = std.fs.path.dirname(book_path) orelse return null;
+        const dir_path = std.fs.path.dirname(book_path) orelse {
+            std.log.warn("findLocalCover: Could not determine directory for book path: {s}", .{book_path});
+            return null;
+        };
 
         const static_candidates = [_][]const u8{
             "cover.jpg",
@@ -48,14 +51,21 @@ pub const CoverManager = struct {
         const dynamic_extensions = [_][]const u8{ ".jpg", ".jpeg", ".png", ".webp" };
 
         for (dynamic_extensions) |ext| {
-            const candidate_name = try std.fmt.allocPrint(self.allocator, "{s}_cover{s}", .{ stem, ext });
-            const maybe_path = try self.candidatePathIfExists(dir_path, candidate_name);
-            self.allocator.free(candidate_name);
+            const candidate_name = std.fmt.allocPrint(self.allocator, "{s}_cover{s}", .{ stem, ext }) catch |err| {
+                std.log.warn("findLocalCover: Error formatting candidate name for '{s}' + '{s}': {} ({s})", .{ stem, ext, err, @errorName(err) });
+                continue;
+            };
+            defer self.allocator.free(candidate_name);
+            const maybe_path = self.candidatePathIfExists(dir_path, candidate_name) catch |err| {
+                std.log.warn("findLocalCover: Error checking dynamic candidate '{s}' in '{s}': {} ({s})", .{ candidate_name, dir_path, err, @errorName(err) });
+                continue;
+            };
             if (maybe_path) |path| {
                 return path;
             }
         }
 
+        std.log.debug("findLocalCover: No cover found for book path: {s}", .{book_path});
         return null;
     }
 

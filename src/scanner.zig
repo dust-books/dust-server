@@ -218,7 +218,7 @@ pub const Scanner = struct {
         std.log.debug("Cover image URL: {s}", .{metadata.cover_image_url orelse "<none>"});
 
         const cover_path = self.cover_manager.ensureCover(path, metadata.cover_image_url) catch |err| blk: {
-            std.log.warn("Failed to resolve cover for {s}: {}", .{ path, err });
+            std.log.warn("Failed to resolve cover for {s}: {} ({s})", .{ path, err, @errorName(err) });
             break :blk null;
         };
         defer if (cover_path) |cp| self.allocator.free(cp);
