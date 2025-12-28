@@ -166,6 +166,7 @@ pub fn getCurrentUser(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Resp
     defer auth_user.deinit(auth_ctx.allocator);
 
     // Fetch full user details from database
+    // TODO: This is way too deep. ctx => server => repo => method call... can we simplify?
     const maybe_user = auth_ctx.auth_service.user_repo.findById(auth_user.user_id) catch {
         res.status = 500;
         try res.json(.{ .message = "Failed to fetch user details" }, .{});
