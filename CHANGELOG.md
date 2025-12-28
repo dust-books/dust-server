@@ -1,3 +1,9 @@
+## [0.3.2](https://github.com/dust-books/dust-server/compare/v0.3.1...v0.3.2) (2025-12-28)
+
+### Bug Fixes
+
+* **cover_manager:** additional logging ([fa37f8e](https://github.com/dust-books/dust-server/commit/fa37f8ef49a0932b000c0ab0154315914a1700ae))
+
 ## [0.3.1](https://github.com/dust-books/dust-server/compare/v0.3.0...v0.3.1) (2025-12-28)
 
 ### Bug Fixes
