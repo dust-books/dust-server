@@ -1,3 +1,9 @@
+## [0.3.1](https://github.com/dust-books/dust-server/compare/v0.3.0...v0.3.1) (2025-12-28)
+
+### Bug Fixes
+
+* **users:** fix memory leak w/r/t oneAlloc ([cd8c896](https://github.com/dust-books/dust-server/commit/cd8c896dcf9f76a7cefdd96a4d32873c250116b2))
+
 ## [0.3.0](https://github.com/dust-books/dust-server/compare/v0.2.0...v0.3.0) (2025-12-27)
 
 ### Features
