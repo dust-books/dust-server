@@ -1,3 +1,9 @@
+## [0.3.4](https://github.com/dust-books/dust-server/compare/v0.3.3...v0.3.4) (2025-12-29)
+
+### Bug Fixes
+
+* **cover_manager:** pass flags for accessing cover path ([470847d](https://github.com/dust-books/dust-server/commit/470847d03cb744d4537e859375b70ba05b1a6054))
+
 ## [0.3.3](https://github.com/dust-books/dust-server/compare/v0.3.2...v0.3.3) (2025-12-29)
 
 ### Bug Fixes
