@@ -1,3 +1,9 @@
+## [0.3.3](https://github.com/dust-books/dust-server/compare/v0.3.2...v0.3.3) (2025-12-29)
+
+### Bug Fixes
+
+* **cover:** logging and debug-first releases ([5b732a3](https://github.com/dust-books/dust-server/commit/5b732a360cbd9553acee3fd11edfb96089f77c37))
+
 ## [0.3.2](https://github.com/dust-books/dust-server/compare/v0.3.1...v0.3.2) (2025-12-28)
 
 ### Bug Fixes
