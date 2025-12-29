@@ -84,7 +84,7 @@ pub const CoverManager = struct {
     fn pathExists(_: *CoverManager, absolute_or_relative_path: []const u8) !bool {
         std.log.info("Checking if path exists: {s}", .{absolute_or_relative_path});
         if (std.fs.path.isAbsolute(absolute_or_relative_path)) {
-            std.fs.accessAbsolute(absolute_or_relative_path, .{}) catch |err| {
+            std.fs.accessAbsolute(absolute_or_relative_path, .{ .mode = .read_write }) catch |err| {
                 return switch (err) {
                     error.FileNotFound => false,
                     else => err,
@@ -93,7 +93,7 @@ pub const CoverManager = struct {
             return true;
         }
 
-        std.fs.cwd().access(absolute_or_relative_path, .{}) catch |err| {
+        std.fs.cwd().access(absolute_or_relative_path, .{ .mode = .read_write }) catch |err| {
             return switch (err) {
                 error.FileNotFound => false,
                 else => err,
