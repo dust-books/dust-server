@@ -40,7 +40,7 @@ jobs:
           mkdir -p dist
           
           # Build for Linux x86_64 (with bundled SQLite)
-          zig build -Doptimize=ReleaseSafe -Dtarget=x86_64-linux-musl
+          zig build -Doptimize=Debug -Dtarget=x86_64-linux-musl
           mkdir -p package
           cp zig-out/bin/dust-server package/
           find .zig-cache -name "libsqlite.so" -type f -exec cp {} package/ \; 2>/dev/null || true
@@ -48,7 +48,7 @@ jobs:
           rm -rf package
           
           # Build for Linux aarch64 (with bundled SQLite)
-          zig build -Doptimize=ReleaseSafe -Dtarget=aarch64-linux-musl
+          zig build -Doptimize=Debug -Dtarget=aarch64-linux-musl
           mkdir -p package
           cp zig-out/bin/dust-server package/
           find .zig-cache -name "libsqlite.so" -type f -exec cp {} package/ \; 2>/dev/null || true
@@ -56,7 +56,7 @@ jobs:
           rm -rf package
           
           # Build for macOS x86_64
-          zig build -Doptimize=ReleaseSafe -Dtarget=x86_64-macos
+          zig build -Doptimize=Debug -Dtarget=x86_64-macos
           mkdir -p package
           cp zig-out/bin/dust-server package/
           find .zig-cache -name "libsqlite.dylib" -o -name "libsqlite.so" -type f -exec cp {} package/ \; 2>/dev/null || true
@@ -64,7 +64,7 @@ jobs:
           rm -rf package
           
           # Build for macOS aarch64 (Apple Silicon)
-          zig build -Doptimize=ReleaseSafe -Dtarget=aarch64-macos
+          zig build -Doptimize=Debug -Dtarget=aarch64-macos
           mkdir -p package
           cp zig-out/bin/dust-server package/
           find .zig-cache -name "libsqlite.dylib" -o -name "libsqlite.so" -type f -exec cp {} package/ \; 2>/dev/null || true

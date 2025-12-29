@@ -15,6 +15,9 @@ pub const CoverManager = struct {
             return existing;
         }
 
+        // TODO: once the cover manager work is sorted out, let's swapped this over to debug
+        std.log.warn("Unable to find local cover for {s}", .{book_path});
+
         if (download_url) |url| {
             return self.downloadCover(book_path, url);
         }
@@ -79,6 +82,7 @@ pub const CoverManager = struct {
     }
 
     fn pathExists(_: *CoverManager, absolute_or_relative_path: []const u8) !bool {
+        std.log.info("Checking if path exists: {s}", .{absolute_or_relative_path});
         if (std.fs.path.isAbsolute(absolute_or_relative_path)) {
             std.fs.accessAbsolute(absolute_or_relative_path, .{}) catch |err| {
                 return switch (err) {
