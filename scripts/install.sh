@@ -375,11 +375,11 @@ create_systemd_service() {
     
     # Read media directories from env file
     local media_dirs=$(grep "^DUST_DIRS=" "$INSTALL_DIR/.env" | cut -d'=' -f2)
-    local readonly_paths=""
+    local dust_media_path=""
     
     # Convert colon-separated dirs to space-separated for ReadOnlyPaths
     if [ -n "$media_dirs" ]; then
-        readonly_paths=$(echo "$media_dirs" | tr ':' ' ')
+        dust_media_path=$(echo "$media_dirs" | tr ':' ' ')
     fi
     
     cat > "$service_file" <<EOF
@@ -402,10 +402,7 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=$INSTALL_DIR/data
-
-# Allow access to media directories
-ReadOnlyPaths=$readonly_paths
+ReadWritePaths=$INSTALL_DIR/data $dust_media_path
 
 # Restart configuration
 Restart=on-failure
