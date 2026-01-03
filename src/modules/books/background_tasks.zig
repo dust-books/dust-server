@@ -181,6 +181,9 @@ pub fn createBackgroundTimerManager(allocator: std.mem.Allocator, db: *sqlite.Db
     const cleanup_interval_minutes = std.fmt.parseInt(u32, cleanup_interval_env, 10) catch 60;
     const cleanup_interval_ms = cleanup_interval_minutes * 60 * 1000;
 
+    // Kick off initial scan when booting up the server
+    scanLibraryDirectories(scan_ctx);
+
     // Run library scan every N minutes
     try mgr.registerTimer(scanLibraryDirectories, scan_ctx, scan_interval_ms, cleanupBackgroundContext);
 
