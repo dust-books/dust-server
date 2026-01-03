@@ -9,7 +9,7 @@ import { consume } from "@lit/context";
 import type { Book, ReadingProgress } from "../../types/app.js";
 import { appStateContext, AppStateService } from "../../services/app-state.js";
 import { EpubReaderService } from "../../services/epub-reader.js";
-import { serverManager } from "../../services/server-manager.js";
+import { getBookCoverUrl, serverManager } from "../../services/server-manager.js";
 
 type ReaderType = "epub" | "pdf";
 type Theme = "light" | "dark" | "sepia";
@@ -1104,7 +1104,7 @@ export class ReaderPage extends LitElement {
       ${this.book.cover_image_url || this.book.cover_image_path
         ? html`
             <img
-              src="${this.book.cover_image_url || this.book.cover_image_path}"
+              src="${getBookCoverUrl(this.book)}"
               alt="${this.book.name}"
               class="book-cover-large"
             />

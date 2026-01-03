@@ -1,5 +1,6 @@
 /**
  * Utility to get the full cover image URL for a book object
+ * TODO: This should be handled by the server and not something the client is responsible for.
  */
 export function getBookCoverUrl(book: { cover_image_path?: string; cover_image_url?: string }): string | null {
   const server = serverManager.getActiveServer();
