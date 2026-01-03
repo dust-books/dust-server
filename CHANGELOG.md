@@ -1,3 +1,9 @@
+## [0.3.5](https://github.com/dust-books/dust-server/compare/v0.3.4...v0.3.5) (2026-01-03)
+
+### Bug Fixes
+
+* **background_task:** Kick off scan on boot, fixes [#19](https://github.com/dust-books/dust-server/issues/19) ([77c56b8](https://github.com/dust-books/dust-server/commit/77c56b82d953b3013e71712828e3c1b6e6f61a15))
+
 ## [0.3.4](https://github.com/dust-books/dust-server/compare/v0.3.3...v0.3.4) (2025-12-29)
 
 ### Bug Fixes
