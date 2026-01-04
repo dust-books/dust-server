@@ -1,3 +1,9 @@
+## [0.3.7](https://github.com/dust-books/dust-server/compare/v0.3.6...v0.3.7) (2026-01-04)
+
+### Bug Fixes
+
+* **db:** serialize threading mode for now ([83914bc](https://github.com/dust-books/dust-server/commit/83914bcf52f6c95666d7446454fc6859b4f4e613))
+
 ## [0.3.6](https://github.com/dust-books/dust-server/compare/v0.3.5...v0.3.6) (2026-01-04)
 
 ### Bug Fixes
