@@ -1,3 +1,9 @@
+## [0.3.8](https://github.com/dust-books/dust-server/compare/v0.3.7...v0.3.8) (2026-01-04)
+
+### Bug Fixes
+
+* **dates:** format dates using strftime ([07f765c](https://github.com/dust-books/dust-server/commit/07f765ca038a969d0c4b889c7cf133872d1a399c))
+
 ## [0.3.7](https://github.com/dust-books/dust-server/compare/v0.3.6...v0.3.7) (2026-01-04)
 
 ### Bug Fixes
