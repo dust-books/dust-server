@@ -14,13 +14,17 @@ pub const Database = struct {
         const path_z = try allocator.dupeZ(u8, path);
         defer allocator.free(path_z);
 
+        // Use Serialized mode for thread-safety when sharing a single connection
+        // across multiple HTTP worker threads. SQLite will handle all internal
+        // locking automatically. For better performance, consider implementing
+        // a connection pool where each thread has its own connection.
         const db = try sqlite.Db.init(.{
             .mode = .{ .File = path_z },
             .open_flags = .{
                 .write = true,
                 .create = true,
             },
-            .threading_mode = .MultiThread,
+            .threading_mode = .Serialized,
         });
 
         return Database{
