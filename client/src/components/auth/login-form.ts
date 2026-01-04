@@ -34,6 +34,9 @@ export class LoginForm extends LitElement {
   private errors: Record<string, string> = {};
 
   @state()
+  private generalError: string = "";
+
+  @state()
   private serverState: MultiServerState = {
     servers: [],
     activeServerId: null,
@@ -127,6 +130,24 @@ export class LoginForm extends LitElement {
       color: var(--error-color);
       font-size: 0.875rem;
       margin-top: 0.25rem;
+    }
+
+    .general-error {
+      background: rgba(239, 68, 68, 0.1);
+      border: 1px solid var(--error-color);
+      border-radius: 6px;
+      padding: 0.75rem;
+      margin-bottom: 1rem;
+      color: var(--error-color);
+      font-size: 0.9rem;
+      display: flex;
+      align-items: flex-start;
+      gap: 0.5rem;
+    }
+
+    .general-error-icon {
+      flex-shrink: 0;
+      margin-top: 0.1rem;
     }
 
     .submit-button {
@@ -226,6 +247,7 @@ export class LoginForm extends LitElement {
   private handleTabSwitch(isLogin: boolean) {
     this.isLogin = isLogin;
     this.errors = {};
+    this.generalError = "";
     this.formData = {
       email: "",
       password: "",
@@ -239,6 +261,10 @@ export class LoginForm extends LitElement {
     // Clear error when user starts typing
     if (this.errors[field]) {
       this.errors = { ...this.errors, [field]: "" };
+    }
+    // Clear general error when user starts typing
+    if (this.generalError) {
+      this.generalError = "";
     }
   }
 
@@ -281,6 +307,7 @@ export class LoginForm extends LitElement {
     }
 
     this.isLoading = true;
+    this.generalError = ""; // Clear any previous general errors
 
     try {
       if (this.isLogin) {
@@ -299,7 +326,14 @@ export class LoginForm extends LitElement {
         this.handleTabSwitch(true);
       }
     } catch (error) {
-      // Error handling is done in the app state service
+      // Display error message in the form
+      if (error instanceof Error) {
+        this.generalError = error.message;
+      } else {
+        this.generalError = this.isLogin 
+          ? "Login failed. Please check your credentials and try again."
+          : "Registration failed. Please try again.";
+      }
       console.error("Authentication error:", error);
     } finally {
       this.isLoading = false;
@@ -343,6 +377,13 @@ export class LoginForm extends LitElement {
             Register
           </button>
         </div>
+
+        ${this.generalError ? html`
+          <div class="general-error">
+            <span class="general-error-icon">⚠️</span>
+            <span>${this.generalError}</span>
+          </div>
+        ` : ''}
 
         <form @submit=${this.handleSubmit}>
           ${!this.isLogin
