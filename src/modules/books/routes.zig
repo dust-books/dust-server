@@ -661,7 +661,8 @@ pub fn getCurrentlyReading(
         \\SELECT b.id, b.name, b.file_format, b.isbn,
         \\       b.description, b.page_count, b.file_size, b.status,
         \\       a.id as author_id, a.name as author_name,
-        \\       rp.current_page, rp.total_pages, rp.percentage_complete, rp.last_read_at
+        \\       rp.current_page, rp.total_pages, rp.percentage_complete,
+        \\       strftime('%Y-%m-%dT%H:%M:%SZ', rp.last_read_at) as last_read_at
         \\FROM books b
         \\INNER JOIN reading_progress rp ON b.id = rp.book_id
         \\INNER JOIN authors a ON b.author = a.id
@@ -755,7 +756,8 @@ pub fn getCompletedReading(
         \\SELECT b.id, b.name, b.file_format, b.isbn,
         \\       b.description, b.page_count, b.file_size, b.status,
         \\       a.id as author_id, a.name as author_name,
-        \\       rp.current_page, rp.total_pages, rp.percentage_complete, rp.last_read_at
+        \\       rp.current_page, rp.total_pages, rp.percentage_complete,
+        \\       strftime('%Y-%m-%dT%H:%M:%SZ', rp.last_read_at) as last_read_at
         \\FROM books b
         \\INNER JOIN reading_progress rp ON b.id = rp.book_id
         \\INNER JOIN authors a ON b.author = a.id

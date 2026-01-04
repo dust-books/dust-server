@@ -416,7 +416,8 @@ fn booksGetProgress(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Respon
 
     // Query reading progress
     const query =
-        \\SELECT current_page, total_pages, percentage_complete, last_read_at 
+        \\SELECT current_page, total_pages, percentage_complete,
+        \\       strftime('%Y-%m-%dT%H:%M:%SZ', last_read_at) as last_read_at
         \\FROM reading_progress 
         \\WHERE user_id = ? AND book_id = ?
     ;
