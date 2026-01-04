@@ -1,3 +1,9 @@
+## [0.3.6](https://github.com/dust-books/dust-server/compare/v0.3.5...v0.3.6) (2026-01-04)
+
+### Bug Fixes
+
+* **logging:** better logging ([1f07dc6](https://github.com/dust-books/dust-server/commit/1f07dc6021cf9e43536680cc8aeed4b06c5eab00))
+
 ## [0.3.5](https://github.com/dust-books/dust-server/compare/v0.3.4...v0.3.5) (2026-01-03)
 
 ### Bug Fixes
