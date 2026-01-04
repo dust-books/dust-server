@@ -1,3 +1,9 @@
+## [0.3.9](https://github.com/dust-books/dust-server/compare/v0.3.8...v0.3.9) (2026-01-04)
+
+### Bug Fixes
+
+* **currently-reading:** adjust percentages by *100 ([857ad11](https://github.com/dust-books/dust-server/commit/857ad114dbf3a0bad631381671942c6d1589b316))
+
 ## [0.3.8](https://github.com/dust-books/dust-server/compare/v0.3.7...v0.3.8) (2026-01-04)
 
 ### Bug Fixes
