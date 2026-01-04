@@ -416,7 +416,8 @@ fn booksGetProgress(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Respon
 
     // Query reading progress
     const query =
-        \\SELECT current_page, total_pages, percentage_complete,
+        \\SELECT current_page, total_pages,
+        \\       percentage_complete * 100.0 as percentage_complete,
         \\       strftime('%Y-%m-%dT%H:%M:%SZ', last_read_at) as last_read_at
         \\FROM reading_progress 
         \\WHERE user_id = ? AND book_id = ?
@@ -505,11 +506,13 @@ fn booksUpdateProgress(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Res
 
     const db = ctx.db;
 
-    // Use provided percentage or calculate it
+    // Calculate percentage as a fraction (0-1 range) for database storage
+    // Client may send percentage in 0-100 or 0-1 range, normalize to 0-1
     const percentage: f64 = if (data.percentage_complete) |pct|
-        pct
+        // If percentage is > 1, assume it's in 0-100 range and convert to 0-1
+        if (pct > 1.0) pct / 100.0 else pct
     else if (data.total_pages) |total|
-        if (total > 0) @as(f64, @floatFromInt(current_page)) / @as(f64, @floatFromInt(total)) * 100.0 else 0.0
+        if (total > 0) @as(f64, @floatFromInt(current_page)) / @as(f64, @floatFromInt(total)) else 0.0
     else
         0.0;
 
@@ -533,7 +536,7 @@ fn booksUpdateProgress(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Res
         .progress = .{
             .current_page = current_page,
             .total_pages = data.total_pages,
-            .percentage_complete = percentage,
+            .percentage_complete = percentage * 100.0, // Return in 0-100 range for client
         },
     }, .{});
 }
