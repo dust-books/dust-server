@@ -208,7 +208,11 @@ pub const DustServer = struct {
     /// Thread function to run the HTTP server
     fn listenThread(server: *httpz.Server(*ServerContext)) void {
         server.listen() catch |err| {
-            std.log.err("Server error: {}\n", .{err});
+            std.log.err("FATAL: Server crashed with error: {} ({s})", .{ err, @errorName(err) });
+            if (@errorReturnTrace()) |trace| {
+                std.log.err("Error stack trace:", .{});
+                std.debug.dumpStackTrace(trace.*);
+            }
         };
     }
 };
@@ -251,12 +255,18 @@ fn health(_: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
 // Book route handlers
 fn booksList(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
     logging.logRequest(req);
-    try book_routes.listBooks(ctx.book_repo, ctx.author_repo, req, res);
+    book_routes.listBooks(ctx.book_repo, ctx.author_repo, req, res) catch |err| {
+        std.log.err("Failed to list books: {} ({s})", .{ err, @errorName(err) });
+        return err;
+    };
 }
 
 fn booksGet(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
     logging.logRequest(req);
-    try book_routes.getBook(ctx.book_repo, ctx.author_repo, ctx.tag_repo, req, res);
+    book_routes.getBook(ctx.book_repo, ctx.author_repo, ctx.tag_repo, req, res) catch |err| {
+        std.log.err("Failed to get book (id={?s}): {} ({s})", .{ req.param("id"), err, @errorName(err) });
+        return err;
+    };
 }
 
 fn booksStream(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
@@ -602,7 +612,10 @@ fn booksCover(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !v
         try res.json(.{ .@"error" = "Invalid book ID" }, .{});
         return;
     };
-    try book_routes.getCover(&ctx.db.db, book_id, req, res);
+    book_routes.getCover(&ctx.db.db, book_id, req, res) catch |err| {
+        std.log.err("Failed to get cover for book {}: {} ({s})", .{ book_id, err, @errorName(err) });
+        return err;
+    };
 }
 
 // CORS preflight handler for OPTIONS requests

@@ -15,7 +15,6 @@ pub const CoverManager = struct {
             return existing;
         }
 
-        // TODO: once the cover manager work is sorted out, let's swapped this over to debug
         std.log.debug("Unable to find local cover for {s}", .{book_path});
 
         if (download_url) |url| {

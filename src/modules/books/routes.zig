@@ -855,25 +855,38 @@ pub fn getCover(
     };
 
     var cover_manager = @import("../../cover_manager.zig").CoverManager.init(allocator);
+    std.log.debug("Looking for cover for book {d} at path: {s}", .{ book_id, book.file_path });
     const cover_path = cover_manager.findLocalCover(book.file_path) catch |err| blk: {
-        std.log.warn("Failed to locate cover for {s}: {}", .{ book.file_path, err });
+        std.log.warn("Failed to locate cover for book {d} ({s}): {} ({s})", .{ book_id, book.file_path, err, @errorName(err) });
         break :blk null;
     };
     if (cover_path) |path| {
+        std.log.debug("Found cover for book {d}: {s} (absolute: {})", .{ book_id, path, std.fs.path.isAbsolute(path) });
         // Guess content type from extension
         const ext = std.fs.path.extension(path);
         const content_type = if (std.ascii.eqlIgnoreCase(ext, ".png")) "image/png" else if (std.ascii.eqlIgnoreCase(ext, ".webp")) "image/webp" else if (std.ascii.eqlIgnoreCase(ext, ".jpeg")) "image/jpeg" else "image/jpeg";
         res.header("Content-Type", content_type);
         // Read file and send
-        const file = try std.fs.openFileAbsolute(path, .{});
+        const file = if (std.fs.path.isAbsolute(path))
+            std.fs.openFileAbsolute(path, .{}) catch |err| {
+                std.log.err("Failed to open absolute cover path '{s}' for book {d}: {} ({s})", .{ path, book_id, err, @errorName(err) });
+                return err;
+            }
+        else
+            std.fs.cwd().openFile(path, .{}) catch |err| {
+                std.log.err("Failed to open relative cover path '{s}' for book {d}: {} ({s})", .{ path, book_id, err, @errorName(err) });
+                return err;
+            };
         defer file.close();
         const stat = try file.stat();
         const bytes = try allocator.alloc(u8, stat.size);
         _ = try file.readAll(bytes);
+        std.log.debug("Successfully served cover for book {d} ({d} bytes)", .{ book_id, bytes.len });
         res.status = 200;
         res.body = bytes;
         return;
     } else {
+        std.log.info("No cover found for book {d} ({s})", .{ book_id, book.file_path });
         res.status = 404;
         try res.json(.{ .@"error" = "Cover not found" }, .{});
         return;
