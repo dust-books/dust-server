@@ -112,7 +112,9 @@ pub const Scanner = struct {
             }
         }
 
-        std.log.info("Library scan complete: {any}", .{result});
+        std.log.info(
+            \\ Library Scan Complete: Books Found - {d}, Books Added - {d}, Books Updated - {d}, Errors - {d}, Scan Paths - {s}
+        , .{ result.books_found, result.books_added, result.books_updated, result.errors, result.scan_path });
         return result;
     }
 

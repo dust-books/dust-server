@@ -109,23 +109,23 @@ pub const AuthService = struct {
     /// Login a user and return the user if credentials are valid
     pub fn login(self: *AuthService, email: []const u8, password: []const u8) !?User {
         // Find user by email
-        std.log.debug("Login attempt for: {s}\n", .{email});
+        std.log.debug("Login attempt for: {s}", .{email});
         const maybe_user = try self.user_repo.findByEmail(email);
         if (maybe_user == null) {
-            std.log.warn("❌ User not found\n", .{});
+            std.log.warn("❌ User not found", .{});
             return null;
         }
 
         var user = maybe_user.?;
         errdefer user.deinit(self.allocator);
 
-        std.log.debug("User found: id={d}\n", .{user.id});
-        std.log.debug("Password provided length: {d}\n", .{password.len});
-        std.log.debug("Hash length: {d}\n", .{user.password_hash.len});
+        std.log.debug("User found: id={d}", .{user.id});
+        std.log.debug("Password provided length: {d}", .{password.len});
+        std.log.debug("Hash length: {d}", .{user.password_hash.len});
 
         // Verify password
         const valid = try self.verifyPassword(password, user.password_hash);
-        std.log.debug("Password valid: {}\n", .{valid});
+        std.log.debug("Password valid: {}", .{valid});
         if (!valid) {
             user.deinit(self.allocator);
             return null;

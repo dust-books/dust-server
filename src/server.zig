@@ -190,7 +190,7 @@ pub const DustServer = struct {
     pub fn listen(self: *DustServer) !void {
         try self.setupRoutes();
 
-        std.log.info("🚀 Dust is bookin' it on port {}\n", .{self.httpz_server.config.port.?});
+        std.log.info("🚀 Dust is bookin' it on port {}", .{self.httpz_server.config.port.?});
 
         // Start server in a separate thread
         const thread = try std.Thread.spawn(.{}, listenThread, .{&self.httpz_server});
