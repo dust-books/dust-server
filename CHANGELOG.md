@@ -1,3 +1,9 @@
+## [0.3.10](https://github.com/dust-books/dust-server/compare/v0.3.9...v0.3.10) (2026-01-05)
+
+### Bug Fixes
+
+* **logging:** standardize by removing ending newlines from log lines ([6370857](https://github.com/dust-books/dust-server/commit/6370857b4ddcdbf722161fdb98b0e542e3dade08))
+
 ## [0.3.9](https://github.com/dust-books/dust-server/compare/v0.3.8...v0.3.9) (2026-01-04)
 
 ### Bug Fixes

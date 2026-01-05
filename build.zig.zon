@@ -1,6 +1,6 @@
 .{
     .name = .dustserver,
-    .version = "0.3.9",
+    .version = "0.3.10",
     .fingerprint = 0x50e55cf81393de71,
     .minimum_zig_version = "0.15.2",
 
