@@ -1,3 +1,9 @@
+## [0.4.0](https://github.com/dust-books/dust-server/compare/v0.3.10...v0.4.0) (2026-01-05)
+
+### Features
+
+* **client:** ship with a bundled client ([8bf4297](https://github.com/dust-books/dust-server/commit/8bf4297ac00d84123edffbd466db3c73ab0b6de6))
+
 ## [0.3.10](https://github.com/dust-books/dust-server/compare/v0.3.9...v0.3.10) (2026-01-05)
 
 ### Bug Fixes
