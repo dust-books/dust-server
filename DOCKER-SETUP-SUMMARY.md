@@ -22,7 +22,7 @@ cd dust
 # Create environment file with required settings
 cat > .env << EOF
 JWT_SECRET=$(openssl rand -base64 32)
-dirs=/app/books
+DUST_DIRS=/app/books
 PORT=4001
 DATABASE_URL=file:/app/data/dust.db
 EOF
@@ -56,7 +56,7 @@ open http://localhost:4001
 | Variable | Status | Description | Example |
 |----------|--------|-------------|---------|
 | `JWT_SECRET` | **REQUIRED** | Secret for JWT authentication | `$(openssl rand -base64 32)` |
-| `dirs` | **REQUIRED** | Book directories to scan | `/app/books` |
+| `DUST_DIRS` | **REQUIRED** | Book directories to scan (colon-separated) | `/app/books:/app/comics` |
 | `PORT` | Optional | Server port | `4001` |
 | `DATABASE_URL` | Optional | Database location | `file:/app/data/dust.db` |
 | `GOOGLE_BOOKS_API_KEY` | Optional | Metadata enrichment | `your-api-key` |
@@ -209,7 +209,7 @@ When everything is working correctly, you should see:
 
 - **JWT_SECRET**: Keep this secret secure and use a strong random value
 - **Book mounts**: Use read-only mounts (`:ro`) for book directories
-- **User context**: Container runs as non-root `deno` user
+- **User context**: Container runs as non-root `dustapp` user
 - **Database isolation**: App data is contained in `/app/data`
 - **Environment variables**: Use `.env` file for sensitive config
 

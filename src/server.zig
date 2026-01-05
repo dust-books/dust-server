@@ -17,6 +17,7 @@ const admin_users = @import("modules/users/routes/admin_users.zig");
 const admin_routes = @import("modules/admin/routes.zig");
 const book_routes = @import("modules/books/routes.zig");
 const logging = @import("middleware/logging.zig");
+const StaticFileServer = @import("static_files.zig").StaticFileServer;
 
 pub const DustServer = struct {
     /// The underlying HTTP server
@@ -35,6 +36,8 @@ pub const DustServer = struct {
     author_repo: *AuthorRepository,
     /// Tag repository for database access
     tag_repo: *TagRepository,
+    /// Static file server for client files
+    static_server: StaticFileServer,
     /// Atomic flag to signal server shutdown
     should_shutdown: *std.atomic.Value(bool),
 
@@ -62,6 +65,10 @@ pub const DustServer = struct {
         const tag_repo = try allocator.create(TagRepository);
         tag_repo.* = TagRepository.init(&db.db, allocator);
 
+        // Initialize static file server
+        const static_server = try allocator.create(StaticFileServer);
+        static_server.* = StaticFileServer.init(allocator, "client/dist");
+
         const context_ptr = try allocator.create(ServerContext);
         context_ptr.* = ServerContext{
             .auth_context = AuthContext{
@@ -76,6 +83,7 @@ pub const DustServer = struct {
             .author_repo = author_repo,
             .tag_repo = tag_repo,
             .library_directories = library_directories,
+            .static_server = static_server,
         };
 
         const httpz_server = try httpz.Server(*ServerContext).init(allocator, .{
@@ -92,6 +100,7 @@ pub const DustServer = struct {
             .book_repo = book_repo,
             .author_repo = author_repo,
             .tag_repo = tag_repo,
+            .static_server = StaticFileServer.init(allocator, "client/dist"),
             .should_shutdown = should_shutdown,
         };
     }
@@ -100,6 +109,9 @@ pub const DustServer = struct {
     pub fn deinit(self: *DustServer) void {
         // Clean up httpz server first
         self.httpz_server.deinit();
+
+        // Clean up static server
+        self.allocator.destroy(self.context_ptr.static_server);
 
         // Clean up services
         self.permission_service.deinit();
@@ -131,10 +143,7 @@ pub const DustServer = struct {
 
         var router = try self.httpz_server.router(.{ .middlewares = &.{cors_middleware} });
 
-        // Root endpoint - fun Giphy embed
-        router.get("/", index, .{});
-
-        // Health check endpoint
+        // Health check endpoint (before catch-all)
         router.get("/health", health, .{});
 
         // Auth endpoints
@@ -218,29 +227,6 @@ pub const DustServer = struct {
 };
 
 // Route handlers
-fn index(_: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
-    logging.logRequest(req);
-    res.status = 200;
-    res.header("content-type", "text/html");
-    res.body =
-        \\<!DOCTYPE html>
-        \\<html lang="en">
-        \\<head>
-        \\  <meta charset="UTF-8">
-        \\  <title>Dust Server</title>
-        \\</head>
-        \\<body>
-        \\  <iframe src="https://giphy.com/embed/2wKbtCMHTVoOY" 
-        \\          width="480" height="480" 
-        \\          frameBorder="0" 
-        \\          class="giphy-embed" 
-        \\          allowFullScreen>
-        \\  </iframe>
-        \\</body>
-        \\</html>
-    ;
-}
-
 /// Health check handler
 fn health(_: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
     logging.logRequest(req);

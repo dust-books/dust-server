@@ -24,6 +24,9 @@ COPY build.zig build.zig.zon ./
 # Copy source code
 COPY src ./src
 
+# Copy client files
+COPY client/dist ./client/dist
+
 # Build the application in release mode
 RUN zig build -Doptimize=ReleaseSafe
 
@@ -44,6 +47,9 @@ WORKDIR /app
 
 # Copy binary from builder
 COPY --from=builder /app/zig-out/bin/dust-server /app/dust-server
+
+# Copy client files from builder
+COPY --from=builder /app/client/dist /app/client/dist
 
 # Create directory for SQLite database
 RUN mkdir -p /app/data && chown -R dustapp:dustapp /app/data

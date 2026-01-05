@@ -54,6 +54,10 @@ export DUST_DIRS="/path/to/books:/another/path"
 | `CLEANUP_INTERVAL_MINUTES` | No | `60` | How often to cleanup old books (in minutes) |
 | `GOOGLE_BOOKS_API_KEY` | No | - | Google Books API key for metadata |
 
+**Web Interface:**
+
+The official Dust web client is now bundled with the server and automatically served at `http://localhost:4001/`. No separate client installation needed!
+
 **Example `.env` file:**
 ```bash
 JWT_SECRET=your-secure-random-string

@@ -8,6 +8,7 @@ const Database = @import("database.zig").Database;
 const BookRepository = @import("modules/books/model.zig").BookRepository;
 const AuthorRepository = @import("modules/books/model.zig").AuthorRepository;
 const TagRepository = @import("modules/books/model.zig").TagRepository;
+const StaticFileServer = @import("static_files.zig").StaticFileServer;
 
 /// Context specific to authentication behaviors
 pub const AuthContext = struct {
@@ -26,11 +27,16 @@ pub const ServerContext = struct {
     author_repo: *AuthorRepository,
     tag_repo: *TagRepository,
     library_directories: []const []const u8,
+    static_server: *const StaticFileServer,
 
-    pub fn notFound(_: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
-        std.log.debug("404 Not Found: {s}", .{req.url.path});
-        res.status = 404;
-        res.body = "Not Found";
+    pub fn notFound(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
+        // Try to serve as static file first
+        ctx.static_server.serve(req, res) catch {
+            // If static file serving fails, return 404
+            std.log.debug("404 Not Found: {s}", .{req.url.path});
+            res.status = 404;
+            res.body = "Not Found";
+        };
     }
 
     pub fn uncaughtError(_: *ServerContext, req: *httpz.Request, res: *httpz.Response, err: anyerror) void {

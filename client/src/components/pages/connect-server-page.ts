@@ -119,6 +119,27 @@ export class ConnectServerPage extends LitElement {
       font-size: 0.8rem;
       color: var(--text-light);
       margin-top: 0.25rem;
+      line-height: 1.4;
+    }
+
+    .privacy-notice {
+      background: var(--surface-hover-color);
+      border-left: 3px solid var(--primary-color);
+      padding: 1rem;
+      border-radius: 6px;
+      margin-bottom: 1.5rem;
+      font-size: 0.85rem;
+      color: var(--text-light);
+      line-height: 1.5;
+    }
+
+    .privacy-notice-title {
+      font-weight: 600;
+      color: var(--text-color);
+      margin-bottom: 0.5rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
     }
 
     .error-message {
@@ -575,7 +596,7 @@ export class ConnectServerPage extends LitElement {
           ?disabled=${this.isConnecting}
         />
         <div class="help-text">
-          The full URL where your Dust server is running
+          The full URL where your Dust server is running. If connecting to a non-remote server, this will be localhost. This client can be used to connect to local and remote servers.
         </div>
       </div>
 
@@ -609,6 +630,20 @@ export class ConnectServerPage extends LitElement {
         Successfully connected to ${this.connectionResult?.server?.name}! 
         ${this.authMode === "login" ? "Sign in with your account" : "Create a new account"}.
       </div>
+
+      ${this.authMode === "register" ? html`
+        <div class="privacy-notice">
+          <div class="privacy-notice-title">
+            🔒 Your Data Privacy
+          </div>
+          <div>
+            Your account information (email and password) is stored <strong>only on the Dust server you're connecting to</strong>. 
+            No information is sent to any remote server or centralized service. 
+            There is no centralized user portal—Dust is completely self-hosted and private. 
+            We don't want your data, and we'll never have access to it.
+          </div>
+        </div>
+      ` : ''}
 
       <div class="auth-tabs">
         <button 

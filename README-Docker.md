@@ -25,8 +25,8 @@ Set up a `.env` file or export these variables:
 # REQUIRED - JWT secret for authentication
 JWT_SECRET=your-secure-random-string-here
 
-# REQUIRED - Directories to scan for books (comma-separated)
-dirs=/app/books
+# REQUIRED - Directories to scan for books (colon-separated, NOT comma-separated)
+DUST_DIRS=/app/books
 
 # OPTIONAL - Server port (default: 4001)
 PORT=4001
@@ -51,7 +51,7 @@ cd dust
 # Create .env file with required variables
 cat > .env << EOF
 JWT_SECRET=$(openssl rand -base64 32)
-dirs=/app/books
+DUST_DIRS=/app/books
 PORT=4001
 DATABASE_URL=file:/app/data/dust.db
 # GOOGLE_BOOKS_API_KEY=your-api-key-here
@@ -110,7 +110,7 @@ docker run -d \
   --name dust-server \
   -p 4001:4001 \
   -e JWT_SECRET="$JWT_SECRET" \
-  -e dirs="/app/books" \
+  -e DUST_DIRS="/app/books" \
   -v "$BOOK_DIRS":/app/books:ro \
   -v dust_data:/app/data \
   dust-server:latest
@@ -120,7 +120,7 @@ docker run -d \
   --name dust-server \
   -p 4001:4001 \
   -e JWT_SECRET="$JWT_SECRET" \
-  -e dirs="/app/books,/app/comics" \
+  -e DUST_DIRS="/app/books:/app/comics" \
   -e PORT=4001 \
   -e DATABASE_URL="file:/app/data/dust.db" \
   -e GOOGLE_BOOKS_API_KEY="$GOOGLE_BOOKS_API_KEY" \
@@ -138,7 +138,7 @@ docker run -d \
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
 | `JWT_SECRET` | **YES** | none | Secret key for JWT token signing. **Server will not start without this!** |
-| `dirs` | **YES** | `[]` | Comma-separated list of directories to scan for books/comics |
+| `DUST_DIRS` | **YES** | `""` | Colon-separated list of directories to scan for books/comics (e.g., `/app/books:/app/comics`) |
 | `PORT` | No | `4001` | Port number for the server |
 | `DATABASE_URL` | No | `file:dust.db` | Database connection string (SQLite) |
 | `GOOGLE_BOOKS_API_KEY` | No | none | Google Books API key for enhanced metadata |
@@ -318,7 +318,7 @@ docker build -t dust-server:latest .
 
 ## Security Notes
 
-- The container runs as the `deno` user (non-root)
+- The container runs as the `dustapp` user (non-root)
 - Book directories are mounted read-only by default
 - Database and application data are isolated in `/app/data`
 - Use environment variables for sensitive configuration like API keys
