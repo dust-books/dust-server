@@ -68,7 +68,7 @@ pub const StaticFileServer = struct {
         defer file.close();
 
         const stat = try file.stat();
-        const content = try file.readToEndAlloc(self.allocator, stat.size);
+        const content = try file.readToEndAlloc(res.arena, stat.size);
 
         res.status = 200;
         res.header("content-type", getMimeType(path));
@@ -87,7 +87,7 @@ pub const StaticFileServer = struct {
         defer file.close();
 
         const stat = try file.stat();
-        const content = try file.readToEndAlloc(self.allocator, stat.size);
+        const content = try file.readToEndAlloc(res.arena, stat.size);
 
         res.status = 200;
         res.header("content-type", getMimeType(filename));
