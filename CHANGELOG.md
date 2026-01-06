@@ -1,3 +1,9 @@
+## [0.4.1](https://github.com/dust-books/dust-server/compare/v0.4.0...v0.4.1) (2026-01-06)
+
+### Bug Fixes
+
+* **static assets:** memory leak for static assets ([2228f0a](https://github.com/dust-books/dust-server/commit/2228f0a382a2aaaa0f11b8e6c495a27f0ffa44cf))
+
 ## [0.4.0](https://github.com/dust-books/dust-server/compare/v0.3.10...v0.4.0) (2026-01-05)
 
 ### Features
