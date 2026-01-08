@@ -1,3 +1,9 @@
+## [0.5.0](https://github.com/dust-books/dust-server/compare/v0.4.1...v0.5.0) (2026-01-08)
+
+### Features
+
+* **admin:** Allow refreshing metadata for a single book ([7ba7e4c](https://github.com/dust-books/dust-server/commit/7ba7e4c5aee832c5a8696e8c75d45e1819d67b91))
+
 ## [0.4.1](https://github.com/dust-books/dust-server/compare/v0.4.0...v0.4.1) (2026-01-06)
 
 ### Bug Fixes
