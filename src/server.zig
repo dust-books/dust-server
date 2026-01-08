@@ -193,6 +193,7 @@ pub const DustServer = struct {
         router.put("/admin/users/:id", adminUpdateUser, .{});
         router.delete("/admin/users/:id", adminDeleteUser, .{});
         router.post("/admin/scan", adminScanLibrary, .{});
+        router.post("/admin/books/:id/refresh-metadata", adminRefreshBookMetadata, .{});
     }
 
     /// Start listening for incoming HTTP requests
@@ -374,6 +375,11 @@ fn adminScanLibrary(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Respon
     const db = ctx.db;
     const allocator = ctx.auth_context.allocator;
     try admin_routes.scanLibrary(db, allocator, ctx.library_directories, req, res);
+}
+
+fn adminRefreshBookMetadata(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
+    logging.logRequest(req);
+    try admin_routes.refreshBookMetadata(ctx.book_repo, req, res);
 }
 
 // Reading progress route handlers

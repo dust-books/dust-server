@@ -61,6 +61,9 @@ export class ReaderPage extends LitElement {
   @state()
   private currentPosition: any = null;
 
+  @state()
+  private isRefreshingMetadata = false;
+
   @query("#reader-container")
   private readerContainer!: HTMLElement;
 
@@ -1018,6 +1021,34 @@ export class ReaderPage extends LitElement {
     }
   }
 
+  private async refreshMetadata() {
+    if (!this.book) return;
+
+    this.isRefreshingMetadata = true;
+    
+    try {
+      const api = await import("../../services/api.js");
+      await api.apiService.refreshBookMetadata(this.book.id);
+      
+      this.appStateService.showToast({
+        type: "success",
+        title: "Metadata refreshed successfully"
+      });
+      
+      const updatedBook = await api.apiService.getBook(this.book.id);
+      this.book = updatedBook.book;
+      this.requestUpdate();
+    } catch (error) {
+      console.error("Failed to refresh metadata:", error);
+      this.appStateService.showToast({
+        type: "error",
+        title: "Failed to refresh metadata"
+      });
+    } finally {
+      this.isRefreshingMetadata = false;
+    }
+  }
+
   private handleMouseMove = () => {
     this.showControls = true;
 
@@ -1208,7 +1239,18 @@ export class ReaderPage extends LitElement {
             `
           : ""}
 
-        <!-- Future: Goodreads link will go here -->
+        ${this.appStateService.isAdmin()
+          ? html`
+              <button
+                class="action-button"
+                @click=${() => this.refreshMetadata()}
+                ?disabled=${this.isRefreshingMetadata}
+              >
+                ${this.isRefreshingMetadata ? "Refreshing..." : "Refresh Metadata"}
+              </button>
+            `
+          : ""}
+
         <button class="action-button" disabled title="Coming soon">
           View on Goodreads
         </button>

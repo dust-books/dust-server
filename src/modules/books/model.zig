@@ -267,6 +267,70 @@ pub const BookRepository = struct {
 
         try stmt.exec(.{}, .{ reason, id });
     }
+
+    pub fn refreshMetadata(self: *BookRepository, allocator: std.mem.Allocator, id: i64) !void {
+        const book = try self.getBookById(allocator, id);
+        
+        const MetadataExtractor = @import("../../metadata_extractor.zig").MetadataExtractor;
+        const CoverManager = @import("../../cover_manager.zig").CoverManager;
+        
+        var metadata_extractor = MetadataExtractor.init(allocator, true);
+        var metadata = try metadata_extractor.extractMetadata(book.file_path);
+        defer metadata.deinit(allocator);
+        
+        var cover_manager = CoverManager.init(allocator);
+        const cover_path = cover_manager.ensureCover(book.file_path, metadata.cover_image_url) catch |err| blk: {
+            std.log.warn("Failed to resolve cover for book {d}: {}", .{ id, err });
+            break :blk null;
+        };
+        defer if (cover_path) |cp| allocator.free(cp);
+        
+        var author_id: ?i64 = null;
+        if (metadata.author) |author_name| {
+            var author_repo = AuthorRepository.init(self.db, allocator);
+            author_id = author_repo.getOrCreateAuthorByName(author_name) catch |err| blk: {
+                std.log.warn("Failed to get/create author: {}", .{err});
+                break :blk null;
+            };
+        }
+        
+        const file = try std.fs.openFileAbsolute(book.file_path, .{});
+        defer file.close();
+        const stat = try file.stat();
+        
+        const query =
+            \\UPDATE books 
+            \\SET name = COALESCE(?, name),
+            \\    author = COALESCE(?, author),
+            \\    isbn = COALESCE(?, isbn),
+            \\    publisher = COALESCE(?, publisher),
+            \\    publication_date = COALESCE(?, publication_date),
+            \\    description = COALESCE(?, description),
+            \\    page_count = COALESCE(?, page_count),
+            \\    file_size = ?,
+            \\    file_format = COALESCE(?, file_format),
+            \\    cover_image_path = COALESCE(?, cover_image_path),
+            \\    updated_at = CURRENT_TIMESTAMP
+            \\WHERE id = ?
+        ;
+        
+        var stmt = try self.db.prepare(query);
+        defer stmt.deinit();
+        
+        try stmt.exec(.{}, .{
+            metadata.title,
+            author_id,
+            metadata.isbn,
+            metadata.publisher,
+            metadata.publication_date,
+            metadata.description,
+            if (metadata.page_count) |pc| @as(i64, @intCast(pc)) else null,
+            @as(i64, @intCast(stat.size)),
+            metadata.file_format,
+            cover_path,
+            id,
+        });
+    }
 };
 
 // Repository for Author operations
@@ -329,6 +393,24 @@ pub const AuthorRepository = struct {
 
         const result = try self.db.oneAlloc(Author, allocator, query, .{}, .{name});
         return result orelse error.AuthorNotFound;
+    }
+
+    pub fn getOrCreateAuthorByName(self: *AuthorRepository, name: []const u8) !i64 {
+        const check_query = "SELECT id FROM authors WHERE name = ?";
+        
+        var stmt = try self.db.prepare(check_query);
+        defer stmt.deinit();
+        
+        const row = try stmt.one(struct { id: i64 }, .{}, .{name});
+        
+        if (row) |r| {
+            return r.id;
+        }
+        
+        const insert_query = "INSERT INTO authors (name, created_at) VALUES (?, datetime('now'))";
+        try self.db.exec(insert_query, .{}, .{name});
+        
+        return self.db.getLastInsertRowID();
     }
 };
 

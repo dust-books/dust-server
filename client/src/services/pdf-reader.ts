@@ -123,6 +123,7 @@ export class PdfReader {
     pageInfo.style.cssText = `
       font-weight: bold;
       margin: 0 20px;
+      color: black;
     `;
 
     // Next button

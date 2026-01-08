@@ -323,6 +323,12 @@ export class ApiService {
     return this.request<DashboardStats>('/admin/dashboard');
   }
 
+  async refreshBookMetadata(bookId: number): Promise<{ success: boolean; message: string; book_id: number }> {
+    return this.request<{ success: boolean; message: string; book_id: number }>(`/admin/books/${bookId}/refresh-metadata`, {
+      method: 'POST',
+    });
+  }
+
   // Utility methods
   isAuthenticated(): boolean {
     return !!this.getCurrentToken();

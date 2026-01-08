@@ -2,6 +2,7 @@ const std = @import("std");
 const httpz = @import("httpz");
 const scanner = @import("../../scanner.zig");
 const Database = @import("../../database.zig").Database;
+const BookRepository = @import("../books/model.zig").BookRepository;
 
 pub fn scanLibrary(
     db: *Database,
@@ -60,5 +61,45 @@ pub fn scanLibrary(
             .errors = total_errors,
             .directories_scanned = library_directories.len,
         },
+    }, .{});
+}
+
+pub fn refreshBookMetadata(
+    book_repo: *BookRepository,
+    req: *httpz.Request,
+    res: *httpz.Response,
+) !void {
+    const id_str = req.param("id") orelse {
+        res.status = 400;
+        try res.json(.{ .@"error" = "Missing book ID" }, .{});
+        return;
+    };
+
+    const book_id = std.fmt.parseInt(i64, id_str, 10) catch {
+        res.status = 400;
+        try res.json(.{ .@"error" = "Invalid book ID" }, .{});
+        return;
+    };
+
+    std.log.info("Refreshing metadata for book ID: {d}", .{book_id});
+
+    book_repo.refreshMetadata(res.arena, book_id) catch |err| {
+        std.log.err("Failed to refresh metadata for book {d}: {}", .{ book_id, err });
+        if (err == error.BookNotFound) {
+            res.status = 404;
+            try res.json(.{ .@"error" = "Book not found" }, .{});
+        } else {
+            res.status = 500;
+            try res.json(.{ .@"error" = "Failed to refresh metadata" }, .{});
+        }
+        return;
+    };
+
+    std.log.info("Metadata refreshed for book ID: {d}", .{book_id});
+
+    try res.json(.{
+        .success = true,
+        .message = "Metadata refreshed successfully",
+        .book_id = book_id,
     }, .{});
 }
