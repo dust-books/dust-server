@@ -769,7 +769,6 @@ export class ConnectServerPage extends LitElement {
     return html`
       <div class="page-header">
         <h1 class="page-title">
-          <span>🔗</span>
           Connect to Server
         </h1>
         <p class="page-subtitle">Add a new Dust server to your library</p>
