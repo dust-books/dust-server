@@ -1,4 +1,5 @@
 const std = @import("std");
+const build = @import("build.zig.zon");
 const Config = @import("config.zig").Config;
 const DustServer = @import("server.zig").DustServer;
 const Database = @import("database.zig").Database;
@@ -21,7 +22,49 @@ pub fn main() !void {
     var gpa = std.heap.DebugAllocator(.{ .stack_trace_frames = 30 }){};
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
-    std.log.info("🚀 Dust Server", .{});
+
+    // Parse command line arguments
+    var args = try std.process.argsWithAllocator(allocator);
+    defer args.deinit();
+    _ = args.skip(); // Skip program name
+
+    var stdout_buffer: [1024]u8 = undefined;
+    const stdout_writer = std.fs.File.stdout().writer(&stdout_buffer);
+    var stdout = stdout_writer.interface;
+
+    while (args.next()) |arg| {
+        if (std.mem.eql(u8, arg, "--version") or std.mem.eql(u8, arg, "-v")) {
+            try stdout.print("dust-server {s}\n", .{build.version});
+            try stdout.flush();
+            return;
+        } else if (std.mem.eql(u8, arg, "--help") or std.mem.eql(u8, arg, "-h")) {
+            try stdout.writeAll(
+                \\dust-server - A media server for books and comics
+                \\
+                \\Usage: dust-server [OPTIONS]
+                \\
+                \\Options:
+                \\  -v, --version    Show version information
+                \\  -h, --help       Show this help message
+                \\
+                \\Environment Variables:
+                \\  JWT_SECRET                   JWT secret for authentication (required)
+                \\  DUST_DIRS                    Colon-separated directories to scan
+                \\  PORT                         Server port (default: 4001)
+                \\  DATABASE_URL                 Database file path
+                \\  SCAN_INTERVAL_MINUTES        Library scan interval (default: 5)
+                \\  CLEANUP_INTERVAL_MINUTES     Old books cleanup interval (default: 60)
+                \\  GOOGLE_BOOKS_API_KEY         Google Books API key (optional)
+                \\
+                \\For more information, visit: https://github.com/dust-books/dust-server
+                \\
+            );
+            try stdout.flush();
+            return;
+        }
+    }
+
+    std.log.info("Dust Server v{s}", .{build.version});
 
     // Set up signal handling for graceful shutdown
     const posix = std.posix;
