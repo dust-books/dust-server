@@ -29,8 +29,8 @@ pub fn main() !void {
     _ = args.skip(); // Skip program name
 
     var stdout_buffer: [1024]u8 = undefined;
-    const stdout_writer = std.fs.File.stdout().writer(&stdout_buffer);
-    var stdout = stdout_writer.interface;
+    var stdout_writer = std.fs.File.stdout().writer(&stdout_buffer);
+    var stdout = &stdout_writer.interface;
 
     while (args.next()) |arg| {
         if (std.mem.eql(u8, arg, "--version") or std.mem.eql(u8, arg, "-v")) {
