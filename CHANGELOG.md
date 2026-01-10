@@ -1,3 +1,9 @@
+## [0.6.1](https://github.com/dust-books/dust-server/compare/v0.6.0...v0.6.1) (2026-01-10)
+
+### Bug Fixes
+
+* **stdout:** fix stdout writing by using ref ([1bf046e](https://github.com/dust-books/dust-server/commit/1bf046e5c87e42fc4f58f025745446de24931036))
+
 ## [0.6.0](https://github.com/dust-books/dust-server/compare/v0.5.0...v0.6.0) (2026-01-10)
 
 ### Features
