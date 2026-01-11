@@ -1,3 +1,9 @@
+## [0.6.2](https://github.com/dust-books/dust-server/compare/v0.6.1...v0.6.2) (2026-01-11)
+
+### Bug Fixes
+
+* **authors:** fix author page payload, fix broken book images on author page ([b0740e3](https://github.com/dust-books/dust-server/commit/b0740e32d11f73cd35bf18aaed44681dfd0e9667))
+
 ## [0.6.1](https://github.com/dust-books/dust-server/compare/v0.6.0...v0.6.1) (2026-01-10)
 
 ### Bug Fixes
