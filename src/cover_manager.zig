@@ -1,10 +1,20 @@
 const std = @import("std");
+const books = @import("./modules/books/model.zig");
 
 pub const CoverManager = struct {
     allocator: std.mem.Allocator,
 
     pub fn init(allocator: std.mem.Allocator) CoverManager {
         return .{ .allocator = allocator };
+    }
+
+    pub fn transformDBCoverForHTTP(allocator: std.mem.Allocator, book: books.Book) !?[]const u8 {
+        var cover_path: ?[]const u8 = null;
+        if (book.cover_image_path != null) {
+            cover_path = try std.fmt.allocPrint(allocator, "covers/{d}", .{book.id});
+        }
+
+        return cover_path;
     }
 
     /// Ensure a cover exists for the provided book. Returns the resolved path if one exists.

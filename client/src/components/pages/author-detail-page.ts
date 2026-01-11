@@ -10,11 +10,9 @@ import { appStateContext, AppStateService } from '../../services/app-state.js';
 import type { Book } from '../../types/app.js';
 import { getBookCoverUrl } from '../../services/server-manager.js';
 
-interface AuthorDetails {
-  author: {
-    id: number;
-    name: string;
-  };
+interface Author {
+  id: number;
+  name: string;
   books: Book[];
   totalBooks: number;
 }
@@ -28,7 +26,7 @@ export class AuthorDetailPage extends LitElement {
   authorId: number | null = null;
 
   @state()
-  private authorDetails: AuthorDetails | null = null;
+  private authorDetails: Author | null = null;
 
   @state()
   private isLoading = false;
@@ -488,11 +486,11 @@ export class AuthorDetailPage extends LitElement {
 
         <div class="author-header">
           <div class="author-avatar">
-            ${this.getAuthorInitials(this.authorDetails.author.name)}
+            ${this.getAuthorInitials(this.authorDetails.name)}
           </div>
           
           <div class="author-info">
-            <h1 class="author-name">${this.authorDetails.author.name}</h1>
+            <h1 class="author-name">${this.authorDetails.name}</h1>
             
             <div class="author-stats">
               <div class="stat-item">
@@ -506,7 +504,7 @@ export class AuthorDetailPage extends LitElement {
 
       <div class="controls-bar">
         <div class="controls-left">
-          <h2 class="section-title">Books by ${this.authorDetails.author.name}</h2>
+          <h2 class="section-title">Books by ${this.authorDetails.name}</h2>
         </div>
         
         <div class="controls-right">

@@ -218,8 +218,8 @@ export class ApiService {
     return this.request<{ authors: Array<{ id: number; name: string; bookCount: number }> }>('/books/authors');
   }
 
-  async getAuthor(id: number): Promise<{ author: { id: number; name: string }; books: Book[]; totalBooks: number }> {
-    return this.request<{ author: { id: number; name: string }; books: Book[]; totalBooks: number }>(`/books/authors/${id}`);
+  async getAuthor(id: number): Promise<{ id: number; name: string; books: Book[]; totalBooks: number }> {
+    return this.request<{ id: number; name: string; books: Book[]; totalBooks: number }>(`/books/authors/${id}`);
   }
 
   // Genre methods

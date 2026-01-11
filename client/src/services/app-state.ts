@@ -242,7 +242,7 @@ export class AppStateService {
     }
   }
 
-  async loadAuthor(authorId: number): Promise<{ author: { id: number; name: string }; books: Book[]; totalBooks: number } | null> {
+  async loadAuthor(authorId: number): Promise<{ id: number; name: string; books: Book[]; totalBooks: number } | null> {
     try {
       const response = await apiService.getAuthor(authorId);
       return response;

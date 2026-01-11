@@ -5,6 +5,7 @@ const BookRepository = @import("model.zig").BookRepository;
 const AuthorRepository = @import("model.zig").AuthorRepository;
 const TagRepository = @import("model.zig").TagRepository;
 const Book = @import("model.zig").Book;
+const CoverManager = @import("../../cover_manager.zig").CoverManager;
 
 fn sanitizeCoverPath(path: ?[]const u8) ?[]const u8 {
     if (path) |p| {
@@ -50,10 +51,7 @@ pub fn listBooks(
     var books_with_authors = try std.ArrayList(BookWithAuthor).initCapacity(arena, books.len);
     for (books) |book| {
         const author = try author_repo.getAuthorById(arena, book.author);
-        var cover_path: ?[]const u8 = null;
-        if (book.cover_image_path != null) {
-            cover_path = try std.fmt.allocPrint(arena, "covers/{d}", .{book.id});
-        }
+        const cover_path = try CoverManager.transformDBCoverForHTTP(arena, book);
         try books_with_authors.append(arena, .{
             .id = book.id,
             .name = book.name,
@@ -130,10 +128,7 @@ pub fn getBook(
         });
     }
 
-    var cover_path: ?[]const u8 = null;
-    if (book.cover_image_path != null) {
-        cover_path = try std.fmt.allocPrint(allocator, "covers/{d}", .{book.id});
-    }
+    const cover_path = try CoverManager.transformDBCoverForHTTP(allocator, book);
     const response = .{
         .book = .{
             .id = book.id,
@@ -323,27 +318,19 @@ pub fn getAuthor(
     defer stmt.deinit();
 
     const books = try stmt.all(Book, allocator, .{}, .{id});
-
-    const BookItem = struct {
-        id: i64,
-        name: []const u8,
-        status: []const u8,
-    };
-
-    var book_list = try std.ArrayList(BookItem).initCapacity(allocator, books.len);
-    for (books) |book| {
-        book_list.appendAssumeCapacity(.{
-            .id = book.id,
-            .name = book.name,
-            .status = book.status,
-        });
+    for (books) |*book| {
+        if (book.cover_image_path) |path| {
+            const coverPath = try CoverManager.transformDBCoverForHTTP(allocator, book.*);
+            allocator.free(path);
+            book.cover_image_path = coverPath;
+        }
     }
 
     const response = .{
         .id = author.id,
         .name = author.name,
         .biography = author.biography,
-        .books = book_list.items,
+        .books = books,
     };
 
     res.status = 200;
