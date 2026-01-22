@@ -17,6 +17,7 @@ const admin_users = @import("modules/users/routes/admin_users.zig");
 const admin_routes = @import("modules/admin/routes.zig");
 const book_routes = @import("modules/books/routes.zig");
 const logging = @import("middleware/logging.zig");
+const middleware_helpers = @import("middleware/helpers.zig");
 const StaticFileServer = @import("static_files.zig").StaticFileServer;
 
 pub const DustServer = struct {
@@ -258,7 +259,6 @@ fn booksGet(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !voi
 
 fn booksStream(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
     const auth_ctx = &ctx.auth_context;
-    const middleware_helpers = @import("middleware/helpers.zig");
 
     var auth_user = middleware_helpers.requireAuth(&auth_ctx.jwt, auth_ctx.allocator, req, res) catch |err| {
         return err;
@@ -385,7 +385,6 @@ fn adminRefreshBookMetadata(ctx: *ServerContext, req: *httpz.Request, res: *http
 // Reading progress route handlers
 fn booksGetProgress(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
     const auth_ctx = &ctx.auth_context;
-    const middleware_helpers = @import("middleware/helpers.zig");
 
     var auth_user = middleware_helpers.requireAuth(&auth_ctx.jwt, auth_ctx.allocator, req, res) catch |err| {
         return err;
@@ -449,7 +448,6 @@ fn booksGetProgress(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Respon
 
 fn booksUpdateProgress(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
     const auth_ctx = &ctx.auth_context;
-    const middleware_helpers = @import("middleware/helpers.zig");
 
     var auth_user = middleware_helpers.requireAuth(&auth_ctx.jwt, auth_ctx.allocator, req, res) catch |err| {
         return err;
@@ -536,7 +534,6 @@ fn booksUpdateProgress(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Res
 // Reading list handlers
 fn readingCurrentlyReading(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
     const auth_ctx = &ctx.auth_context;
-    const middleware_helpers = @import("middleware/helpers.zig");
 
     var auth_user = middleware_helpers.requireAuth(&auth_ctx.jwt, auth_ctx.allocator, req, res) catch |err| {
         return err;
@@ -548,7 +545,6 @@ fn readingCurrentlyReading(ctx: *ServerContext, req: *httpz.Request, res: *httpz
 
 fn readingCompleted(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
     const auth_ctx = &ctx.auth_context;
-    const middleware_helpers = @import("middleware/helpers.zig");
 
     var auth_user = middleware_helpers.requireAuth(&auth_ctx.jwt, auth_ctx.allocator, req, res) catch |err| {
         return err;
