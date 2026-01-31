@@ -1,3 +1,13 @@
+## [0.7.0](https://github.com/dust-books/dust-server/compare/v0.6.2...v0.7.0) (2026-01-31)
+
+### Features
+
+* customizable user agent w/r/t openlibrary ([55b0078](https://github.com/dust-books/dust-server/commit/55b0078a2adaf81fe654d78a335affd4422efeab))
+
+### Code Refactoring
+
+* **server:** import cleanup ([751a795](https://github.com/dust-books/dust-server/commit/751a795ac45bbdcb9f55820dd3a76e4717d63f64))
+
 ## [0.6.2](https://github.com/dust-books/dust-server/compare/v0.6.1...v0.6.2) (2026-01-11)
 
 ### Bug Fixes
