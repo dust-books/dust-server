@@ -85,7 +85,7 @@ pub fn main() !void {
         }
         return err;
     };
-    defer cfg.deinit();
+    defer cfg.deinit(allocator);
 
     std.log.info("Library directories: {d} configured", .{cfg.library_directories.len});
     std.log.info("Port: {}", .{cfg.port});
@@ -109,13 +109,13 @@ pub fn main() !void {
     std.log.info("All migrations completed", .{});
 
     // Create typed timer manager for books background tasks
-    const books_timer = try books.createBackgroundTimerManager(allocator, &db.db, cfg.library_directories);
+    const books_timer = try books.createBackgroundTimerManager(allocator, &db.db, cfg);
     defer books_timer.deinit();
     defer allocator.destroy(books_timer);
     std.log.info("Background tasks registered", .{});
 
     // Start server
-    var server = try DustServer.init(allocator, cfg.port, &db, cfg.jwt_secret, cfg.library_directories, &should_shutdown);
+    var server = try DustServer.init(allocator, cfg.port, &db, cfg, &should_shutdown);
     defer server.deinit();
 
     std.log.info("Starting HTTP server on port {d}...", .{cfg.port});

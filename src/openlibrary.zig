@@ -40,9 +40,14 @@ pub const ExternalBookMetadata = struct {
 pub const OpenLibraryClient = struct {
     allocator: std.mem.Allocator,
     base_url: []const u8 = "https://openlibrary.org",
+    user_agent: []const u8,
 
-    pub fn init(allocator: std.mem.Allocator) OpenLibraryClient {
-        return .{ .allocator = allocator };
+    pub fn init(allocator: std.mem.Allocator, user_agent: []const u8) OpenLibraryClient {
+        const trimmed_user_agent = std.mem.trim(u8, user_agent, " ");
+        return .{
+            .allocator = allocator,
+            .user_agent = trimmed_user_agent,
+        };
     }
 
     /// Lookup book by ISBN from OpenLibrary
@@ -85,6 +90,11 @@ pub const OpenLibraryClient = struct {
             .location = .{ .url = url },
             .method = .GET,
             .response_writer = &body.writer,
+            .headers = .{
+                .user_agent = .{
+                    .override = self.user_agent,
+                },
+            },
         });
 
         std.log.info("[OpenLibrary] HTTP status: {d}", .{@intFromEnum(fetch_result.status)});
@@ -474,7 +484,7 @@ const sample_lookup_response_with_medium_cover =
 ;
 
 test "OpenLibraryClient parses lookup metadata" {
-    var client = OpenLibraryClient.init(testing.allocator);
+    var client = OpenLibraryClient.init(testing.allocator, "");
     const parsed = try std.json.parseFromSlice(std.json.Value, testing.allocator, sample_lookup_response_with_large_cover, .{});
     defer parsed.deinit();
 
@@ -494,7 +504,7 @@ test "OpenLibraryClient parses lookup metadata" {
 }
 
 test "OpenLibraryClient handles description objects and cover fallbacks" {
-    var client = OpenLibraryClient.init(testing.allocator);
+    var client = OpenLibraryClient.init(testing.allocator, "");
     const parsed = try std.json.parseFromSlice(std.json.Value, testing.allocator, sample_lookup_response_with_medium_cover, .{});
     defer parsed.deinit();
 

@@ -2,6 +2,7 @@ const std = @import("std");
 const sqlite = @import("sqlite");
 const MetadataExtractor = @import("metadata_extractor.zig").MetadataExtractor;
 const CoverManager = @import("cover_manager.zig").CoverManager;
+const Config = @import("./config.zig").Config;
 const testing = std.testing;
 
 pub const ScanResult = struct {
@@ -32,40 +33,23 @@ pub const ScanResult = struct {
 pub const Scanner = struct {
     allocator: std.mem.Allocator,
     db: *sqlite.Db,
-    scan_dirs: std.ArrayList([]const u8),
     metadata_extractor: MetadataExtractor,
     cover_manager: CoverManager,
 
-    pub fn init(allocator: std.mem.Allocator, db: *sqlite.Db) !Scanner {
-        // Get directories from environment variable
-        const dirs_env = std.posix.getenv("DUST_DIRS") orelse "";
-        var dirs: std.ArrayList([]const u8) = .empty;
-
-        if (dirs_env.len > 0) {
-            var it = std.mem.splitScalar(u8, dirs_env, ':');
-            while (it.next()) |dir| {
-                const dir_copy = try allocator.dupe(u8, dir);
-                try dirs.append(allocator, dir_copy);
-            }
-        }
-
+    pub fn init(allocator: std.mem.Allocator, db: *sqlite.Db, config: Config) !Scanner {
         // Enable external metadata lookup by default
-        const metadata_extractor = MetadataExtractor.init(allocator, true);
+        const metadata_extractor = try MetadataExtractor.init(
+            allocator,
+            true,
+            config,
+        );
 
         return .{
             .allocator = allocator,
             .db = db,
-            .scan_dirs = dirs,
             .metadata_extractor = metadata_extractor,
             .cover_manager = CoverManager.init(allocator),
         };
-    }
-
-    pub fn deinit(self: *Scanner) void {
-        for (self.scan_dirs.items) |dir| {
-            self.allocator.free(dir);
-        }
-        self.scan_dirs.deinit(self.allocator);
     }
 
     pub fn scanLibrary(self: *Scanner, path: []const u8) !ScanResult {

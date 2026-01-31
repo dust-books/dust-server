@@ -3,12 +3,13 @@ const sqlite = @import("sqlite");
 const TimerManager = @import("../../timer.zig").TimerManager;
 const cover = @import("../../cover_manager.zig");
 const Scanner = @import("../../scanner.zig").Scanner;
+const Config = @import("../../config.zig").Config;
 
 /// Context structure for background tasks
 const BackgroundTaskContext = struct {
     db: *sqlite.Db,
     allocator: std.mem.Allocator,
-    library_directories: []const []const u8,
+    config: Config,
 };
 
 /// Background task to scan library directories for new books (typed)
@@ -18,21 +19,14 @@ fn scanLibraryDirectories(ctx: *BackgroundTaskContext) void {
     const run_allocator = arena.allocator();
 
     std.log.info("Starting background library scan...", .{});
-    const dirs_env = std.posix.getenv("DUST_DIRS") orelse "";
-    if (dirs_env.len == 0) {
-        std.log.warn("DUST_DIRS environment variable not set, skipping scan", .{});
-        return;
-    }
 
     // Create a Scanner instance using the same allocator and db
-    var scanner = Scanner.init(run_allocator, ctx.db) catch |err| {
+    var scanner = Scanner.init(run_allocator, ctx.db, ctx.config) catch |err| {
         std.log.err("Failed to init Scanner: {}", .{err});
         return;
     };
-    defer scanner.deinit();
 
-    var it = std.mem.splitScalar(u8, dirs_env, ':');
-    while (it.next()) |dir| {
+    for (ctx.config.library_directories) |dir| {
         if (dir.len == 0) continue;
         // Ensure absolute path
         const abs_dir = if (std.fs.path.isAbsolute(dir)) dir else blk: {
@@ -152,7 +146,7 @@ pub const BooksTimerManager = @import("../../timer.zig").TimerManager(Background
 
 /// Create and return a typed TimerManager for background book tasks. Caller owns
 /// the returned pointer and must call `deinit` and destroy it when finished.
-pub fn createBackgroundTimerManager(allocator: std.mem.Allocator, db: *sqlite.Db, library_directories: []const []const u8) !*BooksTimerManager {
+pub fn createBackgroundTimerManager(allocator: std.mem.Allocator, db: *sqlite.Db, cfg: Config) !*BooksTimerManager {
     const mgr = try allocator.create(BooksTimerManager);
     mgr.* = BooksTimerManager.init(allocator);
 
@@ -161,14 +155,14 @@ pub fn createBackgroundTimerManager(allocator: std.mem.Allocator, db: *sqlite.Db
     scan_ctx.* = .{
         .db = db,
         .allocator = allocator,
-        .library_directories = library_directories,
+        .config = cfg,
     };
 
     const cleanup_ctx = try allocator.create(BackgroundTaskContext);
     cleanup_ctx.* = .{
         .db = db,
         .allocator = allocator,
-        .library_directories = library_directories,
+        .config = cfg,
     };
 
     // Get scan interval from environment (in minutes, default 5)

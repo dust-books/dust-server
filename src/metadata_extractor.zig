@@ -1,5 +1,7 @@
 const std = @import("std");
 const openlibrary = @import("openlibrary.zig");
+const Config = @import("./config.zig").Config;
+const build = @import("build.zig.zon");
 
 pub const BookMetadata = struct {
     title: ?[]const u8 = null,
@@ -40,10 +42,13 @@ pub const MetadataExtractor = struct {
     ol_client: ?openlibrary.OpenLibraryClient,
     enable_external_lookup: bool,
 
-    pub fn init(allocator: std.mem.Allocator, enable_external_lookup: bool) MetadataExtractor {
+    pub fn init(allocator: std.mem.Allocator, enable_external_lookup: bool, config: Config) !MetadataExtractor {
         return .{
             .allocator = allocator,
-            .ol_client = if (enable_external_lookup) openlibrary.OpenLibraryClient.init(allocator) else null,
+            .ol_client = if (enable_external_lookup) openlibrary.OpenLibraryClient.init(
+                allocator,
+                config.user_agent,
+            ) else null,
             .enable_external_lookup = enable_external_lookup,
         };
     }
@@ -412,7 +417,11 @@ pub const MetadataExtractor = struct {
 const testing = std.testing;
 
 test "extractISBN extracts 13-digit ISBN with hyphens" {
-    var extractor = MetadataExtractor.init(testing.allocator, false);
+    var extractor = try MetadataExtractor.init(
+        testing.allocator,
+        false,
+        Config.init(),
+    );
     const sample = "/path/to/978-1-098-16220-7.epub";
     const isbn = extractor.extractISBN(sample);
     try testing.expect(isbn != null);
@@ -421,7 +430,11 @@ test "extractISBN extracts 13-digit ISBN with hyphens" {
 }
 
 test "extractISBN supports ISBN-10 with X suffix" {
-    var extractor = MetadataExtractor.init(testing.allocator, false);
+    var extractor = try MetadataExtractor.init(
+        testing.allocator,
+        false,
+        Config.init(),
+    );
     const sample = "/library/TheBook_123456789X.epub";
     const isbn = extractor.extractISBN(sample);
     try testing.expect(isbn != null);
@@ -430,14 +443,22 @@ test "extractISBN supports ISBN-10 with X suffix" {
 }
 
 test "extractISBN returns null when no ISBN present" {
-    var extractor = MetadataExtractor.init(testing.allocator, false);
+    var extractor = try MetadataExtractor.init(
+        testing.allocator,
+        false,
+        Config.init(),
+    );
     const sample = "/books/no-isbn-book.pdf";
     const isbn = extractor.extractISBN(sample);
     try testing.expect(isbn == null);
 }
 
 test "extractISBN extracts plain 13-digit ISBN" {
-    var extractor = MetadataExtractor.init(testing.allocator, false);
+    var extractor = try MetadataExtractor.init(
+        testing.allocator,
+        false,
+        Config.init(),
+    );
     const sample = "9781098162207.pdf";
     const isbn = extractor.extractISBN(sample);
     try testing.expect(isbn != null);
@@ -446,7 +467,11 @@ test "extractISBN extracts plain 13-digit ISBN" {
 }
 
 test "extractISBN extracts ISBN with underscores and spaces" {
-    var extractor = MetadataExtractor.init(testing.allocator, false);
+    var extractor = try MetadataExtractor.init(
+        testing.allocator,
+        false,
+        Config.init(),
+    );
     const sample = "978_1_098_16220_7 - Book Title.pdf";
     const isbn = extractor.extractISBN(sample);
     try testing.expect(isbn != null);
@@ -455,7 +480,11 @@ test "extractISBN extracts ISBN with underscores and spaces" {
 }
 
 test "extractMetadata preserves ISBN through full extraction" {
-    var extractor = MetadataExtractor.init(testing.allocator, false);
+    var extractor = try MetadataExtractor.init(
+        testing.allocator,
+        false,
+        Config.init(),
+    );
 
     // Test just the filename parsing portion that includes ISBN extraction
     const sample_path = "/books/Author Name/Book Title/978-0-123-45678-9.epub";

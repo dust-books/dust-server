@@ -1,6 +1,9 @@
 const std = @import("std");
 const sqlite = @import("sqlite");
 const cover = @import("../../cover_manager.zig");
+const MetadataExtractor = @import("../../metadata_extractor.zig").MetadataExtractor;
+const CoverManager = @import("../../cover_manager.zig").CoverManager;
+const Config = @import("../../config.zig").Config;
 
 pub const Book = struct {
     id: i64,
@@ -112,11 +115,13 @@ pub const ReadingProgress = struct {
 pub const BookRepository = struct {
     db: *sqlite.Db,
     allocator: std.mem.Allocator,
+    config: Config,
 
-    pub fn init(db: *sqlite.Db, allocator: std.mem.Allocator) BookRepository {
+    pub fn init(allocator: std.mem.Allocator, db: *sqlite.Db, config: Config) BookRepository {
         return .{
             .db = db,
             .allocator = allocator,
+            .config = config,
         };
     }
 
@@ -187,7 +192,7 @@ pub const BookRepository = struct {
         defer stmt.deinit();
 
         try stmt.exec(.{}, .{ name, author, filepath, file_format, cover_path });
-        
+
         const id = self.db.getLastInsertRowID();
         return try self.getBookById(allocator, id);
     }
@@ -207,12 +212,12 @@ pub const BookRepository = struct {
 
     pub fn update(self: *BookRepository, allocator: std.mem.Allocator, id: i64, name: ?[]const u8, filepath: ?[]const u8, file_format: ?[]const u8, author_id: ?i64) !?Book {
         const existing = try self.getBookById(allocator, id);
-        
+
         const final_name = name orelse existing.name;
         const final_filepath = filepath orelse existing.file_path;
         const final_format = file_format orelse existing.file_format orelse "";
         const final_author = author_id orelse existing.author;
-        
+
         var cover_manager = cover.CoverManager.init(self.allocator);
         const cover_path = cover_manager.findLocalCover(final_filepath) catch |err| blk: {
             std.log.warn("Failed to refresh cover for {s}: {}", .{ final_filepath, err });
@@ -225,12 +230,12 @@ pub const BookRepository = struct {
             \\SET name = ?, file_path = ?, file_format = ?, author = ?, cover_image_path = ?, updated_at = CURRENT_TIMESTAMP
             \\WHERE id = ?
         ;
-        
+
         var stmt = try self.db.prepare(update_query);
         defer stmt.deinit();
-        
+
         try stmt.exec(.{}, .{ final_name, final_filepath, final_format, final_author, cover_path, id });
-        
+
         return try self.getBookById(allocator, id);
     }
 
@@ -250,7 +255,7 @@ pub const BookRepository = struct {
         defer stmt.deinit();
 
         try stmt.exec(.{}, .{id});
-        
+
         return self.db.rowsAffected() > 0;
     }
 
@@ -270,34 +275,36 @@ pub const BookRepository = struct {
 
     pub fn refreshMetadata(self: *BookRepository, allocator: std.mem.Allocator, id: i64) !void {
         const book = try self.getBookById(allocator, id);
-        
-        const MetadataExtractor = @import("../../metadata_extractor.zig").MetadataExtractor;
-        const CoverManager = @import("../../cover_manager.zig").CoverManager;
-        
-        var metadata_extractor = MetadataExtractor.init(allocator, true);
+
+        var metadata_extractor = try MetadataExtractor.init(
+            allocator,
+            true,
+            self.config,
+        );
+
         var metadata = try metadata_extractor.extractMetadata(book.file_path);
         defer metadata.deinit(allocator);
-        
+
         var cover_manager = CoverManager.init(allocator);
         const cover_path = cover_manager.ensureCover(book.file_path, metadata.cover_image_url) catch |err| blk: {
             std.log.warn("Failed to resolve cover for book {d}: {}", .{ id, err });
             break :blk null;
         };
         defer if (cover_path) |cp| allocator.free(cp);
-        
+
         var author_id: ?i64 = null;
         if (metadata.author) |author_name| {
-            var author_repo = AuthorRepository.init(self.db, allocator);
+            var author_repo = AuthorRepository.init(allocator, self.db);
             author_id = author_repo.getOrCreateAuthorByName(author_name) catch |err| blk: {
                 std.log.warn("Failed to get/create author: {}", .{err});
                 break :blk null;
             };
         }
-        
+
         const file = try std.fs.openFileAbsolute(book.file_path, .{});
         defer file.close();
         const stat = try file.stat();
-        
+
         const query =
             \\UPDATE books 
             \\SET name = COALESCE(?, name),
@@ -313,10 +320,10 @@ pub const BookRepository = struct {
             \\    updated_at = CURRENT_TIMESTAMP
             \\WHERE id = ?
         ;
-        
+
         var stmt = try self.db.prepare(query);
         defer stmt.deinit();
-        
+
         try stmt.exec(.{}, .{
             metadata.title,
             author_id,
@@ -338,7 +345,7 @@ pub const AuthorRepository = struct {
     db: *sqlite.Db,
     allocator: std.mem.Allocator,
 
-    pub fn init(db: *sqlite.Db, allocator: std.mem.Allocator) AuthorRepository {
+    pub fn init(allocator: std.mem.Allocator, db: *sqlite.Db) AuthorRepository {
         return .{
             .db = db,
             .allocator = allocator,
@@ -397,19 +404,19 @@ pub const AuthorRepository = struct {
 
     pub fn getOrCreateAuthorByName(self: *AuthorRepository, name: []const u8) !i64 {
         const check_query = "SELECT id FROM authors WHERE name = ?";
-        
+
         var stmt = try self.db.prepare(check_query);
         defer stmt.deinit();
-        
+
         const row = try stmt.one(struct { id: i64 }, .{}, .{name});
-        
+
         if (row) |r| {
             return r.id;
         }
-        
+
         const insert_query = "INSERT INTO authors (name, created_at) VALUES (?, datetime('now'))";
         try self.db.exec(insert_query, .{}, .{name});
-        
+
         return self.db.getLastInsertRowID();
     }
 };
@@ -419,7 +426,7 @@ pub const TagRepository = struct {
     db: *sqlite.Db,
     allocator: std.mem.Allocator,
 
-    pub fn init(db: *sqlite.Db, allocator: std.mem.Allocator) TagRepository {
+    pub fn init(allocator: std.mem.Allocator, db: *sqlite.Db) TagRepository {
         return .{
             .db = db,
             .allocator = allocator,

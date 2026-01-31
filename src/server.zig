@@ -5,6 +5,7 @@ const AuthService = @import("modules/users/auth.zig").AuthService;
 const JWT = @import("auth/jwt.zig").JWT;
 const user_routes = @import("modules/users/routes.zig");
 const context = @import("context.zig");
+const Config = @import("config.zig").Config;
 const ServerContext = context.ServerContext;
 const AuthContext = context.AuthContext;
 const PermissionService = @import("auth/permission_service.zig").PermissionService;
@@ -43,11 +44,11 @@ pub const DustServer = struct {
     should_shutdown: *std.atomic.Value(bool),
 
     /// Initialize the DustServer
-    pub fn init(allocator: std.mem.Allocator, port: u16, db: *Database, jwt_secret: []const u8, library_directories: []const []const u8, should_shutdown: *std.atomic.Value(bool)) !DustServer {
+    pub fn init(allocator: std.mem.Allocator, port: u16, db: *Database, config: Config, should_shutdown: *std.atomic.Value(bool)) !DustServer {
         const auth_service = try allocator.create(AuthService);
         auth_service.* = AuthService.init(db, allocator);
 
-        const jwt = JWT.init(allocator, jwt_secret);
+        const jwt = JWT.init(allocator, config.jwt_secret);
 
         // Initialize permission system
         const permission_repo = try allocator.create(PermissionRepository);
@@ -58,13 +59,13 @@ pub const DustServer = struct {
 
         // Initialize book repositories
         const book_repo = try allocator.create(BookRepository);
-        book_repo.* = BookRepository.init(&db.db, allocator);
+        book_repo.* = BookRepository.init(allocator, &db.db, config);
 
         const author_repo = try allocator.create(AuthorRepository);
-        author_repo.* = AuthorRepository.init(&db.db, allocator);
+        author_repo.* = AuthorRepository.init(allocator, &db.db);
 
         const tag_repo = try allocator.create(TagRepository);
-        tag_repo.* = TagRepository.init(&db.db, allocator);
+        tag_repo.* = TagRepository.init(allocator, &db.db);
 
         // Initialize static file server
         const static_server = try allocator.create(StaticFileServer);
@@ -83,7 +84,8 @@ pub const DustServer = struct {
             .book_repo = book_repo,
             .author_repo = author_repo,
             .tag_repo = tag_repo,
-            .library_directories = library_directories,
+            .config = config,
+            .library_directories = config.library_directories,
             .static_server = static_server,
         };
 
@@ -142,7 +144,13 @@ pub const DustServer = struct {
             .credentials = "true",
         });
 
-        var router = try self.httpz_server.router(.{ .middlewares = &.{cors_middleware} });
+        var router = try self.httpz_server.router(
+            .{
+                .middlewares = &.{
+                    cors_middleware,
+                },
+            },
+        );
 
         // Health check endpoint (before catch-all)
         router.get("/health", health, .{});
@@ -374,7 +382,7 @@ fn adminScanLibrary(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Respon
     logging.logRequest(req);
     const db = ctx.db;
     const allocator = ctx.auth_context.allocator;
-    try admin_routes.scanLibrary(db, allocator, ctx.library_directories, req, res);
+    try admin_routes.scanLibrary(db, allocator, ctx.config, req, res);
 }
 
 fn adminRefreshBookMetadata(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
@@ -604,7 +612,7 @@ fn booksCover(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !v
         try res.json(.{ .@"error" = "Invalid book ID" }, .{});
         return;
     };
-    book_routes.getCover(&ctx.db.db, book_id, req, res) catch |err| {
+    book_routes.getCover(ctx, book_id, req, res) catch |err| {
         std.log.err("Failed to get cover for book {}: {} ({s})", .{ book_id, err, @errorName(err) });
         return err;
     };

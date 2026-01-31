@@ -9,6 +9,7 @@ const BookRepository = @import("modules/books/model.zig").BookRepository;
 const AuthorRepository = @import("modules/books/model.zig").AuthorRepository;
 const TagRepository = @import("modules/books/model.zig").TagRepository;
 const StaticFileServer = @import("static_files.zig").StaticFileServer;
+const Config = @import("config.zig").Config;
 
 /// Context specific to authentication behaviors
 pub const AuthContext = struct {
@@ -26,6 +27,7 @@ pub const ServerContext = struct {
     book_repo: *BookRepository,
     author_repo: *AuthorRepository,
     tag_repo: *TagRepository,
+    config: Config,
     library_directories: []const []const u8,
     static_server: *const StaticFileServer,
 

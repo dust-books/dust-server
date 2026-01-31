@@ -1,10 +1,12 @@
 const std = @import("std");
 const httpz = @import("httpz");
 const sqlite = @import("sqlite");
-const BookRepository = @import("model.zig").BookRepository;
-const AuthorRepository = @import("model.zig").AuthorRepository;
-const TagRepository = @import("model.zig").TagRepository;
-const Book = @import("model.zig").Book;
+const ServerContext = @import("../../context.zig").ServerContext;
+const model = @import("model.zig");
+const BookRepository = model.BookRepository;
+const AuthorRepository = model.AuthorRepository;
+const TagRepository = model.TagRepository;
+const Book = model.Book;
 const CoverManager = @import("../../cover_manager.zig").CoverManager;
 
 fn sanitizeCoverPath(path: ?[]const u8) ?[]const u8 {
@@ -828,15 +830,14 @@ pub fn getCompletedReading(
 
 // GET /covers/isbn - Get completed books
 pub fn getCover(
-    db: *sqlite.Db,
+    ctx: *ServerContext,
     book_id: i64,
     req: *httpz.Request,
     res: *httpz.Response,
 ) !void {
     _ = req;
     const allocator = res.arena;
-    var book_repo = @import("model.zig").BookRepository.init(db, allocator);
-    const book = book_repo.getBookById(allocator, book_id) catch |err| {
+    const book = ctx.book_repo.getBookById(allocator, book_id) catch |err| {
         if (err == error.BookNotFound) {
             res.status = 404;
             try res.json(.{ .@"error" = "Book not found" }, .{});
@@ -845,7 +846,7 @@ pub fn getCover(
         return err;
     };
 
-    var cover_manager = @import("../../cover_manager.zig").CoverManager.init(allocator);
+    var cover_manager = CoverManager.init(allocator);
     std.log.debug("Looking for cover for book {d} at path: {s}", .{ book_id, book.file_path });
     const cover_path = cover_manager.findLocalCover(book.file_path) catch |err| blk: {
         std.log.warn("Failed to locate cover for book {d} ({s}): {} ({s})", .{ book_id, book.file_path, err, @errorName(err) });
