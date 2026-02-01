@@ -59,13 +59,13 @@ pub const DustServer = struct {
 
         // Initialize book repositories
         const book_repo = try allocator.create(BookRepository);
-        book_repo.* = BookRepository.init(allocator, &db.db, config);
+        book_repo.* = BookRepository.init(&db.db, config);
 
         const author_repo = try allocator.create(AuthorRepository);
-        author_repo.* = AuthorRepository.init(allocator, &db.db);
+        author_repo.* = AuthorRepository.init(&db.db);
 
         const tag_repo = try allocator.create(TagRepository);
-        tag_repo.* = TagRepository.init(allocator, &db.db);
+        tag_repo.* = TagRepository.init(&db.db);
 
         // Initialize static file server
         const static_server = try allocator.create(StaticFileServer);
@@ -168,7 +168,7 @@ pub const DustServer = struct {
         router.get("/books", booksList, .{});
         router.get("/books/:id", booksGet, .{});
         router.get("/books/:id/stream", booksStream, .{});
-        router.get("/covers/:id", booksCover, .{}); // <-- new cover route
+        router.get("/covers/:id", booksCover, .{});
         router.post("/books", booksCreate, .{});
         router.put("/books/:id", booksUpdate, .{});
         router.delete("/books/:id", booksDelete, .{});

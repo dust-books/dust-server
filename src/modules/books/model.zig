@@ -114,13 +114,11 @@ pub const ReadingProgress = struct {
 // Repository for Book operations
 pub const BookRepository = struct {
     db: *sqlite.Db,
-    allocator: std.mem.Allocator,
     config: Config,
 
-    pub fn init(allocator: std.mem.Allocator, db: *sqlite.Db, config: Config) BookRepository {
+    pub fn init(db: *sqlite.Db, config: Config) BookRepository {
         return .{
             .db = db,
-            .allocator = allocator,
             .config = config,
         };
     }
@@ -152,13 +150,13 @@ pub const BookRepository = struct {
         return try stmt.all(Book, allocator, .{}, .{});
     }
 
-    pub fn createBook(self: *BookRepository, name: []const u8, author_id: i64, file_path: []const u8) !i64 {
-        var cover_manager = cover.CoverManager.init(self.allocator);
+    pub fn createBook(self: *BookRepository, allocator: std.mem.Allocator, name: []const u8, author_id: i64, file_path: []const u8) !i64 {
+        var cover_manager = cover.CoverManager.init(allocator);
         const cover_path = cover_manager.findLocalCover(file_path) catch |err| blk: {
             std.log.warn("Failed to locate cover for {s}: {}", .{ file_path, err });
             break :blk null;
         };
-        defer if (cover_path) |cp| self.allocator.free(cp);
+        defer if (cover_path) |cp| allocator.free(cp);
 
         const query =
             \\INSERT INTO books (name, author, file_path, cover_image_path, status)
@@ -176,12 +174,12 @@ pub const BookRepository = struct {
     pub fn create(self: *BookRepository, allocator: std.mem.Allocator, name: []const u8, filepath: []const u8, file_format: []const u8, author_id: ?i64) !Book {
         const author = author_id orelse 1; // Default author if none provided
 
-        var cover_manager = cover.CoverManager.init(self.allocator);
+        var cover_manager = cover.CoverManager.init(allocator);
         const cover_path = cover_manager.findLocalCover(filepath) catch |err| blk: {
             std.log.warn("Failed to locate cover for {s}: {}", .{ filepath, err });
             break :blk null;
         };
-        defer if (cover_path) |cp| self.allocator.free(cp);
+        defer if (cover_path) |cp| allocator.free(cp);
 
         const query =
             \\INSERT INTO books (name, author, file_path, file_format, cover_image_path, status)
@@ -218,12 +216,12 @@ pub const BookRepository = struct {
         const final_format = file_format orelse existing.file_format orelse "";
         const final_author = author_id orelse existing.author;
 
-        var cover_manager = cover.CoverManager.init(self.allocator);
+        var cover_manager = cover.CoverManager.init(allocator);
         const cover_path = cover_manager.findLocalCover(final_filepath) catch |err| blk: {
             std.log.warn("Failed to refresh cover for {s}: {}", .{ final_filepath, err });
             break :blk null;
         };
-        defer if (cover_path) |cp| self.allocator.free(cp);
+        defer if (cover_path) |cp| allocator.free(cp);
 
         const update_query =
             \\UPDATE books 
@@ -294,7 +292,7 @@ pub const BookRepository = struct {
 
         var author_id: ?i64 = null;
         if (metadata.author) |author_name| {
-            var author_repo = AuthorRepository.init(allocator, self.db);
+            var author_repo = AuthorRepository.init(self.db);
             author_id = author_repo.getOrCreateAuthorByName(author_name) catch |err| blk: {
                 std.log.warn("Failed to get/create author: {}", .{err});
                 break :blk null;
@@ -343,12 +341,10 @@ pub const BookRepository = struct {
 // Repository for Author operations
 pub const AuthorRepository = struct {
     db: *sqlite.Db,
-    allocator: std.mem.Allocator,
 
-    pub fn init(allocator: std.mem.Allocator, db: *sqlite.Db) AuthorRepository {
+    pub fn init(db: *sqlite.Db) AuthorRepository {
         return .{
             .db = db,
-            .allocator = allocator,
         };
     }
 
@@ -424,12 +420,10 @@ pub const AuthorRepository = struct {
 // Repository for Tag operations
 pub const TagRepository = struct {
     db: *sqlite.Db,
-    allocator: std.mem.Allocator,
 
-    pub fn init(allocator: std.mem.Allocator, db: *sqlite.Db) TagRepository {
+    pub fn init(db: *sqlite.Db) TagRepository {
         return .{
             .db = db,
-            .allocator = allocator,
         };
     }
 
