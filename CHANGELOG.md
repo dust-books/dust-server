@@ -1,3 +1,9 @@
+## [0.7.1](https://github.com/dust-books/dust-server/compare/v0.7.0...v0.7.1) (2026-02-04)
+
+### Bug Fixes
+
+* **client:** fix client not being built as part of release ([2e661ba](https://github.com/dust-books/dust-server/commit/2e661ba4bf06145b4e20da00143b82bede99b700))
+
 ## [0.7.0](https://github.com/dust-books/dust-server/compare/v0.6.2...v0.7.0) (2026-01-31)
 
 ### Features
