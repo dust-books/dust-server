@@ -35,6 +35,13 @@ jobs:
       - name: Install dependencies
         run: npm ci
       
+      - name: Build client assets
+        run: |
+          cd client
+          npm ci
+          npm run build
+          cd ..
+      
       - name: Build release binaries
         run: |
           mkdir -p dist
@@ -44,6 +51,7 @@ jobs:
           mkdir -p package
           cp zig-out/bin/dust-server package/
           find .zig-cache -name "libsqlite.so" -type f -exec cp {} package/ \; 2>/dev/null || true
+          cp -r client/dist package/client
           tar -czf dist/dust-server-linux-x86_64.tar.gz -C package .
           rm -rf package
           
@@ -52,6 +60,7 @@ jobs:
           mkdir -p package
           cp zig-out/bin/dust-server package/
           find .zig-cache -name "libsqlite.so" -type f -exec cp {} package/ \; 2>/dev/null || true
+          cp -r client/dist package/client
           tar -czf dist/dust-server-linux-aarch64.tar.gz -C package .
           rm -rf package
           
@@ -60,6 +69,7 @@ jobs:
           mkdir -p package
           cp zig-out/bin/dust-server package/
           find .zig-cache -name "libsqlite.dylib" -o -name "libsqlite.so" -type f -exec cp {} package/ \; 2>/dev/null || true
+          cp -r client/dist package/client
           tar -czf dist/dust-server-macos-x86_64.tar.gz -C package .
           rm -rf package
           
@@ -68,6 +78,7 @@ jobs:
           mkdir -p package
           cp zig-out/bin/dust-server package/
           find .zig-cache -name "libsqlite.dylib" -o -name "libsqlite.so" -type f -exec cp {} package/ \; 2>/dev/null || true
+          cp -r client/dist package/client
           tar -czf dist/dust-server-macos-aarch64.tar.gz -C package .
           rm -rf package
       
