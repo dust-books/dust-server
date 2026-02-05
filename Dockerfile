@@ -1,12 +1,14 @@
 # Build stage
 FROM alpine:3.19 AS builder
 
-# Install Zig and dependencies
+# Install Zig, Node.js and dependencies
 RUN apk add --no-cache \
     wget \
     xz \
     curl \
-    sqlite-dev
+    sqlite-dev \
+    nodejs \
+    npm
 
 # Install Zig 0.15.2
 RUN wget https://ziglang.org/download/0.15.2/zig-linux-x86_64-0.15.2.tar.xz && \
@@ -18,14 +20,21 @@ RUN wget https://ziglang.org/download/0.15.2/zig-linux-x86_64-0.15.2.tar.xz && \
 # Set working directory
 WORKDIR /app
 
+# Build the client first
+COPY client/package*.json ./client/
+WORKDIR /app/client
+RUN npm ci
+COPY client/ ./
+RUN npm run build
+
+# Back to app root for server build
+WORKDIR /app
+
 # Copy build configuration
 COPY build.zig build.zig.zon ./
 
 # Copy source code
 COPY src ./src
-
-# Copy client files
-COPY client/dist ./client/dist
 
 # Build the application in release mode
 RUN zig build -Doptimize=ReleaseSafe
