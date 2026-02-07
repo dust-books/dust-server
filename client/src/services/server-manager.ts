@@ -348,7 +348,18 @@ export class ServerManager {
     delete tokens[serverId];
     localStorage.setItem(STORAGE_KEYS.AUTH_TOKENS, JSON.stringify(tokens));
   }
-
+  /**
+   * Clear auth for a server (localStorage + in-memory). 
+   * Used on logout so refresh does not restore the auth session after a logout.
+   */
+  clearAuthForServer(serverId: string): void {
+    this.removeAuthToken(serverId);
+    const index = this.state.servers.findIndex(s => s.id === serverId);
+    if (index >= 0) {
+      this.state.servers[index] = { ...this.state.servers[index], auth: undefined, user: undefined };
+      this.updateState({});
+    }
+  }
   /**
    * Get stored auth tokens
    */

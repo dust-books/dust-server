@@ -127,13 +127,12 @@ export class ApiService {
     } catch (error) {
       console.warn('Logout request failed:', error);
     } finally {
-      // Clear auth for current server (but keep the server configured)
-      const server = this.getCurrentServer();
-      const serverIndex = serverManager.getServers().findIndex(s => s.id === server.id);
-      if (serverIndex >= 0) {
-        const servers = serverManager.getServers();
-        servers[serverIndex].auth = undefined;
-        servers[serverIndex].user = undefined;
+      // Clear auth from memory and localStorage so refresh does not restore session
+      try {
+        const server = this.getCurrentServer();
+        serverManager.clearAuthForServer(server.id);
+      } catch {
+        // No active server, nothing to clear
       }
     }
   }
