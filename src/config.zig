@@ -47,7 +47,19 @@ pub const Config = struct {
         const jwt_secret = std.process.getEnvVarOwned(allocator, "JWT_SECRET") catch
             return error.MissingJWTSecret;
 
-        const database_url = std.process.getEnvVarOwned(allocator, "DATABASE_URL") catch try allocator.dupe(u8, "file:dust.db");
+        // blk: produce block result via break (avoids trailing expr without semicolon, which Zig 0.15 rejects here)
+        const database_url = blk: {
+            const url = std.process.getEnvVarOwned(allocator, "DATABASE_URL") catch |err| {
+                // catch EnvironmentVariableNotFound and handle it;
+                if (err == std.process.GetEnvVarOwnedError.EnvironmentVariableNotFound) {
+                    // fix: db file instance-specific naming to avoid 2+ servers sharing the same db.
+                    break :blk try std.fmt.allocPrint(allocator, "file:dust-{d}.db", .{port});
+                } else { // return other errors (OutOfMemory, InvalidWtf8): std.process.GetEnvVarOwnedError
+                    return err;
+                }
+            };
+            break :blk url;
+        };
 
         return Config{
             .library_directories = library_directories,
