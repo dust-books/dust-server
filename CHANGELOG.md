@@ -1,3 +1,9 @@
+## [0.7.4](https://github.com/dust-books/dust-server/compare/v0.7.3...v0.7.4) (2026-02-09)
+
+### Bug Fixes
+
+* **config:** improve database URL handling and instance-specific naming ([02250dc](https://github.com/dust-books/dust-server/commit/02250dc7af23c49d48ae4ef18a78691f99633b49)), closes [#23](https://github.com/dust-books/dust-server/issues/23)
+
 ## [0.7.3](https://github.com/dust-books/dust-server/compare/v0.7.2...v0.7.3) (2026-02-09)
 
 ### Bug Fixes
