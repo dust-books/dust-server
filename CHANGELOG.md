@@ -1,3 +1,9 @@
+## [0.7.3](https://github.com/dust-books/dust-server/compare/v0.7.2...v0.7.3) (2026-02-09)
+
+### Bug Fixes
+
+* **auth:** clear auth token from localStorage on logout ([b0f60ec](https://github.com/dust-books/dust-server/commit/b0f60ecd8b2edb40aa952b15e58e4c19553a33ea))
+
 ## [0.7.2](https://github.com/dust-books/dust-server/compare/v0.7.1...v0.7.2) (2026-02-05)
 
 ### Bug Fixes
