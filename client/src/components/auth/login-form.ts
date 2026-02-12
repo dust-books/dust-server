@@ -10,6 +10,7 @@ import { appStateContext, AppStateService } from "../../services/app-state.js";
 import { serverManager } from "../../services/server-manager.js";
 import type { MultiServerState } from "../../types/server.js";
 import "../server/server-selector.js";
+import { apiService } from "../../services/api.js";
 
 @customElement("login-form")
 export class LoginForm extends LitElement {
@@ -28,6 +29,7 @@ export class LoginForm extends LitElement {
     password: "",
     username: "",
     display_name: "",
+    invitation_token: "",
   };
 
   @state()
@@ -43,6 +45,9 @@ export class LoginForm extends LitElement {
     isConnecting: false,
   };
 
+  @state()
+  private authFlow: "signup" | "invitation" | null = null;
+
   private unsubscribe?: () => void;
 
   connectedCallback() {
@@ -51,11 +56,24 @@ export class LoginForm extends LitElement {
       this.serverState = state;
     });
     this.serverState = serverManager.getState();
+
+    // Load auth flow for the active server so we can adapt the UI
+    this.loadAuthSettings();
   }
 
   disconnectedCallback() {
     super.disconnectedCallback();
     this.unsubscribe?.();
+  }
+
+  private async loadAuthSettings() {
+    try {
+      const settings = await apiService.getAuthSettings();
+      this.authFlow = settings.auth_flow;
+    } catch (error) {
+      console.warn("Failed to load auth settings in login form:", error);
+      this.authFlow = null;
+    }
   }
 
   static styles = css`
@@ -253,6 +271,7 @@ export class LoginForm extends LitElement {
       password: "",
       username: "",
       display_name: "",
+      invitation_token: "",
     };
   }
 
@@ -293,6 +312,11 @@ export class LoginForm extends LitElement {
       if (!this.formData.display_name) {
         errors.display_name = "Display name is required";
       }
+
+      // When in invitation-only mode, require a token
+      if (this.authFlow === "invitation" && !this.formData.invitation_token) {
+        errors.invitation_token = "Invitation token is required";
+      }
     }
 
     this.errors = errors;
@@ -321,6 +345,7 @@ export class LoginForm extends LitElement {
           email: this.formData.email,
           password: this.formData.password,
           display_name: this.formData.display_name,
+          invitation_token: this.authFlow === "invitation" ? this.formData.invitation_token : undefined,
         });
         // Switch to login after successful registration
         this.handleTabSwitch(true);
@@ -373,8 +398,9 @@ export class LoginForm extends LitElement {
           <button
             class="tab-button ${!this.isLogin ? "active" : ""}"
             @click=${() => this.handleTabSwitch(false)}
+            title=${this.authFlow === "invitation" ? "Registration requires an invitation token" : ""}
           >
-            Register
+            ${this.authFlow === "invitation" ? "Register (with invitation)" : "Register"}
           </button>
         </div>
 
@@ -409,6 +435,36 @@ export class LoginForm extends LitElement {
                       </div>`
                     : ""}
                 </div>
+
+                ${this.authFlow === "invitation"
+                  ? html`
+                      <div class="form-group">
+                        <label class="form-label" for="invitation_token">
+                          Invitation Token
+                        </label>
+                        <input
+                          type="text"
+                          id="invitation_token"
+                          class="form-input ${this.errors.invitation_token
+                            ? "error"
+                            : ""}"
+                          .value=${this.formData.invitation_token}
+                          @input=${(e: InputEvent) =>
+                            this.handleInputChange(
+                              "invitation_token",
+                              (e.target as HTMLInputElement).value
+                            )}
+                          placeholder="Paste your invitation token"
+                          ?disabled=${this.isLoading}
+                        />
+                        ${this.errors.invitation_token
+                          ? html`<div class="form-error">
+                              ${this.errors.invitation_token}
+                            </div>`
+                          : ""}
+                      </div>
+                    `
+                  : ""}
 
                 <div class="form-group">
                   <label class="form-label" for="display_name"
@@ -493,7 +549,9 @@ export class LoginForm extends LitElement {
         </form>
 
         <div class="form-footer">
-          Welcome to Dust - Your personal digital library
+          ${this.authFlow === "invitation"
+            ? "This server currently requires an invitation token to create a new account."
+            : "Welcome to Dust - Your personal digital library"}
         </div>
       </div>
     `;

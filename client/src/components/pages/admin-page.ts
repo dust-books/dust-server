@@ -288,6 +288,26 @@ export class AdminPage extends LitElement {
     `;
   }
 
+  private navigateToUserManagement() {
+    this.dispatchEvent(
+      new CustomEvent("navigate", {
+        detail: { page: "admin-users" },
+        bubbles: true,
+        composed: true,
+      })
+    );
+  }
+
+  private navigateToSystemSettings() {
+    this.dispatchEvent(
+      new CustomEvent("navigate", {
+        detail: { page: "admin-settings" },
+        bubbles: true,
+        composed: true,
+      })
+    );
+  }
+
   private renderServerItem(server: ServerWithAuth, isActive: boolean) {
     const statusClass = isActive
       ? "active"
@@ -349,7 +369,12 @@ export class AdminPage extends LitElement {
             <p class="card-description">
               Manage user accounts, roles, and permissions for your Dust server.
             </p>
-            <span class="coming-soon-badge">Coming Soon</span>
+            <button
+              class="action-button"
+              @click=${this.navigateToUserManagement}
+            >
+              <span>Open User Management</span>
+            </button>
           </div>
 
           <div class="admin-card">
@@ -378,7 +403,12 @@ export class AdminPage extends LitElement {
             <p class="card-description">
               Configure server settings, authentication, and system preferences.
             </p>
-            <span class="coming-soon-badge">Coming Soon</span>
+            <button
+              class="action-button"
+              @click=${this.navigateToSystemSettings}
+            >
+              <span>Open System Settings</span>
+            </button>
           </div>
         </div>
 

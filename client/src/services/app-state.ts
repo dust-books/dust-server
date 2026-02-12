@@ -142,7 +142,7 @@ export class AppStateService {
     }
   }
 
-  async register(userData: { username: string; email: string; password: string; display_name?: string }): Promise<void> {
+  async register(userData: { username: string; email: string; password: string; display_name?: string; invitation_token?: string }): Promise<void> {
     this.setState({ isLoading: true });
     
     try {
