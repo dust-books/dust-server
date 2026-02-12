@@ -159,6 +159,7 @@ pub const DustServer = struct {
         router.post("/auth/register", user_routes.register, .{});
         router.post("/auth/login", user_routes.login, .{});
         router.post("/auth/logout", user_routes.logout, .{});
+        router.get("/auth/settings", userAuthSettings, .{});
 
         // Protected user endpoints
         router.get("/users/me", user_routes.getCurrentUser, .{});
@@ -201,6 +202,9 @@ pub const DustServer = struct {
         router.get("/admin/users/:id", adminGetUser, .{});
         router.put("/admin/users/:id", adminUpdateUser, .{});
         router.delete("/admin/users/:id", adminDeleteUser, .{});
+        router.post("/admin/invitations", adminCreateInvitation, .{});
+        router.get("/admin/auth-settings", adminGetAuthSettings, .{});
+        router.put("/admin/auth-settings", adminUpdateAuthSettings, .{});
         router.post("/admin/scan", adminScanLibrary, .{});
         router.post("/admin/books/:id/refresh-metadata", adminRefreshBookMetadata, .{});
     }
@@ -376,6 +380,18 @@ fn adminUpdateUser(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Respons
 
 fn adminDeleteUser(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
     try admin_users.deleteUser(ctx.auth_context.auth_service.user_repo.db, &ctx.auth_context.jwt, ctx.auth_context.allocator, req, res);
+}
+
+fn adminCreateInvitation(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
+    try admin_users.createInvitationToken(ctx.auth_context.auth_service.user_repo.db, &ctx.auth_context.jwt, ctx.auth_context.allocator, req, res);
+}
+
+fn adminGetAuthSettings(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
+    try admin_users.getAuthSettings(ctx.auth_context.auth_service.user_repo.db, &ctx.auth_context.jwt, ctx.auth_context.allocator, req, res);
+}
+
+fn adminUpdateAuthSettings(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
+    try admin_users.updateAuthSettings(ctx.auth_context.auth_service.user_repo.db, &ctx.auth_context.jwt, ctx.auth_context.allocator, req, res);
 }
 
 fn adminScanLibrary(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
@@ -616,6 +632,11 @@ fn booksCover(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !v
         std.log.err("Failed to get cover for book {}: {} ({s})", .{ book_id, err, @errorName(err) });
         return err;
     };
+}
+
+/// Public auth settings handler
+fn userAuthSettings(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
+    try user_routes.getAuthSettingsPublic(ctx, req, res);
 }
 
 // CORS preflight handler for OPTIONS requests
