@@ -113,3 +113,56 @@ pub fn verifyToken(
 
     return true;
 }
+
+// --- Tests (most sensitive backend logic: invitation accept/reject) ---
+
+test "invitation generateToken then verifyToken with same email returns true" {
+    const allocator = std.testing.allocator;
+    const secret = "test-jwt-secret";
+    const email = "user@example.com";
+
+    const token = try generateToken(allocator, secret, email);
+    defer allocator.free(token);
+
+    try std.testing.expect(verifyToken(allocator, secret, email, token));
+}
+
+test "invitation verifyToken with wrong email returns false" {
+    const allocator = std.testing.allocator;
+    const secret = "test-jwt-secret";
+    const email = "user@example.com";
+
+    const token = try generateToken(allocator, secret, email);
+    defer allocator.free(token);
+
+    try std.testing.expect(!verifyToken(allocator, secret, "other@example.com", token));
+}
+
+test "invitation verifyToken with tampered token returns false" {
+    const allocator = std.testing.allocator;
+    const secret = "test-jwt-secret";
+    const email = "user@example.com";
+
+    const token = try generateToken(allocator, secret, email);
+    defer allocator.free(token);
+
+    // Tamper: flip one character in the token
+    var buf: [512]u8 = undefined;
+    const len = token.len;
+    std.mem.copyForwards(u8, buf[0..len], token);
+    if (buf[len - 1] == 'a') buf[len - 1] = 'b' else buf[len - 1] = 'a';
+    const tampered = buf[0..len];
+
+    try std.testing.expect(!verifyToken(allocator, secret, email, tampered));
+}
+
+test "invitation verifyToken with wrong secret returns false" {
+    const allocator = std.testing.allocator;
+    const secret = "correct-secret";
+    const email = "user@example.com";
+
+    const token = try generateToken(allocator, secret, email);
+    defer allocator.free(token);
+
+    try std.testing.expect(!verifyToken(allocator, "wrong-secret", email, token));
+}

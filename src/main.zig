@@ -138,4 +138,7 @@ test {
     // Auth module tests
     _ = @import("auth/jwt.zig");
     _ = @import("auth/permissions.zig");
+
+    // Invitation token tests
+    _ = @import("modules/users/invitation.zig");
 }
