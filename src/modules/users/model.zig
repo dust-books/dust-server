@@ -7,7 +7,7 @@ pub const User = struct {
     email: []const u8,
     username: ?[]const u8,
     password_hash: []const u8,
-    is_admin: bool,
+    is_admin: bool, // after conversion from SQLite `INTEGER 0/1` to bool
     created_at: []const u8,
     updated_at: []const u8,
 
@@ -88,7 +88,7 @@ pub const UserRepository = struct {
                 .email = try self.allocator.dupe(u8, r.email),
                 .username = if (r.username) |un| try self.allocator.dupe(u8, un) else null,
                 .password_hash = try self.allocator.dupe(u8, r.password_hash),
-                .is_admin = r.is_admin != 0,
+                .is_admin = r.is_admin != 0, // convert SQLite `INTEGER 0/1` to bool
                 .created_at = try self.allocator.dupe(u8, r.created_at),
                 .updated_at = try self.allocator.dupe(u8, r.updated_at),
             };

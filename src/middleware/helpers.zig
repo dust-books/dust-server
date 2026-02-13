@@ -24,7 +24,7 @@ pub fn requireAdmin(
     // This is a fix for a bug that surfaced once we a call to requireAdmin from the admin-users route.
     const Row = struct {
         id: i64,
-        is_admin: i64,
+        is_admin: i64, // since SQLite does not have a BOOLEAN storage class, we use INTEGER 0/1
     };
 
     const maybe_row = db.db.oneAlloc(
