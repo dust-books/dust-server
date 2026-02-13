@@ -122,5 +122,20 @@ pub fn migrate(db: *Database) !void {
         try db.recordMigration("007_add_is_admin_to_users");
     }
 
+    // Migration 8: server settings table
+    if (!try db.hasMigration("008_create_server_settings")) {
+        try db.execMultiple(
+            \\CREATE TABLE server_settings (
+            \\  id INTEGER PRIMARY KEY CHECK (id = 1),
+            \\  auth_flow TEXT NOT NULL DEFAULT 'signup' CHECK (auth_flow IN ('signup', 'invitation')),
+            \\  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            \\);
+            \\
+            \\INSERT INTO server_settings (id, auth_flow)
+            \\VALUES (1, 'signup');
+        );
+        try db.recordMigration("008_create_server_settings");
+    }
+
     std.log.info("Users module migrations complete", .{});
 }

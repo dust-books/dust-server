@@ -19,6 +19,8 @@ import "./pages/library-page.js";
 import "./pages/reader-page.js";
 import "./pages/profile-page.js";
 import "./pages/admin-page.js";
+import "./pages/admin-sub-pages/admin-users-page.js";
+import "./pages/admin-sub-pages/admin-settings-page.js";
 import "./pages/authors-page.js";
 import "./pages/author-detail-page.js";
 import "./pages/genres-page.js";
@@ -311,7 +313,27 @@ export class DustApp extends LitElement {
 
       case "admin":
         return this.appStateService.isAdmin()
-          ? html` <admin-page></admin-page> `
+          ? html` <admin-page @navigate=${(e: CustomEvent) => this.navigateTo(e.detail.page)}></admin-page> `
+          : html`
+              <div style="text-align: center; padding: 2rem;">
+                <h2>Access Denied</h2>
+                <p>You don't have permission to view this page.</p>
+              </div>
+            `;
+
+      case "admin-users":
+        return this.appStateService.isAdmin()
+          ? html` <admin-users-page @navigate=${(e: CustomEvent) => this.navigateTo(e.detail.page)}></admin-users-page> `
+          : html`
+              <div style="text-align: center; padding: 2rem;">
+                <h2>Access Denied</h2>
+                <p>You don't have permission to view this page.</p>
+              </div>
+            `;
+
+      case "admin-settings":
+        return this.appStateService.isAdmin()
+          ? html` <admin-settings-page @navigate=${(e: CustomEvent) => this.navigateTo(e.detail.page)}></admin-settings-page> `
           : html`
               <div style="text-align: center; padding: 2rem;">
                 <h2>Access Denied</h2>

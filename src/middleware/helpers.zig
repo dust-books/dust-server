@@ -20,22 +20,28 @@ pub fn requireAdmin(
     };
     errdefer auth_user.deinit(allocator);
     
-    // Check admin status
-    const maybe_user = db.db.oneAlloc(
-        User,
+    // Check admin status using a minimal row struct to avoid schema mismatches
+    // This is a fix for a bug that surfaced once we a call to requireAdmin from the admin-users route.
+    const Row = struct {
+        id: i64,
+        is_admin: i64, // since SQLite does not have a BOOLEAN storage class, we use INTEGER 0/1
+    };
+
+    const maybe_row = db.db.oneAlloc(
+        Row,
         allocator,
-        "SELECT id, username, email, is_admin, created_at FROM users WHERE id = ?",
+        "SELECT id, is_admin FROM users WHERE id = ?",
         .{},
         .{auth_user.user_id},
     ) catch null;
     
-    const user = maybe_user orelse {
+    const row = maybe_row orelse {
         res.status = 404;
         try res.json(.{ .@"error" = "User not found" }, .{});
         return error.UserNotFound;
     };
-    
-    if (!user.is_admin) {
+
+    if (row.is_admin == 0) {
         res.status = 403;
         try res.json(.{ .@"error" = "Forbidden: Admin access required" }, .{});
         return error.Forbidden;

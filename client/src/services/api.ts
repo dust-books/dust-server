@@ -322,6 +322,33 @@ export class ApiService {
     return this.request<DashboardStats>('/admin/dashboard');
   }
 
+  // Admin settings methods
+  async getAdminAuthSettings(): Promise<{ auth_flow: 'signup' | 'invitation' }> {
+    return this.request<{ auth_flow: 'signup' | 'invitation' }>('/admin/auth-settings');
+  }
+
+  async updateAdminAuthSettings(
+    authFlow: 'signup' | 'invitation'
+  ): Promise<{ auth_flow: 'signup' | 'invitation' }> {
+    return this.request<{ auth_flow: 'signup' | 'invitation' }>('/admin/auth-settings', {
+      method: 'PUT',
+      body: JSON.stringify({ auth_flow: authFlow }),
+    });
+  }
+
+  // Public auth settings (used by login/register UI)
+  async getAuthSettings(): Promise<{ auth_flow: 'signup' | 'invitation' }> {
+    return this.request<{ auth_flow: 'signup' | 'invitation' }>('/auth/settings');
+  }
+
+  // Invitation methods
+  async createInvitation(email: string): Promise<{ token: string }> {
+    return this.request<{ token: string }>('/admin/invitations', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    });
+  }
+
   async refreshBookMetadata(bookId: number): Promise<{ success: boolean; message: string; book_id: number }> {
     return this.request<{ success: boolean; message: string; book_id: number }>(`/admin/books/${bookId}/refresh-metadata`, {
       method: 'POST',

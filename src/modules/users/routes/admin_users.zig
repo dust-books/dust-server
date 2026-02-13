@@ -4,6 +4,7 @@ const Database = @import("../../../database.zig").Database;
 const User = @import("../model.zig").User;
 const JWT = @import("../../../auth/jwt.zig").JWT;
 const middleware_helpers = @import("../../../middleware/helpers.zig");
+const invitation = @import("../invitation.zig");
 
 pub fn listUsers(db: *Database, jwt: *const JWT, allocator: std.mem.Allocator, req: *httpz.Request, res: *httpz.Response) !void {
     var auth_user = middleware_helpers.requireAdmin(db, jwt, allocator, req, res) catch |err| {
@@ -203,4 +204,117 @@ pub fn deleteUser(db: *Database, jwt: *const JWT, allocator: std.mem.Allocator, 
     try stmt.exec(.{}, .{id});
     
     try res.json(.{ .message = "User deleted successfully" }, .{});
+}
+
+/// Create a one-time invitation token for a given email (admin-only).
+/// The token is derived from the global JWT secret and never stored.
+pub fn createInvitationToken(db: *Database, jwt: *const JWT, allocator: std.mem.Allocator, req: *httpz.Request, res: *httpz.Response) !void {
+    // Require admin access
+    var auth_user = middleware_helpers.requireAdmin(db, jwt, allocator, req, res) catch |err| {
+        return err;
+    };
+    defer auth_user.deinit(allocator);
+
+    const Body = struct {
+        email: []const u8,
+    };
+
+    const body_opt = try req.json(Body);
+    const body = body_opt orelse {
+        res.status = 400;
+        try res.json(.{ .@"error" = "Invalid request body" }, .{});
+        return;
+    };
+
+    if (body.email.len == 0) {
+        res.status = 400;
+        try res.json(.{ .@"error" = "Email is required" }, .{});
+        return;
+    }
+
+    const token = invitation.generateToken(allocator, jwt.secret, body.email) catch |err| {
+        std.log.err("Failed to generate invitation token: {} ({s})", .{ err, @errorName(err) });
+        res.status = 500;
+        try res.json(.{ .@"error" = "Failed to generate invitation token" }, .{});
+        return;
+    };
+    defer allocator.free(token);
+
+    try res.json(.{
+        .token = token,
+    }, .{});
+}
+
+/// Get current authentication settings for the server (admin-only)
+pub fn getAuthSettings(db: *Database, jwt: *const JWT, allocator: std.mem.Allocator, req: *httpz.Request, res: *httpz.Response) !void {
+    // Require admin access
+    var auth_user = middleware_helpers.requireAdmin(db, jwt, allocator, req, res) catch |err| {
+        return err;
+    };
+    defer auth_user.deinit(allocator);
+
+    const SettingsRow = struct {
+        auth_flow: []const u8,
+    };
+
+    var stmt = try db.db.prepare("SELECT auth_flow FROM server_settings WHERE id = 1");
+    defer stmt.deinit();
+
+    const row = try stmt.oneAlloc(SettingsRow, allocator, .{}, .{});
+
+    if (row) |settings| {
+        try res.json(.{
+            .auth_flow = settings.auth_flow,
+        }, .{});
+    } else {
+        // Fallback to default if settings row is missing for some reason
+        try res.json(.{
+            .auth_flow = "signup",
+        }, .{});
+    }
+}
+
+/// Update authentication settings for the server (admin-only)
+pub fn updateAuthSettings(db: *Database, jwt: *const JWT, allocator: std.mem.Allocator, req: *httpz.Request, res: *httpz.Response) !void {
+    // Require admin access
+    var auth_user = middleware_helpers.requireAdmin(db, jwt, allocator, req, res) catch |err| {
+        return err;
+    };
+    defer auth_user.deinit(allocator);
+
+    const Body = struct {
+        auth_flow: []const u8,
+    };
+
+    const body_opt = try req.json(Body);
+    const body = body_opt orelse {
+        res.status = 400;
+        try res.json(.{ .@"error" = "Invalid request body" }, .{});
+        return;
+    };
+
+    // Validate auth_flow
+    if (!std.mem.eql(u8, body.auth_flow, "signup") and !std.mem.eql(u8, body.auth_flow, "invitation")) {
+        res.status = 400;
+        try res.json(.{ .@"error" = "Invalid auth_flow value" }, .{});
+        return;
+    }
+
+    // Upsert settings row so the value is always persisted even if the row is missing
+    const upsert =
+        \\INSERT INTO server_settings (id, auth_flow, updated_at)
+        \\VALUES (1, ?, CURRENT_TIMESTAMP)
+        \\ON CONFLICT(id) DO UPDATE SET
+        \\  auth_flow = excluded.auth_flow,
+        \\  updated_at = excluded.updated_at
+    ;
+
+    var stmt = try db.db.prepare(upsert);
+    defer stmt.deinit();
+
+    try stmt.exec(.{}, .{ body.auth_flow });
+
+    try res.json(.{
+        .auth_flow = body.auth_flow,
+    }, .{});
 }

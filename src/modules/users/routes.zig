@@ -10,10 +10,33 @@ const PermissionService = @import("../../auth/permission_service.zig").Permissio
 const PermissionRepository = @import("../../auth/permission_repository.zig").PermissionRepository;
 const session = @import("../../session.zig");
 const middleware_helpers = @import("../../middleware/helpers.zig");
+const invitation = @import("invitation.zig");
 
 const context = @import("../../context.zig");
 const ServerContext = context.ServerContext;
 const AuthContext = context.AuthContext;
+
+/// Public endpoint: get current authentication flow without requiring admin.
+/// Used by the client login/register UI to adapt its behavior.
+pub fn getAuthSettingsPublic(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
+    _ = req;
+
+    const db = ctx.db;
+    const allocator = ctx.auth_context.allocator;
+
+    const SettingsRow = struct { auth_flow: []const u8 };
+
+    var stmt = try db.db.prepare("SELECT auth_flow FROM server_settings WHERE id = 1");
+    defer stmt.deinit();
+
+    const row = try stmt.oneAlloc(SettingsRow, allocator, .{}, .{});
+
+    if (row) |settings| {
+        try res.json(.{ .auth_flow = settings.auth_flow }, .{});
+    } else {
+        try res.json(.{ .auth_flow = "signup" }, .{});
+    }
+}
 
 pub fn register(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
     const auth_ctx = &ctx.auth_context;
@@ -31,6 +54,7 @@ pub fn register(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) 
             password: []const u8,
             username: ?[]const u8 = null,
             display_name: ?[]const u8 = null,
+            invitation_token: ?[]const u8 = null,
         },
         auth_ctx.allocator,
         body,
@@ -49,6 +73,38 @@ pub fn register(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) 
         res.status = 400;
         try res.json(.{ .message = "Email and password are required" }, .{});
         return;
+    }
+
+    // Determine auth flow from server_settings (default to "signup" if missing)
+    var auth_flow_buf: ?[]const u8 = null;
+    {
+        const SettingsRow = struct { auth_flow: []const u8 };
+        var stmt = try ctx.db.db.prepare("SELECT auth_flow FROM server_settings WHERE id = 1");
+        defer stmt.deinit();
+
+        const row = try stmt.oneAlloc(SettingsRow, auth_ctx.allocator, .{}, .{});
+        if (row) |settings| {
+            auth_flow_buf = settings.auth_flow;
+        }
+    }
+    defer if (auth_flow_buf) |buf| auth_ctx.allocator.free(buf);
+
+    const auth_flow = if (auth_flow_buf) |buf| buf else "signup";
+
+    // If server is in invitation-only mode, require a valid invitation token
+    if (std.mem.eql(u8, auth_flow, "invitation")) {
+        const token = data.invitation_token orelse {
+            res.status = 400;
+            try res.json(.{ .message = "Invitation token is required for registration" }, .{});
+            return;
+        };
+
+        const ok = invitation.verifyToken(auth_ctx.allocator, ctx.config.jwt_secret, data.email, token);
+        if (!ok) {
+            res.status = 400;
+            try res.json(.{ .message = "Invalid or expired invitation token" }, .{});
+            return;
+        }
     }
 
     // Register user
