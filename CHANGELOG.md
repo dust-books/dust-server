@@ -1,3 +1,9 @@
+## [0.8.0](https://github.com/dust-books/dust-server/compare/v0.7.4...v0.8.0) (2026-02-13)
+
+### Features
+
+* invitation auth flow ([9ce973f](https://github.com/dust-books/dust-server/commit/9ce973fcb6e7dacee5dc7840d2bf1d34f477c5a4))
+
 ## [0.7.4](https://github.com/dust-books/dust-server/compare/v0.7.3...v0.7.4) (2026-02-09)
 
 ### Bug Fixes
