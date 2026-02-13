@@ -150,19 +150,15 @@ export class AdminUsersPage extends LitElement {
     this.loadSettings();
 
     // Restore last generated token for convenience (browser-only persistence)
-    try {
-      const lastEmail = localStorage.getItem("dust_invite_last_email");
-      if (lastEmail) {
-        this.invitationEmail = lastEmail;
-        const storedToken = localStorage.getItem(
-          `dust_invite_token:${lastEmail}`
-        );
-        if (storedToken) {
-          this.generatedToken = storedToken;
-        }
+    const lastEmail = localStorage.getItem("dust_invite_last_email");
+    if (lastEmail) {
+      this.invitationEmail = lastEmail;
+      const storedToken = localStorage.getItem(
+        `dust_invite_token:${lastEmail}`
+      );
+      if (storedToken) {
+        this.generatedToken = storedToken;
       }
-    } catch {
-      // Ignore storage errors
     }
   }
 
@@ -178,7 +174,7 @@ export class AdminUsersPage extends LitElement {
           ? error.message
           : "Failed to load authentication settings.";
       this.authFlow = null;
-    } finally {}
+    }
   }
 
   private async handleGenerateInvitation(event: Event) {
@@ -199,8 +195,8 @@ export class AdminUsersPage extends LitElement {
           `dust_invite_token:${this.invitationEmail}`,
           this.generatedToken
         );
-      } catch {
-        // Ignore storage errors
+      } catch (e) {
+        console.warn("Failed to persist invitation token to localStorage:", e);
       }
     } catch (error) {
       console.error("Failed to create invitation:", error);
