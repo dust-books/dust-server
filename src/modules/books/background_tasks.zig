@@ -175,15 +175,11 @@ pub fn createBackgroundTimerManager(allocator: std.mem.Allocator, db: *sqlite.Db
     const cleanup_interval_minutes = std.fmt.parseInt(u32, cleanup_interval_env, 10) catch 60;
     const cleanup_interval_ms = cleanup_interval_minutes * 60 * 1000;
 
-    // Kick off initial scan when booting up the server
-    // TODO: scanning immediately prohibits server from booting in timely fashion
-    scanLibraryDirectories(scan_ctx);
-
     // Run library scan every N minutes
-    try mgr.registerTimer(scanLibraryDirectories, scan_ctx, scan_interval_ms, cleanupBackgroundContext);
+    try mgr.registerTimer(scanLibraryDirectories, scan_ctx, scan_interval_ms, cleanupBackgroundContext, true);
 
     // Run cleanup every N minutes
-    try mgr.registerTimer(cleanupOldBooks, cleanup_ctx, cleanup_interval_ms, cleanupBackgroundContext);
+    try mgr.registerTimer(cleanupOldBooks, cleanup_ctx, cleanup_interval_ms, cleanupBackgroundContext, false);
 
     std.log.info("Registered books background tasks (scan every {}min, cleanup every {}min)", .{ scan_interval_minutes, cleanup_interval_minutes });
 

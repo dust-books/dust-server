@@ -49,6 +49,7 @@ pub fn TimerManager(comptime Ctx: type) type {
             context: *Ctx,
             interval_ms: u64,
             cleanup: ?*const fn (*Ctx, std.mem.Allocator) void,
+            startFirstTaskImmediately: bool,
         ) !void {
             self.mutex.lock();
             defer self.mutex.unlock();
@@ -57,7 +58,7 @@ pub fn TimerManager(comptime Ctx: type) type {
                 .func = func,
                 .context = context,
                 .interval_ms = interval_ms,
-                .last_run = std.time.milliTimestamp(),
+                .last_run = if (startFirstTaskImmediately) std.time.milliTimestamp() - @as(i64, @intCast(interval_ms)) else std.time.milliTimestamp(),
                 .cleanup = cleanup,
             };
 
