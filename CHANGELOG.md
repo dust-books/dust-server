@@ -1,3 +1,9 @@
+## [0.9.2](https://github.com/dust-books/dust-server/compare/v0.9.1...v0.9.2) (2026-02-24)
+
+### Bug Fixes
+
+* **admin:** lock down admin routes to only admins -- duh :P ([a97af2b](https://github.com/dust-books/dust-server/commit/a97af2bd7129b611c004e78961fd874cd0ba626e))
+
 ## [0.9.1](https://github.com/dust-books/dust-server/compare/v0.9.0...v0.9.1) (2026-02-24)
 
 ### Bug Fixes
