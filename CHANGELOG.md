@@ -1,3 +1,9 @@
+## [0.9.4](https://github.com/dust-books/dust-server/compare/v0.9.3...v0.9.4) (2026-02-24)
+
+### Bug Fixes
+
+* **middleware:** better error handling when requireAdmin does not succeed ([a04aafd](https://github.com/dust-books/dust-server/commit/a04aafd59a76c72630229caae3760691b2069e91))
+
 ## [0.9.3](https://github.com/dust-books/dust-server/compare/v0.9.2...v0.9.3) (2026-02-24)
 
 ### Bug Fixes
