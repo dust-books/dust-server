@@ -33,8 +33,13 @@ pub fn requireAdmin(
         "SELECT id, is_admin FROM users WHERE id = ?",
         .{},
         .{auth_user.user_id},
-    ) catch null;
-    
+    ) catch |err| {
+        std.log.err("requireAdmin: database query failed for user {d}: {s}", .{ auth_user.user_id, @errorName(err) });
+        res.status = 500;
+        try res.json(.{ .@"error" = "Internal server error" }, .{});
+        return err;
+    };
+
     const row = maybe_row orelse {
         res.status = 404;
         try res.json(.{ .@"error" = "User not found" }, .{});
