@@ -591,11 +591,21 @@ fn booksTagsByCategory(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Res
 
 fn booksAddTag(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
     logging.logRequest(req);
-    try book_routes.addTagToBook(ctx.tag_repo, req, res);
+    const auth_ctx = &ctx.auth_context;
+    var auth_user = middleware_helpers.requireAdmin(ctx.db, &auth_ctx.jwt, auth_ctx.allocator, req, res) catch |err| {
+        return err;
+    };
+    defer auth_user.deinit(auth_ctx.allocator);
+    try book_routes.addTagToBook(ctx.tag_repo, auth_user.user_id, req, res);
 }
 
 fn booksRemoveTag(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
     logging.logRequest(req);
+    const auth_ctx = &ctx.auth_context;
+    var auth_user = middleware_helpers.requireAdmin(ctx.db, &auth_ctx.jwt, auth_ctx.allocator, req, res) catch |err| {
+        return err;
+    };
+    defer auth_user.deinit(auth_ctx.allocator);
     try book_routes.removeTagFromBook(ctx.tag_repo, req, res);
 }
 

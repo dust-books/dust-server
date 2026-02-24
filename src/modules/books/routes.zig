@@ -410,10 +410,10 @@ pub fn getTagsByCategory(
 // POST /books/:id/tags - Add tag to book
 pub fn addTagToBook(
     tag_repo: *TagRepository,
+    user_id: i64,
     req: *httpz.Request,
     res: *httpz.Response,
 ) !void {
-    const user_id: i64 = 1;
 
     const id_str = req.param("id") orelse {
         res.status = 400;
