@@ -396,13 +396,21 @@ fn adminUpdateAuthSettings(ctx: *ServerContext, req: *httpz.Request, res: *httpz
 
 fn adminScanLibrary(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
     logging.logRequest(req);
-    const db = ctx.db;
-    const allocator = ctx.auth_context.allocator;
-    try admin_routes.scanLibrary(db, allocator, ctx.config, req, res);
+    const auth_ctx = &ctx.auth_context;
+    var auth_user = middleware_helpers.requireAdmin(ctx.db, &auth_ctx.jwt, auth_ctx.allocator, req, res) catch |err| {
+        return err;
+    };
+    defer auth_user.deinit(auth_ctx.allocator);
+    try admin_routes.scanLibrary(ctx.db, auth_ctx.allocator, ctx.config, req, res);
 }
 
 fn adminRefreshBookMetadata(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
     logging.logRequest(req);
+    const auth_ctx = &ctx.auth_context;
+    var auth_user = middleware_helpers.requireAdmin(ctx.db, &auth_ctx.jwt, auth_ctx.allocator, req, res) catch |err| {
+        return err;
+    };
+    defer auth_user.deinit(auth_ctx.allocator);
     try admin_routes.refreshBookMetadata(ctx.book_repo, req, res);
 }
 
