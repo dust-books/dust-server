@@ -1,3 +1,9 @@
+## [0.9.3](https://github.com/dust-books/dust-server/compare/v0.9.2...v0.9.3) (2026-02-24)
+
+### Bug Fixes
+
+* **permissions:** proper mutex-use around permissions cache ([a128e10](https://github.com/dust-books/dust-server/commit/a128e109fc641ed1e2ece1165e69b1c2de072729))
+
 ## [0.9.2](https://github.com/dust-books/dust-server/compare/v0.9.1...v0.9.2) (2026-02-24)
 
 ### Bug Fixes
