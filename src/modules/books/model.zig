@@ -111,6 +111,29 @@ pub const ReadingProgress = struct {
     }
 };
 
+/// Flat row returned by JOIN queries that need both book and author data in one shot.
+/// Fields must stay in the same order as the SELECT columns — zig-sqlite maps positionally.
+pub const BookWithAuthorRow = struct {
+    id: i64,
+    name: []const u8,
+    file_path: []const u8,
+    isbn: ?[]const u8,
+    publication_date: ?[]const u8,
+    publisher: ?[]const u8,
+    description: ?[]const u8,
+    page_count: ?i64,
+    file_size: ?i64,
+    file_format: ?[]const u8,
+    cover_image_path: ?[]const u8,
+    status: []const u8,
+    archived_at: ?[]const u8,
+    archive_reason: ?[]const u8,
+    created_at: []const u8,
+    updated_at: []const u8,
+    author_id: i64,
+    author_name: []const u8,
+};
+
 // Repository for Book operations
 pub const BookRepository = struct {
     db: *sqlite.Db,
@@ -148,6 +171,42 @@ pub const BookRepository = struct {
         defer stmt.deinit();
 
         return try stmt.all(Book, allocator, .{}, .{});
+    }
+
+    pub fn listBooksWithAuthors(self: *BookRepository, allocator: std.mem.Allocator) ![]BookWithAuthorRow {
+        const query =
+            \\SELECT b.id, b.name, b.file_path, b.isbn, b.publication_date, b.publisher,
+            \\       b.description, b.page_count, b.file_size, b.file_format, b.cover_image_path,
+            \\       b.status, b.archived_at, b.archive_reason, b.created_at, b.updated_at,
+            \\       a.id AS author_id, a.name AS author_name
+            \\FROM books b
+            \\INNER JOIN authors a ON b.author = a.id
+            \\WHERE b.status = 'active'
+            \\ORDER BY b.created_at DESC
+        ;
+
+        var stmt = try self.db.prepare(query);
+        defer stmt.deinit();
+
+        return try stmt.all(BookWithAuthorRow, allocator, .{}, .{});
+    }
+
+    pub fn listArchivedBooksWithAuthors(self: *BookRepository, allocator: std.mem.Allocator) ![]BookWithAuthorRow {
+        const query =
+            \\SELECT b.id, b.name, b.file_path, b.isbn, b.publication_date, b.publisher,
+            \\       b.description, b.page_count, b.file_size, b.file_format, b.cover_image_path,
+            \\       b.status, b.archived_at, b.archive_reason, b.created_at, b.updated_at,
+            \\       a.id AS author_id, a.name AS author_name
+            \\FROM books b
+            \\INNER JOIN authors a ON b.author = a.id
+            \\WHERE b.status = 'archived'
+            \\ORDER BY b.archived_at DESC
+        ;
+
+        var stmt = try self.db.prepare(query);
+        defer stmt.deinit();
+
+        return try stmt.all(BookWithAuthorRow, allocator, .{}, .{});
     }
 
     pub fn createBook(self: *BookRepository, allocator: std.mem.Allocator, name: []const u8, author_id: i64, file_path: []const u8) !i64 {

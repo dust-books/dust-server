@@ -19,16 +19,15 @@ fn sanitizeCoverPath(path: ?[]const u8) ?[]const u8 {
 // GET /books - List all books
 pub fn listBooks(
     book_repo: *BookRepository,
-    author_repo: *AuthorRepository,
     req: *httpz.Request,
     res: *httpz.Response,
 ) !void {
     _ = req;
 
     const arena = res.arena;
-    const books = try book_repo.listBooks(arena);
+    const books = try book_repo.listBooksWithAuthors(arena);
 
-    const BookWithAuthor = struct {
+    const BookItem = struct {
         id: i64,
         name: []const u8,
         author: struct {
@@ -50,16 +49,18 @@ pub fn listBooks(
         updated_at: []const u8,
     };
 
-    var books_with_authors = try std.ArrayList(BookWithAuthor).initCapacity(arena, books.len);
+    var books_list = try std.ArrayList(BookItem).initCapacity(arena, books.len);
     for (books) |book| {
-        const author = try author_repo.getAuthorById(arena, book.author);
-        const cover_path = try CoverManager.transformDBCoverForHTTP(arena, book);
-        try books_with_authors.append(arena, .{
+        const cover_path: ?[]const u8 = if (book.cover_image_path != null)
+            try std.fmt.allocPrint(arena, "covers/{d}", .{book.id})
+        else
+            null;
+        try books_list.append(arena, .{
             .id = book.id,
             .name = book.name,
             .author = .{
-                .id = author.id,
-                .name = author.name,
+                .id = book.author_id,
+                .name = book.author_name,
             },
             .isbn = book.isbn,
             .publication_date = book.publication_date,
@@ -78,7 +79,7 @@ pub fn listBooks(
     }
 
     res.status = 200;
-    try res.json(.{ .books = books_with_authors.items }, .{});
+    try res.json(.{ .books = books_list.items }, .{});
 }
 
 // GET /books/:id - Get specific book
@@ -582,27 +583,14 @@ pub fn unarchiveBook(
 
 // GET /books/archive - List archived books
 pub fn listArchivedBooks(
-    db: *sqlite.Db,
-    author_repo: *AuthorRepository,
+    book_repo: *BookRepository,
     req: *httpz.Request,
     res: *httpz.Response,
 ) !void {
     _ = req;
 
     const allocator = res.arena;
-
-    const query =
-        \\SELECT id, name, author, file_path, isbn, publication_date, publisher,
-        \\       description, page_count, file_size, file_format, cover_image_path,
-        \\       status, archived_at, archive_reason, created_at, updated_at
-        \\FROM books WHERE status = 'archived'
-        \\ORDER BY archived_at DESC
-    ;
-
-    var stmt = try db.prepare(query);
-    defer stmt.deinit();
-
-    const books = try stmt.all(Book, allocator, .{}, .{});
+    const books = try book_repo.listArchivedBooksWithAuthors(allocator);
 
     const BookItem = struct {
         id: i64,
@@ -618,13 +606,12 @@ pub fn listArchivedBooks(
 
     var book_list = try std.ArrayList(BookItem).initCapacity(allocator, books.len);
     for (books) |book| {
-        const author = try author_repo.getAuthorById(allocator, book.author);
         book_list.appendAssumeCapacity(.{
             .id = book.id,
             .name = book.name,
             .author = .{
-                .id = author.id,
-                .name = author.name,
+                .id = book.author_id,
+                .name = book.author_name,
             },
             .status = book.status,
             .archived_at = book.archived_at,

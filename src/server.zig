@@ -255,7 +255,7 @@ fn health(_: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
 // Book route handlers
 fn booksList(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
     logging.logRequest(req);
-    book_routes.listBooks(ctx.book_repo, ctx.author_repo, req, res) catch |err| {
+    book_routes.listBooks(ctx.book_repo, req, res) catch |err| {
         std.log.err("Failed to list books: {} ({s})", .{ err, @errorName(err) });
         return err;
     };
@@ -620,7 +620,7 @@ fn booksRemoveTag(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response
 // Archive route handlers
 fn booksArchived(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
     logging.logRequest(req);
-    try book_routes.listArchivedBooks(&ctx.db.db, ctx.author_repo, req, res);
+    try book_routes.listArchivedBooks(ctx.book_repo, req, res);
 }
 
 fn booksArchive(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
