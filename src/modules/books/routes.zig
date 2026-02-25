@@ -623,32 +623,29 @@ pub fn listArchivedBooks(
     try res.json(.{ .books = book_list.items }, .{});
 }
 
-// GET /reading/currently-reading - Get books currently being read
-pub fn getCurrentlyReading(
+// Base query shared by getCurrentlyReading and getCompletedReading.
+// The comptime progress_filter is appended to the WHERE clause.
+const reading_progress_base_query =
+    \\SELECT b.id, b.name, b.file_format, b.isbn,
+    \\       b.description, b.page_count, b.file_size, b.status,
+    \\       a.id as author_id, a.name as author_name,
+    \\       rp.current_page, rp.total_pages,
+    \\       rp.percentage_complete * 100.0 as percentage_complete,
+    \\       strftime('%Y-%m-%dT%H:%M:%SZ', rp.last_read_at) as last_read_at
+    \\FROM books b
+    \\INNER JOIN reading_progress rp ON b.id = rp.book_id
+    \\INNER JOIN authors a ON b.author = a.id
+    \\WHERE rp.user_id = ?
+;
+
+fn queryReadingList(
     db: *sqlite.Db,
     user_id: i64,
-    req: *httpz.Request,
+    comptime progress_filter: []const u8,
     res: *httpz.Response,
 ) !void {
-    _ = req;
+    const query = reading_progress_base_query ++ progress_filter ++ "\nORDER BY rp.last_read_at DESC";
     const allocator = res.arena;
-
-    const query =
-        \\SELECT b.id, b.name, b.file_format, b.isbn,
-        \\       b.description, b.page_count, b.file_size, b.status,
-        \\       a.id as author_id, a.name as author_name,
-        \\       rp.current_page, rp.total_pages,
-        \\       rp.percentage_complete * 100.0 as percentage_complete,
-        \\       strftime('%Y-%m-%dT%H:%M:%SZ', rp.last_read_at) as last_read_at
-        \\FROM books b
-        \\INNER JOIN reading_progress rp ON b.id = rp.book_id
-        \\INNER JOIN authors a ON b.author = a.id
-        \\WHERE rp.user_id = ? AND rp.percentage_complete > 0 AND rp.percentage_complete < 1
-        \\ORDER BY rp.last_read_at DESC
-    ;
-
-    var stmt = try db.prepare(query);
-    defer stmt.deinit();
 
     const BookProgressRow = struct {
         id: i64,
@@ -687,6 +684,9 @@ pub fn getCurrentlyReading(
             last_read_at: []const u8,
         },
     };
+
+    var stmt = try db.prepare(query);
+    defer stmt.deinit();
 
     var book_list: std.ArrayList(BookWithProgress) = .empty;
     defer book_list.deinit(allocator);
@@ -719,6 +719,17 @@ pub fn getCurrentlyReading(
     try res.json(.{ .books = book_list.items }, .{});
 }
 
+// GET /reading/currently-reading - Get books currently being read
+pub fn getCurrentlyReading(
+    db: *sqlite.Db,
+    user_id: i64,
+    req: *httpz.Request,
+    res: *httpz.Response,
+) !void {
+    _ = req;
+    try queryReadingList(db, user_id, " AND rp.percentage_complete > 0 AND rp.percentage_complete < 1", res);
+}
+
 // GET /reading/completed - Get completed books
 pub fn getCompletedReading(
     db: *sqlite.Db,
@@ -727,92 +738,7 @@ pub fn getCompletedReading(
     res: *httpz.Response,
 ) !void {
     _ = req;
-    const allocator = res.arena;
-
-    const query =
-        \\SELECT b.id, b.name, b.file_format, b.isbn,
-        \\       b.description, b.page_count, b.file_size, b.status,
-        \\       a.id as author_id, a.name as author_name,
-        \\       rp.current_page, rp.total_pages,
-        \\       rp.percentage_complete * 100.0 as percentage_complete,
-        \\       strftime('%Y-%m-%dT%H:%M:%SZ', rp.last_read_at) as last_read_at
-        \\FROM books b
-        \\INNER JOIN reading_progress rp ON b.id = rp.book_id
-        \\INNER JOIN authors a ON b.author = a.id
-        \\WHERE rp.user_id = ? AND rp.percentage_complete >= 1
-        \\ORDER BY rp.last_read_at DESC
-    ;
-
-    var stmt = try db.prepare(query);
-    defer stmt.deinit();
-
-    const BookProgressRow = struct {
-        id: i64,
-        name: []const u8,
-        file_format: ?[]const u8,
-        isbn: ?[]const u8,
-        description: ?[]const u8,
-        page_count: ?i64,
-        file_size: ?i64,
-        status: []const u8,
-        author_id: i64,
-        author_name: []const u8,
-        current_page: i64,
-        total_pages: ?i64,
-        percentage_complete: f64,
-        last_read_at: []const u8,
-    };
-
-    const BookWithProgress = struct {
-        id: i64,
-        name: []const u8,
-        author: struct {
-            id: i64,
-            name: []const u8,
-        },
-        status: []const u8,
-        isbn: ?[]const u8 = null,
-        file_format: ?[]const u8 = null,
-        description: ?[]const u8 = null,
-        page_count: ?i64 = null,
-        file_size: ?i64 = null,
-        progress: struct {
-            current_page: i64,
-            total_pages: ?i64,
-            percentage_complete: f64,
-            last_read_at: []const u8,
-        },
-    };
-
-    var book_list: std.ArrayList(BookWithProgress) = .empty;
-    defer book_list.deinit(allocator);
-    var iter = try stmt.iterator(BookProgressRow, .{user_id});
-
-    while (try iter.nextAlloc(allocator, .{})) |row| {
-        try book_list.append(allocator, .{
-            .id = row.id,
-            .name = row.name,
-            .author = .{
-                .id = row.author_id,
-                .name = row.author_name,
-            },
-            .status = row.status,
-            .isbn = row.isbn,
-            .file_format = row.file_format,
-            .description = row.description,
-            .page_count = row.page_count,
-            .file_size = row.file_size,
-            .progress = .{
-                .current_page = row.current_page,
-                .total_pages = row.total_pages,
-                .percentage_complete = row.percentage_complete,
-                .last_read_at = row.last_read_at,
-            },
-        });
-    }
-
-    res.status = 200;
-    try res.json(.{ .books = book_list.items }, .{});
+    try queryReadingList(db, user_id, " AND rp.percentage_complete >= 1", res);
 }
 
 // GET /covers/isbn - Get completed books
