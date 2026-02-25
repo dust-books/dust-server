@@ -1,3 +1,9 @@
+## [0.9.5](https://github.com/dust-books/dust-server/compare/v0.9.4...v0.9.5) (2026-02-25)
+
+### Bug Fixes
+
+* **db:** remediate issues around n+1 queries w/r/t books ([63c78e5](https://github.com/dust-books/dust-server/commit/63c78e5ac4d1384fceeae487a9c818ee5c8761f6))
+
 ## [0.9.4](https://github.com/dust-books/dust-server/compare/v0.9.3...v0.9.4) (2026-02-24)
 
 ### Bug Fixes
