@@ -170,9 +170,6 @@ pub const DustServer = struct {
         router.get("/books/:id", booksGet, .{});
         router.get("/books/:id/stream", booksStream, .{});
         router.get("/covers/:id", booksCover, .{});
-        router.post("/books", booksCreate, .{});
-        router.put("/books/:id", booksUpdate, .{});
-        router.delete("/books/:id", booksDelete, .{});
 
         // Author endpoints
         router.get("/books/authors", booksAuthors, .{});
@@ -337,21 +334,6 @@ fn booksStream(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !
 
     res.status = 200;
     res.body = file_content;
-}
-
-fn booksCreate(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
-    logging.logRequest(req);
-    try book_routes.createBook(ctx.book_repo, req, res);
-}
-
-fn booksUpdate(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
-    logging.logRequest(req);
-    try book_routes.updateBook(ctx.book_repo, req, res);
-}
-
-fn booksDelete(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
-    logging.logRequest(req);
-    try book_routes.deleteBook(ctx.book_repo, req, res);
 }
 
 // Author route handlers
