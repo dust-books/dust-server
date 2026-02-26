@@ -282,7 +282,6 @@ pub fn listAuthors(
 
 // GET /books/authors/:id - Get specific author with books
 pub fn getAuthor(
-    db: *sqlite.Db,
     author_repo: *AuthorRepository,
     req: *httpz.Request,
     res: *httpz.Response,
@@ -310,17 +309,7 @@ pub fn getAuthor(
         return err;
     };
 
-    const query =
-        \\SELECT id, name, author, file_path, isbn, publication_date, publisher,
-        \\       description, page_count, file_size, file_format, cover_image_path,
-        \\       status, archived_at, archive_reason, created_at, updated_at
-        \\FROM books WHERE author = ? AND status = 'active'
-    ;
-
-    var stmt = try db.prepare(query);
-    defer stmt.deinit();
-
-    const books = try stmt.all(Book, allocator, .{}, .{id});
+    const books = try author_repo.getBooksByAuthor(allocator, id);
     for (books) |*book| {
         if (book.cover_image_path) |path| {
             const coverPath = try CoverManager.transformDBCoverForHTTP(allocator, book.*);
@@ -549,7 +538,7 @@ pub fn archiveBook(
 
 // DELETE /books/:id/archive - Unarchive a book
 pub fn unarchiveBook(
-    db: *sqlite.Db,
+    book_repo: *BookRepository,
     req: *httpz.Request,
     res: *httpz.Response,
 ) !void {
@@ -565,17 +554,7 @@ pub fn unarchiveBook(
         return;
     };
 
-    const query =
-        \\UPDATE books 
-        \\SET status = 'active', archived_at = NULL, 
-        \\    archive_reason = NULL, updated_at = CURRENT_TIMESTAMP
-        \\WHERE id = ?
-    ;
-
-    var stmt = try db.prepare(query);
-    defer stmt.deinit();
-
-    try stmt.exec(.{}, .{book_id});
+    try book_repo.unarchiveBook(book_id);
 
     res.status = 200;
     try res.json(.{ .message = "Book unarchived successfully" }, .{});

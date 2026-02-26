@@ -316,6 +316,20 @@ pub const BookRepository = struct {
         return self.db.rowsAffected() > 0;
     }
 
+    pub fn unarchiveBook(self: *BookRepository, id: i64) !void {
+        const query =
+            \\UPDATE books
+            \\SET status = 'active', archived_at = NULL,
+            \\    archive_reason = NULL, updated_at = CURRENT_TIMESTAMP
+            \\WHERE id = ?
+        ;
+
+        var stmt = try self.db.prepare(query);
+        defer stmt.deinit();
+
+        try stmt.exec(.{}, .{id});
+    }
+
     pub fn archiveBook(self: *BookRepository, id: i64, reason: ?[]const u8) !void {
         const query =
             \\UPDATE books 
@@ -443,6 +457,20 @@ pub const AuthorRepository = struct {
         try stmt.exec(.{}, .{name});
 
         return self.db.getLastInsertRowID();
+    }
+
+    pub fn getBooksByAuthor(self: *AuthorRepository, allocator: std.mem.Allocator, author_id: i64) ![]Book {
+        const query =
+            \\SELECT id, name, author, file_path, isbn, publication_date, publisher,
+            \\       description, page_count, file_size, file_format, cover_image_path,
+            \\       status, archived_at, archive_reason, created_at, updated_at
+            \\FROM books WHERE author = ? AND status = 'active'
+        ;
+
+        var stmt = try self.db.prepare(query);
+        defer stmt.deinit();
+
+        return try stmt.all(Book, allocator, .{}, .{author_id});
     }
 
     pub fn getAuthorByName(self: *AuthorRepository, allocator: std.mem.Allocator, name: []const u8) !Author {

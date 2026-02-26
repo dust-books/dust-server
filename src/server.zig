@@ -362,7 +362,7 @@ fn booksAuthors(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) 
 
 fn booksAuthor(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
     logging.logRequest(req);
-    try book_routes.getAuthor(&ctx.db.db, ctx.author_repo, req, res);
+    try book_routes.getAuthor(ctx.author_repo, req, res);
 }
 
 // Admin route handlers
@@ -630,7 +630,7 @@ fn booksArchive(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) 
 
 fn booksUnarchive(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
     logging.logRequest(req);
-    try book_routes.unarchiveBook(&ctx.db.db, req, res);
+    try book_routes.unarchiveBook(ctx.book_repo, req, res);
 }
 
 // Cover route handler
