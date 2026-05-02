@@ -18,19 +18,19 @@ fn handleShutdown(sig: c_int) callconv(.c) void {
     std.log.debug("Received shutdown signal, cleaning up...", .{});
 }
 
-pub fn main() !void {
-    var gpa = std.heap.DebugAllocator(.{ .stack_trace_frames = 30 }){};
-    defer _ = gpa.deinit();
-    const allocator = gpa.allocator();
+pub fn main(init: std.process.Init) !void {
+    const allocator = init.gpa;
 
     // Parse command line arguments
-    var args = try std.process.argsWithAllocator(allocator);
+    var args = init.minimal.args.iterate();
     defer args.deinit();
     _ = args.skip(); // Skip program name
 
     var stdout_buffer: [1024]u8 = undefined;
     var stdout_writer = std.fs.File.stdout().writer(&stdout_buffer);
     var stdout = &stdout_writer.interface;
+
+    const environ = init.environ_map;
 
     while (args.next()) |arg| {
         if (std.mem.eql(u8, arg, "--version") or std.mem.eql(u8, arg, "-v")) {
@@ -77,7 +77,7 @@ pub fn main() !void {
     posix.sigaction(posix.SIG.TERM, &act, null);
 
     // Load configuration
-    var cfg = Config.load(allocator) catch |err| {
+    var cfg = Config.load(allocator, environ) catch |err| {
         if (err == error.MissingJWTSecret) {
             std.log.err("Failed to load config: missing JWT secret. Set the JWT_SECRET environment variable (e.g. `export JWT_SECRET=openssl rand -base64 32`).", .{});
         } else {

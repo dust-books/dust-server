@@ -23,43 +23,22 @@ pub const Config = struct {
     }
 
     /// Load configuration from environment variables
-    pub fn load(allocator: std.mem.Allocator) !Config {
-        const dirs_str = std.process.getEnvVarOwned(allocator, "DUST_DIRS") catch try allocator.dupe(u8, "");
-        defer allocator.free(dirs_str);
+    pub fn load(allocator: std.mem.Allocator, environ: *const std.process.Environ.Map) !Config {
+        const dirs_str = environ.get("DUST_DIRS") orelse "";
         const library_directories = try parseCommaSeparated(allocator, dirs_str);
-        const google_books_api_key = std.process.getEnvVarOwned(allocator, "GOOGLE_BOOKS_API_KEY") catch null;
-        const user_agent_suffix = std.process.getEnvVarOwned(allocator, "USER_AGENT_SUFFIX") catch null;
-        defer {
-            if (user_agent_suffix) |suffix| {
-                allocator.free(suffix);
-            }
-        }
+        const google_books_api_key = if (environ.get("GOOGLE_BOOKS_API_KEY")) |key| try allocator.dupe(u8, key) else null;
+        const user_agent_suffix = environ.get("USER_AGENT_SUFFIX");
 
         const user_agent = try std.fmt.allocPrint(allocator, "Dust Server/{s} {s}", .{
             build.version,
             user_agent_suffix orelse "",
         });
-        const port_str = std.process.getEnvVarOwned(allocator, "PORT") catch
-            try allocator.dupe(u8, "4001");
-        defer allocator.free(port_str);
+        const port_str = environ.get("PORT") orelse "4001";
         const port = try std.fmt.parseInt(u16, port_str, 10);
 
-        const jwt_secret = std.process.getEnvVarOwned(allocator, "JWT_SECRET") catch
-            return error.MissingJWTSecret;
+        const jwt_secret = try allocator.dupe(u8, environ.get("JWT_SECRET") orelse return error.MissingJWTSecret);
 
-        // blk: produce block result via break (avoids trailing expr without semicolon, which Zig 0.15 rejects here)
-        const database_url = blk: {
-            const url = std.process.getEnvVarOwned(allocator, "DATABASE_URL") catch |err| {
-                // catch EnvironmentVariableNotFound and handle it;
-                if (err == std.process.GetEnvVarOwnedError.EnvironmentVariableNotFound) {
-                    // fix: db file instance-specific naming to avoid 2+ servers sharing the same db.
-                    break :blk try std.fmt.allocPrint(allocator, "file:dust-{d}.db", .{port});
-                } else { // return other errors (OutOfMemory, InvalidWtf8): std.process.GetEnvVarOwnedError
-                    return err;
-                }
-            };
-            break :blk url;
-        };
+        const database_url = if (environ.get("DATABASE_URL")) |key| allocator.duple(key) else try std.fmt.allocPrint(allocator, "file:dust-{d}.db", .{port});
 
         return Config{
             .library_directories = library_directories,
@@ -82,9 +61,9 @@ pub const Config = struct {
             allocator.free(key);
         }
 
+        allocator.free(self.user_agent);
         allocator.free(self.database_url);
         allocator.free(self.jwt_secret);
-        allocator.free(self.user_agent);
     }
 
     /// Helper function to parse comma-separated strings into an array
