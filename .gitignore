@@ -5,6 +5,7 @@ dust.db
 zig-cache/
 zig-out/
 .zig-cache/
+zig-pkg/
 
 # Release artifacts
 dist/
