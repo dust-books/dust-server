@@ -24,15 +24,12 @@ pub fn getAuthSettingsPublic(ctx: *ServerContext, req: *httpz.Request, res: *htt
     const db = ctx.db;
     const allocator = ctx.auth_context.allocator;
 
-    const SettingsRow = struct { auth_flow: []const u8 };
+    _ = allocator;
 
-    var stmt = try db.db.prepare("SELECT auth_flow FROM server_settings WHERE id = 1");
-    defer stmt.deinit();
-
-    const row = try stmt.oneAlloc(SettingsRow, allocator, .{}, .{});
-
-    if (row) |settings| {
-        try res.json(.{ .auth_flow = settings.auth_flow }, .{});
+    const row = try db.db.row("SELECT auth_flow FROM server_settings WHERE id = 1", .{});
+    if (row) |r| {
+        defer r.deinit();
+        try res.json(.{ .auth_flow = r.text(0) }, .{});
     } else {
         try res.json(.{ .auth_flow = "signup" }, .{});
     }
@@ -78,13 +75,10 @@ pub fn register(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) 
     // Determine auth flow from server_settings (default to "signup" if missing)
     var auth_flow_buf: ?[]const u8 = null;
     {
-        const SettingsRow = struct { auth_flow: []const u8 };
-        var stmt = try ctx.db.db.prepare("SELECT auth_flow FROM server_settings WHERE id = 1");
-        defer stmt.deinit();
-
-        const row = try stmt.oneAlloc(SettingsRow, auth_ctx.allocator, .{}, .{});
-        if (row) |settings| {
-            auth_flow_buf = settings.auth_flow;
+        const row = try ctx.db.db.row("SELECT auth_flow FROM server_settings WHERE id = 1", .{});
+        if (row) |r| {
+            defer r.deinit();
+            auth_flow_buf = try auth_ctx.allocator.dupe(u8, r.text(0));
         }
     }
     defer if (auth_flow_buf) |buf| auth_ctx.allocator.free(buf);

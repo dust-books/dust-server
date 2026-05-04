@@ -1,5 +1,6 @@
 const std = @import("std");
 const httpz = @import("httpz");
+const time_compat = @import("time_compat.zig");
 const Database = @import("database.zig").Database;
 const AuthService = @import("modules/users/auth.zig").AuthService;
 const JWT = @import("auth/jwt.zig").JWT;
@@ -44,9 +45,9 @@ pub const DustServer = struct {
     should_shutdown: *std.atomic.Value(bool),
 
     /// Initialize the DustServer
-    pub fn init(allocator: std.mem.Allocator, port: u16, db: *Database, config: Config, should_shutdown: *std.atomic.Value(bool)) !DustServer {
+    pub fn init(allocator: std.mem.Allocator, io: std.Io, port: u16, db: *Database, config: Config, should_shutdown: *std.atomic.Value(bool)) !DustServer {
         const auth_service = try allocator.create(AuthService);
-        auth_service.* = AuthService.init(db, allocator);
+        auth_service.* = AuthService.init(db, allocator, io);
 
         const jwt = JWT.init(allocator, config.jwt_secret);
 
@@ -55,7 +56,7 @@ pub const DustServer = struct {
         permission_repo.* = PermissionRepository.init(db, allocator);
 
         const permission_service = try allocator.create(PermissionService);
-        permission_service.* = PermissionService.init(permission_repo, allocator);
+        permission_service.* = PermissionService.init(permission_repo, allocator, io);
 
         // Initialize book repositories
         const book_repo = try allocator.create(BookRepository);
@@ -69,7 +70,7 @@ pub const DustServer = struct {
 
         // Initialize static file server
         const static_server = try allocator.create(StaticFileServer);
-        static_server.* = StaticFileServer.init(allocator, "client/dist");
+        static_server.* = StaticFileServer.init(allocator, io, "client/dist");
 
         const context_ptr = try allocator.create(ServerContext);
         context_ptr.* = ServerContext{
@@ -87,11 +88,11 @@ pub const DustServer = struct {
             .config = config,
             .library_directories = config.library_directories,
             .static_server = static_server,
+            .io = io,
         };
 
-        const httpz_server = try httpz.Server(*ServerContext).init(allocator, .{
-            .address = "0.0.0.0",
-            .port = port,
+        const httpz_server = try httpz.Server(*ServerContext).init(io, allocator, .{
+            .address = httpz.Config.Address.all(port),
         }, context_ptr);
 
         return .{
@@ -103,7 +104,7 @@ pub const DustServer = struct {
             .book_repo = book_repo,
             .author_repo = author_repo,
             .tag_repo = tag_repo,
-            .static_server = StaticFileServer.init(allocator, "client/dist"),
+            .static_server = StaticFileServer.init(allocator, io, "client/dist"),
             .should_shutdown = should_shutdown,
         };
     }
@@ -210,14 +211,14 @@ pub const DustServer = struct {
     pub fn listen(self: *DustServer) !void {
         try self.setupRoutes();
 
-        std.log.info("🚀 Dust is bookin' it on port {}", .{self.httpz_server.config.port.?});
+        std.log.info("Dust server starting", .{});
 
         // Start server in a separate thread
         const thread = try std.Thread.spawn(.{}, listenThread, .{&self.httpz_server});
 
         // Poll shutdown flag
         while (!self.should_shutdown.load(.seq_cst)) {
-            std.Thread.sleep(100 * std.time.ns_per_ms);
+            time_compat.sleep(100 * std.time.ns_per_ms);
         }
 
         // Stop server and wait for thread
@@ -229,10 +230,6 @@ pub const DustServer = struct {
     fn listenThread(server: *httpz.Server(*ServerContext)) void {
         server.listen() catch |err| {
             std.log.err("FATAL: Server crashed with error: {} ({s})", .{ err, @errorName(err) });
-            if (@errorReturnTrace()) |trace| {
-                std.log.err("Error stack trace:", .{});
-                std.debug.dumpStackTrace(trace.*);
-            }
         };
     }
 };
@@ -289,36 +286,32 @@ fn booksStream(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !
     const db = ctx.db;
 
     // Get book file path
-    const query = "SELECT file_path, file_format FROM books WHERE id = ?";
-    var stmt = try db.db.prepare(query);
-    defer stmt.deinit();
+    const db_row = try db.db.row("SELECT file_path, file_format FROM books WHERE id = ?", .{book_id});
 
-    const BookRow = struct {
-        file_path: []const u8,
-        file_format: ?[]const u8,
-    };
-
-    const row = try stmt.oneAlloc(BookRow, res.arena, .{}, .{book_id});
-
-    if (row == null) {
+    if (db_row == null) {
         res.status = 404;
         try res.json(.{ .@"error" = "Book not found" }, .{});
         return;
     }
 
-    const book = row.?;
+    const book_row = db_row.?;
+    defer book_row.deinit();
+
+    const file_path = book_row.text(0);
+    const file_format = book_row.nullableText(1);
+    const book = .{ .file_path = file_path, .file_format = file_format };
 
     // Open and stream file
-    const file = std.fs.cwd().openFile(book.file_path, .{}) catch |err| {
+    const file = std.Io.Dir.openFileAbsolute(ctx.io, book.file_path, .{}) catch |err| {
         std.log.err("Failed to open book file {s}: {}", .{ book.file_path, err });
         res.status = 404;
         try res.json(.{ .@"error" = "Book file not found" }, .{});
         return;
     };
-    defer file.close();
+    defer file.close(ctx.io);
 
     // Get file size
-    const stat = try file.stat();
+    const stat = try file.stat(ctx.io);
 
     // Set content type based on format
     if (book.file_format) |format| {
@@ -330,7 +323,8 @@ fn booksStream(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !
     }
 
     // Read entire file into response arena
-    const file_content = try file.readToEndAlloc(res.arena, stat.size);
+    const file_content = try res.arena.alloc(u8, stat.size);
+    _ = try file.readPositionalAll(ctx.io, file_content, 0);
 
     res.status = 200;
     res.body = file_content;
@@ -383,7 +377,7 @@ fn adminScanLibrary(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Respon
         return err;
     };
     defer auth_user.deinit(auth_ctx.allocator);
-    try admin_routes.scanLibrary(ctx.db, auth_ctx.allocator, ctx.config, req, res);
+    try admin_routes.scanLibrary(ctx.db, auth_ctx.allocator, ctx.config, ctx.io, req, res);
 }
 
 fn adminRefreshBookMetadata(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
@@ -393,7 +387,7 @@ fn adminRefreshBookMetadata(ctx: *ServerContext, req: *httpz.Request, res: *http
         return err;
     };
     defer auth_user.deinit(auth_ctx.allocator);
-    try admin_routes.refreshBookMetadata(ctx.book_repo, req, res);
+    try admin_routes.refreshBookMetadata(ctx.book_repo, ctx.io, req, res);
 }
 
 // Reading progress route handlers
@@ -419,36 +413,24 @@ fn booksGetProgress(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Respon
 
     const db = ctx.db;
 
-    // Query reading progress
     const query =
         \\SELECT current_page, total_pages,
         \\       percentage_complete * 100.0 as percentage_complete,
         \\       strftime('%Y-%m-%dT%H:%M:%SZ', last_read_at) as last_read_at
-        \\FROM reading_progress 
+        \\FROM reading_progress
         \\WHERE user_id = ? AND book_id = ?
     ;
 
-    var stmt = try db.db.prepare(query);
-    defer stmt.deinit();
-
-    const ProgressRow = struct {
-        current_page: i64,
-        total_pages: ?i64,
-        percentage_complete: f64,
-        last_read_at: []const u8,
-    };
-
-    const row = try stmt.oneAlloc(ProgressRow, res.arena, .{}, .{ auth_user.user_id, book_id });
-
-    if (row) |progress| {
+    if (try db.db.row(query, .{ auth_user.user_id, book_id })) |row| {
+        defer row.deinit();
         res.status = 200;
         try res.json(.{
             .book = .{ .id = book_id },
             .progress = .{
-                .current_page = progress.current_page,
-                .total_pages = progress.total_pages,
-                .percentage_complete = progress.percentage_complete,
-                .last_read_at = progress.last_read_at,
+                .current_page = row.int(0),
+                .total_pages = row.nullableInt(1),
+                .percentage_complete = row.float(2),
+                .last_read_at = row.text(3),
             },
         }, .{});
     } else {
@@ -532,7 +514,7 @@ fn booksUpdateProgress(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Res
         \\  updated_at = datetime('now')
     ;
 
-    try db.db.exec(upsert_query, .{}, .{ auth_user.user_id, book_id, current_page, data.total_pages, percentage });
+    try db.db.exec(upsert_query, .{ auth_user.user_id, book_id, current_page, data.total_pages, percentage });
 
     res.status = 200;
     try res.json(.{

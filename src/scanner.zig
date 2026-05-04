@@ -1,5 +1,5 @@
 const std = @import("std");
-const sqlite = @import("sqlite");
+const zqlite = @import("zqlite");
 const MetadataExtractor = @import("metadata_extractor.zig").MetadataExtractor;
 const CoverManager = @import("cover_manager.zig").CoverManager;
 const Config = @import("./config.zig").Config;
@@ -32,14 +32,14 @@ pub const ScanResult = struct {
 
 pub const Scanner = struct {
     allocator: std.mem.Allocator,
-    db: *sqlite.Db,
+    db: *zqlite.Conn,
     metadata_extractor: MetadataExtractor,
     cover_manager: CoverManager,
 
-    pub fn init(allocator: std.mem.Allocator, db: *sqlite.Db, config: Config) !Scanner {
-        // Enable external metadata lookup by default
+    pub fn init(allocator: std.mem.Allocator, io: std.Io, db: *zqlite.Conn, config: Config) !Scanner {
         const metadata_extractor = try MetadataExtractor.init(
             allocator,
+            io,
             true,
             config,
         );
@@ -52,44 +52,40 @@ pub const Scanner = struct {
         };
     }
 
-    pub fn scanLibrary(self: *Scanner, path: []const u8) !ScanResult {
+    pub fn scanLibrary(self: *Scanner, io: std.Io, path: []const u8) !ScanResult {
         std.log.info("Starting library scan at: {s}", .{path});
 
         var result = ScanResult{
             .scan_path = path,
         };
 
-        // Check if path exists and open directory (handle both absolute and relative paths)
         var dir = if (std.fs.path.isAbsolute(path))
-            std.fs.openDirAbsolute(path, .{ .iterate = true }) catch |err| {
+            std.Io.Dir.openDirAbsolute(io, path, .{ .iterate = true }) catch |err| {
                 std.log.err("Failed to open directory {s}: {}", .{ path, err });
                 result.errors += 1;
                 return result;
             }
         else
-            std.fs.cwd().openDir(path, .{ .iterate = true }) catch |err| {
+            std.Io.Dir.cwd().openDir(io, path, .{ .iterate = true }) catch |err| {
                 std.log.err("Failed to open directory {s}: {}", .{ path, err });
                 result.errors += 1;
                 return result;
             };
-        defer dir.close();
+        defer dir.close(io);
 
-        // Iterate through directory
         var walker = try dir.walk(self.allocator);
         defer walker.deinit();
 
-        while (try walker.next()) |entry| {
+        while (try walker.next(io)) |entry| {
             if (entry.kind != .file) continue;
 
-            // Check if it's an ebook file
             if (self.isEbookFile(entry.basename)) {
                 result.books_found += 1;
 
-                // Try to add/update the book
                 const full_path = try std.fs.path.join(self.allocator, &[_][]const u8{ path, entry.path });
                 defer self.allocator.free(full_path);
 
-                self.processBookFile(full_path, &result) catch |err| {
+                self.processBookFile(io, full_path, &result) catch |err| {
                     std.log.err("Error processing {s}: {}", .{ full_path, err });
                     result.errors += 1;
                 };
@@ -120,7 +116,6 @@ pub const Scanner = struct {
             if (std.mem.endsWith(u8, filename, ext)) {
                 return true;
             }
-            // Check uppercase extension
             var upper_buf: [10]u8 = undefined;
             if (ext.len < upper_buf.len) {
                 const upper_ext = std.ascii.upperString(&upper_buf, ext);
@@ -133,55 +128,27 @@ pub const Scanner = struct {
         return false;
     }
 
-    fn processBookFile(self: *Scanner, path: []const u8, result: *ScanResult) !void {
-        // Check if book already exists
-        const check_query =
-            \\SELECT id FROM books WHERE file_path = ?
-        ;
-
-        var stmt = try self.db.prepare(check_query);
-        defer stmt.deinit();
-
-        const row = try stmt.one(
-            struct { id: i64 },
-            .{},
-            .{path},
-        );
-
-        if (row) |_| {
-            // Book exists, update metadata
-            try self.updateBookMetadata(path);
+    fn processBookFile(self: *Scanner, io: std.Io, path: []const u8, result: *ScanResult) !void {
+        const row = try self.db.row("SELECT id FROM books WHERE file_path = ?", .{path});
+        if (row) |r| {
+            r.deinit();
+            try self.updateBookMetadata(io, path);
             result.books_updated += 1;
         } else {
-            // New book, add it
-            try self.addNewBook(path);
+            try self.addNewBook(io, path);
             result.books_added += 1;
         }
     }
 
-    fn addNewBook(self: *Scanner, path: []const u8) !void {
-        std.log.debug("📖 Adding new book: {s}", .{path});
-        std.log.debug("[ISBN] Starting metadata extraction for: {s}", .{path});
+    fn addNewBook(self: *Scanner, io: std.Io, path: []const u8) !void {
+        std.log.debug("Adding new book: {s}", .{path});
 
-        // Extract metadata using the enhanced extractor (includes OpenLibrary enrichment)
-        var metadata = try self.metadata_extractor.extractMetadata(path);
-
-        std.log.debug("[ISBN] After metadata extraction - ISBN: {s}", .{metadata.isbn orelse "<null>"});
+        var metadata = try self.metadata_extractor.extractMetadata(io, path);
 
         if (metadata.isbn == null) {
-            std.log.debug("[ISBN] No ISBN found in metadata, attempting to derive from path...", .{});
             metadata.isbn = try self.deriveIsbnFromPath(path);
-            if (metadata.isbn) |isbn| {
-                std.log.debug("[ISBN] ✅ Successfully derived ISBN from path: {s}", .{isbn});
-            } else {
-                std.log.debug("[ISBN] ⚠️  Failed to derive ISBN from path", .{});
-            }
-        } else {
-            std.log.debug("[ISBN] ✅ ISBN already present in metadata: {s}", .{metadata.isbn.?});
         }
         defer metadata.deinit(self.allocator);
-
-        std.log.debug("Metadata extracted - title: {s}, author: {s}, isbn: {s}", .{ metadata.title orelse "null", metadata.author orelse "null", metadata.isbn orelse "null" });
 
         const title = metadata.title orelse blk: {
             const basename = std.fs.path.basename(path);
@@ -190,52 +157,25 @@ pub const Scanner = struct {
 
         const file_format = metadata.file_format orelse "unknown";
 
-        // Handle author
         var author_id: i64 = undefined;
         if (metadata.author) |author_name| {
-            std.log.debug("Getting or creating author: {s}", .{author_name});
             author_id = try self.getOrCreateAuthor(author_name);
         } else {
-            std.log.debug("No author found, using unknown author", .{});
             author_id = try self.getOrCreateUnknownAuthor();
         }
 
-        std.log.debug("Author ID: {d}", .{author_id});
-        std.log.debug("Cover image URL: {s}", .{metadata.cover_image_url orelse "<none>"});
-
-        const cover_path = self.cover_manager.ensureCover(path, metadata.cover_image_url) catch |err| blk: {
+        const cover_path = self.cover_manager.ensureCover(io, path, metadata.cover_image_url) catch |err| blk: {
             std.log.warn("Failed to resolve cover for {s}: {} ({s})", .{ path, err, @errorName(err) });
             break :blk null;
         };
         defer if (cover_path) |cp| self.allocator.free(cp);
 
-        // Insert book with enriched metadata (including ISBN)
-        const insert_query =
+        self.db.exec(
             \\INSERT INTO books (name, file_path, file_size, file_format, author, isbn,
             \\                   publisher, publication_date, description, page_count,
             \\                   cover_image_path, created_at, updated_at)
             \\VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
-        ;
-
-        std.log.debug("[ISBN] Preparing to insert book into database...", .{});
-        std.log.debug("[ISBN] Final ISBN value being inserted: {s}", .{metadata.isbn orelse "<NULL>"});
-        std.log.debug("Executing INSERT query...", .{});
-        std.log.debug("Values: title={s}, path={s}, size={d}, format={s}, author_id={d}, isbn={s}", .{
-            if (metadata.title != null) metadata.title.? else title,
-            path,
-            @as(i64, @intCast(metadata.file_size)),
-            file_format,
-            author_id,
-            metadata.isbn orelse "null",
-        });
-        std.log.debug("       publisher={s}, pub_date={s}, desc={s}, pages={any}", .{
-            metadata.publisher orelse "null",
-            metadata.publication_date orelse "null",
-            if (metadata.description) |d| d[0..@min(50, d.len)] else "null",
-            if (metadata.page_count) |pc| @as(i64, @intCast(pc)) else null,
-        });
-
-        self.db.exec(insert_query, .{}, .{
+        , .{
             if (metadata.title != null) metadata.title.? else title,
             path,
             @as(i64, @intCast(metadata.file_size)),
@@ -245,75 +185,52 @@ pub const Scanner = struct {
             metadata.publisher,
             metadata.publication_date,
             metadata.description,
-            if (metadata.page_count) |pc| @as(i64, @intCast(pc)) else null,
+            if (metadata.page_count) |pc| @as(i64, @intCast(pc)) else @as(?i64, null),
             cover_path,
         }) catch |err| {
             std.log.err("Failed to insert book into database: {}", .{err});
-            std.log.err("[ISBN] ISBN value that failed to insert: {s}", .{metadata.isbn orelse "<NULL>"});
-            std.log.err("SQLite error details - Check if column count matches. Query expects 10 values.", .{});
             return err;
         };
 
         std.log.info("Added book: {s}", .{if (metadata.title != null) metadata.title.? else title});
-        std.log.debug("[ISBN] ✅ Book inserted successfully with ISBN: {s}", .{metadata.isbn orelse "<none>"});
 
-        // Cleanup temporary title if allocated
         if (metadata.title == null) {
             self.allocator.free(title);
         }
     }
 
-    fn updateBookMetadata(self: *Scanner, path: []const u8) !void {
-        // Update file size and updated_at timestamp
-        const file = try std.fs.openFileAbsolute(path, .{});
-        defer file.close();
-        const stat = try file.stat();
+    fn updateBookMetadata(self: *Scanner, io: std.Io, path: []const u8) !void {
+        const file = try std.Io.Dir.openFileAbsolute(io, path, .{});
+        defer file.close(io);
+        const stat = try file.stat(io);
 
-        const cover_path = self.cover_manager.findLocalCover(path) catch |err| blk: {
+        const cover_path = self.cover_manager.findLocalCover(io, path) catch |err| blk: {
             std.log.warn("Failed to refresh cover for {s}: {}", .{ path, err });
             break :blk null;
         };
         defer if (cover_path) |cp| self.allocator.free(cp);
 
-        const update_query =
-            \\UPDATE books 
-            \\SET file_size = ?, cover_image_path = ?, updated_at = datetime('now')
+        try self.db.exec(
+            \\UPDATE books SET file_size = ?, cover_image_path = ?, updated_at = datetime('now')
             \\WHERE file_path = ?
-        ;
-
-        try self.db.exec(update_query, .{}, .{
-            .file_size = @as(i64, @intCast(stat.size)),
-            .cover_image_path = cover_path,
-            .file_path = path,
+        , .{
+            @as(i64, @intCast(stat.size)),
+            cover_path,
+            path,
         });
     }
 
     fn getOrCreateAuthor(self: *Scanner, name: []const u8) !i64 {
-        const check_query =
-            \\SELECT id FROM authors WHERE name = ?
-        ;
-
-        var stmt = try self.db.prepare(check_query);
-        defer stmt.deinit();
-
-        const row = try stmt.one(
-            struct { id: i64 },
-            .{},
-            .{name},
-        );
-
-        if (row) |r| {
-            return r.id;
+        if (try self.db.row("SELECT id FROM authors WHERE name = ?", .{name})) |row| {
+            defer row.deinit();
+            return row.int(0);
         }
 
-        // Create new author
-        const insert_query =
-            \\INSERT INTO authors (name, created_at) VALUES (?, datetime('now'))
-        ;
-
-        try self.db.exec(insert_query, .{}, .{name});
-
-        return self.db.getLastInsertRowID();
+        try self.db.exec(
+            "INSERT INTO authors (name, created_at) VALUES (?, datetime('now'))",
+            .{name},
+        );
+        return self.db.lastInsertedRowId();
     }
 
     fn getOrCreateUnknownAuthor(self: *Scanner) !i64 {
@@ -321,13 +238,11 @@ pub const Scanner = struct {
     }
 
     fn extractTitle(self: *Scanner, filename: []const u8) ![]const u8 {
-        // Remove extension
         var title = filename;
         if (std.mem.lastIndexOfScalar(u8, filename, '.')) |dot_index| {
             title = filename[0..dot_index];
         }
 
-        // Replace underscores and hyphens with spaces
         var result = try self.allocator.alloc(u8, title.len);
         for (title, 0..) |c, i| {
             result[i] = if (c == '_' or c == '-') ' ' else c;
@@ -338,27 +253,16 @@ pub const Scanner = struct {
 
     fn deriveIsbnFromPath(self: *Scanner, path: []const u8) !?[]const u8 {
         const basename = std.fs.path.basename(path);
-        std.log.debug("[ISBN] deriveIsbnFromPath called for basename: {s}", .{basename});
 
         const candidate = try deriveIsbnFromText(self.allocator, basename);
-        if (candidate) |isbn| {
-            std.log.debug("[ISBN] Found ISBN in full basename: {s}", .{isbn});
-            return isbn;
-        }
-        std.log.debug("[ISBN] No ISBN found in full basename, trying without extension...", .{});
+        if (candidate) |isbn| return isbn;
 
         const name_without_ext = if (std.mem.lastIndexOfScalar(u8, basename, '.')) |dot_index|
             basename[0..dot_index]
         else
             basename;
 
-        const result = try deriveIsbnFromText(self.allocator, name_without_ext);
-        if (result) |isbn| {
-            std.log.debug("[ISBN] Found ISBN in basename without extension: {s}", .{isbn});
-        } else {
-            std.log.debug("[ISBN] No ISBN found in basename without extension", .{});
-        }
-        return result;
+        return deriveIsbnFromText(self.allocator, name_without_ext);
     }
 };
 

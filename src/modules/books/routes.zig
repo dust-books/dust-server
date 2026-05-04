@@ -1,6 +1,6 @@
 const std = @import("std");
 const httpz = @import("httpz");
-const sqlite = @import("sqlite");
+const zqlite = @import("zqlite");
 const ServerContext = @import("../../context.zig").ServerContext;
 const model = @import("model.zig");
 const BookRepository = model.BookRepository;
@@ -527,30 +527,13 @@ const reading_progress_base_query =
 ;
 
 fn queryReadingList(
-    db: *sqlite.Db,
+    db: *zqlite.Conn,
     user_id: i64,
     comptime progress_filter: []const u8,
     res: *httpz.Response,
 ) !void {
     const query = reading_progress_base_query ++ progress_filter ++ "\nORDER BY rp.last_read_at DESC";
     const allocator = res.arena;
-
-    const BookProgressRow = struct {
-        id: i64,
-        name: []const u8,
-        file_format: ?[]const u8,
-        isbn: ?[]const u8,
-        description: ?[]const u8,
-        page_count: ?i64,
-        file_size: ?i64,
-        status: []const u8,
-        author_id: i64,
-        author_name: []const u8,
-        current_page: i64,
-        total_pages: ?i64,
-        percentage_complete: f64,
-        last_read_at: []const u8,
-    };
 
     const BookWithProgress = struct {
         id: i64,
@@ -573,35 +556,34 @@ fn queryReadingList(
         },
     };
 
-    var stmt = try db.prepare(query);
-    defer stmt.deinit();
-
     var book_list: std.ArrayList(BookWithProgress) = .empty;
     defer book_list.deinit(allocator);
-    var iter = try stmt.iterator(BookProgressRow, .{user_id});
 
-    while (try iter.nextAlloc(allocator, .{})) |row| {
+    var rows = try db.rows(query, .{user_id});
+    defer rows.deinit();
+    while (rows.next()) |row| {
         try book_list.append(allocator, .{
-            .id = row.id,
-            .name = row.name,
+            .id = row.int(0),
+            .name = row.text(1),
+            .file_format = row.nullableText(2),
+            .isbn = row.nullableText(3),
+            .description = row.nullableText(4),
+            .page_count = row.nullableInt(5),
+            .file_size = row.nullableInt(6),
+            .status = row.text(7),
             .author = .{
-                .id = row.author_id,
-                .name = row.author_name,
+                .id = row.int(8),
+                .name = row.text(9),
             },
-            .status = row.status,
-            .isbn = row.isbn,
-            .file_format = row.file_format,
-            .description = row.description,
-            .page_count = row.page_count,
-            .file_size = row.file_size,
             .progress = .{
-                .current_page = row.current_page,
-                .total_pages = row.total_pages,
-                .percentage_complete = row.percentage_complete,
-                .last_read_at = row.last_read_at,
+                .current_page = row.int(10),
+                .total_pages = row.nullableInt(11),
+                .percentage_complete = row.float(12),
+                .last_read_at = row.text(13),
             },
         });
     }
+    if (rows.err) |err| return err;
 
     res.status = 200;
     try res.json(.{ .books = book_list.items }, .{});
@@ -609,7 +591,7 @@ fn queryReadingList(
 
 // GET /reading/currently-reading - Get books currently being read
 pub fn getCurrentlyReading(
-    db: *sqlite.Db,
+    db: *zqlite.Conn,
     user_id: i64,
     req: *httpz.Request,
     res: *httpz.Response,
@@ -620,7 +602,7 @@ pub fn getCurrentlyReading(
 
 // GET /reading/completed - Get completed books
 pub fn getCompletedReading(
-    db: *sqlite.Db,
+    db: *zqlite.Conn,
     user_id: i64,
     req: *httpz.Request,
     res: *httpz.Response,
@@ -649,7 +631,7 @@ pub fn getCover(
 
     var cover_manager = CoverManager.init(allocator);
     std.log.debug("Looking for cover for book {d} at path: {s}", .{ book_id, book.file_path });
-    const cover_path = cover_manager.findLocalCover(book.file_path) catch |err| blk: {
+    const cover_path = cover_manager.findLocalCover(ctx.io, book.file_path) catch |err| blk: {
         std.log.warn("Failed to locate cover for book {d} ({s}): {} ({s})", .{ book_id, book.file_path, err, @errorName(err) });
         break :blk null;
     };
@@ -661,19 +643,19 @@ pub fn getCover(
         res.header("Content-Type", content_type);
         // Read file and send
         const file = if (std.fs.path.isAbsolute(path))
-            std.fs.openFileAbsolute(path, .{}) catch |err| {
+            std.Io.Dir.openFileAbsolute(ctx.io, path, .{}) catch |err| {
                 std.log.err("Failed to open absolute cover path '{s}' for book {d}: {} ({s})", .{ path, book_id, err, @errorName(err) });
                 return err;
             }
         else
-            std.fs.cwd().openFile(path, .{}) catch |err| {
+            std.Io.Dir.cwd().openFile(ctx.io, path, .{}) catch |err| {
                 std.log.err("Failed to open relative cover path '{s}' for book {d}: {} ({s})", .{ path, book_id, err, @errorName(err) });
                 return err;
             };
-        defer file.close();
-        const stat = try file.stat();
+        defer file.close(ctx.io);
+        const stat = try file.stat(ctx.io);
         const bytes = try allocator.alloc(u8, stat.size);
-        _ = try file.readAll(bytes);
+        _ = try file.readPositionalAll(ctx.io, bytes, 0);
         std.log.debug("Successfully served cover for book {d} ({d} bytes)", .{ book_id, bytes.len });
         res.status = 200;
         res.body = bytes;

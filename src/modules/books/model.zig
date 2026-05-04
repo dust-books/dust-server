@@ -1,8 +1,9 @@
 const std = @import("std");
-const sqlite = @import("sqlite");
+const zqlite = @import("zqlite");
 const cover = @import("../../cover_manager.zig");
 const MetadataExtractor = @import("../../metadata_extractor.zig").MetadataExtractor;
 const CoverManager = @import("../../cover_manager.zig").CoverManager;
+const time_compat = @import("../../time_compat.zig");
 const Config = @import("../../config.zig").Config;
 
 pub const Book = struct {
@@ -52,8 +53,8 @@ pub const Author = struct {
     wikipedia_url: ?[]const u8,
     goodreads_url: ?[]const u8,
     website: ?[]const u8,
-    aliases: ?[]const u8, // JSON string
-    genres: ?[]const u8, // JSON string
+    aliases: ?[]const u8,
+    genres: ?[]const u8,
     created_at: ?[]const u8,
     updated_at: ?[]const u8,
 
@@ -111,8 +112,6 @@ pub const ReadingProgress = struct {
     }
 };
 
-/// Flat row returned by JOIN queries that need both book and author data in one shot.
-/// Fields must stay in the same order as the SELECT columns — zig-sqlite maps positionally.
 pub const BookWithAuthorRow = struct {
     id: i64,
     name: []const u8,
@@ -134,12 +133,87 @@ pub const BookWithAuthorRow = struct {
     author_name: []const u8,
 };
 
-// Repository for Book operations
+fn rowToBook(row: anytype, allocator: std.mem.Allocator) !Book {
+    return Book{
+        .id = row.int(0),
+        .name = try allocator.dupe(u8, row.text(1)),
+        .author = row.int(2),
+        .file_path = try allocator.dupe(u8, row.text(3)),
+        .isbn = if (row.nullableText(4)) |s| try allocator.dupe(u8, s) else null,
+        .publication_date = if (row.nullableText(5)) |s| try allocator.dupe(u8, s) else null,
+        .publisher = if (row.nullableText(6)) |s| try allocator.dupe(u8, s) else null,
+        .description = if (row.nullableText(7)) |s| try allocator.dupe(u8, s) else null,
+        .page_count = row.nullableInt(8),
+        .file_size = row.nullableInt(9),
+        .file_format = if (row.nullableText(10)) |s| try allocator.dupe(u8, s) else null,
+        .cover_image_path = if (row.nullableText(11)) |s| try allocator.dupe(u8, s) else null,
+        .status = try allocator.dupe(u8, row.text(12)),
+        .archived_at = if (row.nullableText(13)) |s| try allocator.dupe(u8, s) else null,
+        .archive_reason = if (row.nullableText(14)) |s| try allocator.dupe(u8, s) else null,
+        .created_at = try allocator.dupe(u8, row.text(15)),
+        .updated_at = try allocator.dupe(u8, row.text(16)),
+    };
+}
+
+fn rowToAuthor(row: anytype, allocator: std.mem.Allocator) !Author {
+    return Author{
+        .id = row.int(0),
+        .name = try allocator.dupe(u8, row.text(1)),
+        .biography = if (row.nullableText(2)) |s| try allocator.dupe(u8, s) else null,
+        .birth_date = if (row.nullableText(3)) |s| try allocator.dupe(u8, s) else null,
+        .death_date = if (row.nullableText(4)) |s| try allocator.dupe(u8, s) else null,
+        .nationality = if (row.nullableText(5)) |s| try allocator.dupe(u8, s) else null,
+        .image_url = if (row.nullableText(6)) |s| try allocator.dupe(u8, s) else null,
+        .wikipedia_url = if (row.nullableText(7)) |s| try allocator.dupe(u8, s) else null,
+        .goodreads_url = if (row.nullableText(8)) |s| try allocator.dupe(u8, s) else null,
+        .website = if (row.nullableText(9)) |s| try allocator.dupe(u8, s) else null,
+        .aliases = if (row.nullableText(10)) |s| try allocator.dupe(u8, s) else null,
+        .genres = if (row.nullableText(11)) |s| try allocator.dupe(u8, s) else null,
+        .created_at = if (row.nullableText(12)) |s| try allocator.dupe(u8, s) else null,
+        .updated_at = if (row.nullableText(13)) |s| try allocator.dupe(u8, s) else null,
+    };
+}
+
+fn rowToTag(row: anytype, allocator: std.mem.Allocator) !Tag {
+    return Tag{
+        .id = row.int(0),
+        .name = try allocator.dupe(u8, row.text(1)),
+        .category = try allocator.dupe(u8, row.text(2)),
+        .description = if (row.nullableText(3)) |s| try allocator.dupe(u8, s) else null,
+        .color = if (row.nullableText(4)) |s| try allocator.dupe(u8, s) else null,
+        .requires_permission = if (row.nullableText(5)) |s| try allocator.dupe(u8, s) else null,
+        .created_at = try allocator.dupe(u8, row.text(6)),
+    };
+}
+
+fn rowToBookWithAuthor(row: anytype, allocator: std.mem.Allocator) !BookWithAuthorRow {
+    return BookWithAuthorRow{
+        .id = row.int(0),
+        .name = try allocator.dupe(u8, row.text(1)),
+        .file_path = try allocator.dupe(u8, row.text(2)),
+        .isbn = if (row.nullableText(3)) |s| try allocator.dupe(u8, s) else null,
+        .publication_date = if (row.nullableText(4)) |s| try allocator.dupe(u8, s) else null,
+        .publisher = if (row.nullableText(5)) |s| try allocator.dupe(u8, s) else null,
+        .description = if (row.nullableText(6)) |s| try allocator.dupe(u8, s) else null,
+        .page_count = row.nullableInt(7),
+        .file_size = row.nullableInt(8),
+        .file_format = if (row.nullableText(9)) |s| try allocator.dupe(u8, s) else null,
+        .cover_image_path = if (row.nullableText(10)) |s| try allocator.dupe(u8, s) else null,
+        .status = try allocator.dupe(u8, row.text(11)),
+        .archived_at = if (row.nullableText(12)) |s| try allocator.dupe(u8, s) else null,
+        .archive_reason = if (row.nullableText(13)) |s| try allocator.dupe(u8, s) else null,
+        .created_at = try allocator.dupe(u8, row.text(14)),
+        .updated_at = try allocator.dupe(u8, row.text(15)),
+        .author_id = row.int(16),
+        .author_name = try allocator.dupe(u8, row.text(17)),
+    };
+}
+
 pub const BookRepository = struct {
-    db: *sqlite.Db,
+    db: *zqlite.Conn,
     config: Config,
 
-    pub fn init(db: *sqlite.Db, config: Config) BookRepository {
+    pub fn init(db: *zqlite.Conn, config: Config) BookRepository {
         return .{
             .db = db,
             .config = config,
@@ -154,23 +228,9 @@ pub const BookRepository = struct {
             \\FROM books WHERE id = ?
         ;
 
-        const result = try self.db.oneAlloc(Book, allocator, query, .{}, .{id});
-        return result orelse error.BookNotFound;
-    }
-
-    pub fn listBooks(self: *BookRepository, allocator: std.mem.Allocator) ![]Book {
-        const query =
-            \\SELECT id, name, author, file_path, isbn, publication_date, publisher,
-            \\       description, page_count, file_size, file_format, cover_image_path,
-            \\       status, archived_at, archive_reason, created_at, updated_at
-            \\FROM books WHERE status = 'active'
-            \\ORDER BY created_at DESC
-        ;
-
-        var stmt = try self.db.prepare(query);
-        defer stmt.deinit();
-
-        return try stmt.all(Book, allocator, .{}, .{});
+        const row = try self.db.row(query, .{id}) orelse return error.BookNotFound;
+        defer row.deinit();
+        return rowToBook(row, allocator);
     }
 
     pub fn listBooksWithAuthors(self: *BookRepository, allocator: std.mem.Allocator) ![]BookWithAuthorRow {
@@ -185,10 +245,17 @@ pub const BookRepository = struct {
             \\ORDER BY b.created_at DESC
         ;
 
-        var stmt = try self.db.prepare(query);
-        defer stmt.deinit();
+        var list = std.ArrayList(BookWithAuthorRow).empty;
+        errdefer list.deinit(allocator);
 
-        return try stmt.all(BookWithAuthorRow, allocator, .{}, .{});
+        var rows = try self.db.rows(query, .{});
+        defer rows.deinit();
+        while (rows.next()) |row| {
+            try list.append(allocator, try rowToBookWithAuthor(row, allocator));
+        }
+        if (rows.err) |err| return err;
+
+        return list.toOwnedSlice(allocator);
     }
 
     pub fn listArchivedBooksWithAuthors(self: *BookRepository, allocator: std.mem.Allocator) ![]BookWithAuthorRow {
@@ -203,54 +270,47 @@ pub const BookRepository = struct {
             \\ORDER BY b.archived_at DESC
         ;
 
-        var stmt = try self.db.prepare(query);
-        defer stmt.deinit();
+        var list = std.ArrayList(BookWithAuthorRow).empty;
+        errdefer list.deinit(allocator);
 
-        return try stmt.all(BookWithAuthorRow, allocator, .{}, .{});
+        var rows = try self.db.rows(query, .{});
+        defer rows.deinit();
+        while (rows.next()) |row| {
+            try list.append(allocator, try rowToBookWithAuthor(row, allocator));
+        }
+        if (rows.err) |err| return err;
+
+        return list.toOwnedSlice(allocator);
     }
 
     pub fn unarchiveBook(self: *BookRepository, id: i64) !void {
-        const query =
+        try self.db.exec(
             \\UPDATE books
             \\SET status = 'active', archived_at = NULL,
             \\    archive_reason = NULL, updated_at = CURRENT_TIMESTAMP
             \\WHERE id = ?
-        ;
-
-        var stmt = try self.db.prepare(query);
-        defer stmt.deinit();
-
-        try stmt.exec(.{}, .{id});
+        , .{id});
     }
 
     pub fn archiveBook(self: *BookRepository, id: i64, reason: ?[]const u8) !void {
-        const query =
-            \\UPDATE books 
-            \\SET status = 'archived', archived_at = CURRENT_TIMESTAMP, 
+        try self.db.exec(
+            \\UPDATE books
+            \\SET status = 'archived', archived_at = CURRENT_TIMESTAMP,
             \\    archive_reason = ?, updated_at = CURRENT_TIMESTAMP
             \\WHERE id = ?
-        ;
-
-        var stmt = try self.db.prepare(query);
-        defer stmt.deinit();
-
-        try stmt.exec(.{}, .{ reason, id });
+        , .{ reason, id });
     }
 
-    pub fn refreshMetadata(self: *BookRepository, allocator: std.mem.Allocator, id: i64) !void {
+    pub fn refreshMetadata(self: *BookRepository, allocator: std.mem.Allocator, io: std.Io, id: i64) !void {
         const book = try self.getBookById(allocator, id);
 
-        var metadata_extractor = try MetadataExtractor.init(
-            allocator,
-            true,
-            self.config,
-        );
+        var metadata_extractor = try MetadataExtractor.init(allocator, io, true, self.config);
 
-        var metadata = try metadata_extractor.extractMetadata(book.file_path);
+        var metadata = try metadata_extractor.extractMetadata(io, book.file_path);
         defer metadata.deinit(allocator);
 
         var cover_manager = CoverManager.init(allocator);
-        const cover_path = cover_manager.ensureCover(book.file_path, metadata.cover_image_url) catch |err| blk: {
+        const cover_path = cover_manager.ensureCover(io, book.file_path, metadata.cover_image_url) catch |err| blk: {
             std.log.warn("Failed to resolve cover for book {d}: {}", .{ id, err });
             break :blk null;
         };
@@ -265,12 +325,12 @@ pub const BookRepository = struct {
             };
         }
 
-        const file = try std.fs.openFileAbsolute(book.file_path, .{});
-        defer file.close();
-        const stat = try file.stat();
+        const file = try std.Io.Dir.openFileAbsolute(io, book.file_path, .{});
+        defer file.close(io);
+        const stat = try file.stat(io);
 
-        const query =
-            \\UPDATE books 
+        try self.db.exec(
+            \\UPDATE books
             \\SET name = COALESCE(?, name),
             \\    author = COALESCE(?, author),
             \\    isbn = COALESCE(?, isbn),
@@ -283,19 +343,14 @@ pub const BookRepository = struct {
             \\    cover_image_path = COALESCE(?, cover_image_path),
             \\    updated_at = CURRENT_TIMESTAMP
             \\WHERE id = ?
-        ;
-
-        var stmt = try self.db.prepare(query);
-        defer stmt.deinit();
-
-        try stmt.exec(.{}, .{
+        , .{
             metadata.title,
             author_id,
             metadata.isbn,
             metadata.publisher,
             metadata.publication_date,
             metadata.description,
-            if (metadata.page_count) |pc| @as(i64, @intCast(pc)) else null,
+            if (metadata.page_count) |pc| @as(?i64, @intCast(pc)) else @as(?i64, null),
             @as(i64, @intCast(stat.size)),
             metadata.file_format,
             cover_path,
@@ -304,14 +359,11 @@ pub const BookRepository = struct {
     }
 };
 
-// Repository for Author operations
 pub const AuthorRepository = struct {
-    db: *sqlite.Db,
+    db: *zqlite.Conn,
 
-    pub fn init(db: *sqlite.Db) AuthorRepository {
-        return .{
-            .db = db,
-        };
+    pub fn init(db: *zqlite.Conn) AuthorRepository {
+        return .{ .db = db };
     }
 
     pub fn getAuthorById(self: *AuthorRepository, allocator: std.mem.Allocator, id: i64) !Author {
@@ -322,8 +374,9 @@ pub const AuthorRepository = struct {
             \\FROM authors WHERE id = ?
         ;
 
-        const result = try self.db.oneAlloc(Author, allocator, query, .{}, .{id});
-        return result orelse error.AuthorNotFound;
+        const row = try self.db.row(query, .{id}) orelse return error.AuthorNotFound;
+        defer row.deinit();
+        return rowToAuthor(row, allocator);
     }
 
     pub fn listAuthors(self: *AuthorRepository, allocator: std.mem.Allocator) ![]Author {
@@ -331,25 +384,25 @@ pub const AuthorRepository = struct {
             \\SELECT id, name, biography, birth_date, death_date, nationality,
             \\       image_url, wikipedia_url, goodreads_url, website, aliases, genres,
             \\       created_at, updated_at
-            \\FROM authors
-            \\ORDER BY name ASC
+            \\FROM authors ORDER BY name ASC
         ;
 
-        var stmt = try self.db.prepare(query);
-        defer stmt.deinit();
+        var list = std.ArrayList(Author).empty;
+        errdefer list.deinit(allocator);
 
-        return try stmt.all(Author, allocator, .{}, .{});
+        var rows = try self.db.rows(query, .{});
+        defer rows.deinit();
+        while (rows.next()) |row| {
+            try list.append(allocator, try rowToAuthor(row, allocator));
+        }
+        if (rows.err) |err| return err;
+
+        return list.toOwnedSlice(allocator);
     }
 
     pub fn createAuthor(self: *AuthorRepository, name: []const u8) !i64 {
-        const query = "INSERT INTO authors (name) VALUES (?)";
-
-        var stmt = try self.db.prepare(query);
-        defer stmt.deinit();
-
-        try stmt.exec(.{}, .{name});
-
-        return self.db.getLastInsertRowID();
+        try self.db.exec("INSERT INTO authors (name) VALUES (?)", .{name});
+        return self.db.lastInsertedRowId();
     }
 
     pub fn getBooksByAuthor(self: *AuthorRepository, allocator: std.mem.Allocator, author_id: i64) ![]Book {
@@ -360,10 +413,17 @@ pub const AuthorRepository = struct {
             \\FROM books WHERE author = ? AND status = 'active'
         ;
 
-        var stmt = try self.db.prepare(query);
-        defer stmt.deinit();
+        var list = std.ArrayList(Book).empty;
+        errdefer list.deinit(allocator);
 
-        return try stmt.all(Book, allocator, .{}, .{author_id});
+        var rows = try self.db.rows(query, .{author_id});
+        defer rows.deinit();
+        while (rows.next()) |row| {
+            try list.append(allocator, try rowToBook(row, allocator));
+        }
+        if (rows.err) |err| return err;
+
+        return list.toOwnedSlice(allocator);
     }
 
     pub fn getAuthorByName(self: *AuthorRepository, allocator: std.mem.Allocator, name: []const u8) !Author {
@@ -374,64 +434,68 @@ pub const AuthorRepository = struct {
             \\FROM authors WHERE name = ?
         ;
 
-        const result = try self.db.oneAlloc(Author, allocator, query, .{}, .{name});
-        return result orelse error.AuthorNotFound;
+        const row = try self.db.row(query, .{name}) orelse return error.AuthorNotFound;
+        defer row.deinit();
+        return rowToAuthor(row, allocator);
     }
 
     pub fn getOrCreateAuthorByName(self: *AuthorRepository, name: []const u8) !i64 {
-        const check_query = "SELECT id FROM authors WHERE name = ?";
-
-        var stmt = try self.db.prepare(check_query);
-        defer stmt.deinit();
-
-        const row = try stmt.one(struct { id: i64 }, .{}, .{name});
-
-        if (row) |r| {
-            return r.id;
+        if (try self.db.row("SELECT id FROM authors WHERE name = ?", .{name})) |row| {
+            defer row.deinit();
+            return row.int(0);
         }
 
-        const insert_query = "INSERT INTO authors (name, created_at) VALUES (?, datetime('now'))";
-        try self.db.exec(insert_query, .{}, .{name});
-
-        return self.db.getLastInsertRowID();
+        try self.db.exec(
+            "INSERT INTO authors (name, created_at) VALUES (?, datetime('now'))",
+            .{name},
+        );
+        return self.db.lastInsertedRowId();
     }
 };
 
-// Repository for Tag operations
 pub const TagRepository = struct {
-    db: *sqlite.Db,
+    db: *zqlite.Conn,
 
-    pub fn init(db: *sqlite.Db) TagRepository {
-        return .{
-            .db = db,
-        };
+    pub fn init(db: *zqlite.Conn) TagRepository {
+        return .{ .db = db };
     }
 
     pub fn getAllTags(self: *TagRepository, allocator: std.mem.Allocator) ![]Tag {
         const query =
             \\SELECT id, name, category, description, color, requires_permission, created_at
-            \\FROM tags
-            \\ORDER BY category, name
+            \\FROM tags ORDER BY category, name
         ;
 
-        var stmt = try self.db.prepare(query);
-        defer stmt.deinit();
+        var list = std.ArrayList(Tag).empty;
+        errdefer list.deinit(allocator);
 
-        return try stmt.all(Tag, allocator, .{}, .{});
+        var rows = try self.db.rows(query, .{});
+        defer rows.deinit();
+        while (rows.next()) |row| {
+            try list.append(allocator, try rowToTag(row, allocator));
+        }
+        if (rows.err) |err| return err;
+
+        return list.toOwnedSlice(allocator);
     }
 
     pub fn getTagsByCategory(self: *TagRepository, allocator: std.mem.Allocator, category: []const u8) ![]Tag {
         const query =
             \\SELECT id, name, category, description, color, requires_permission, created_at
-            \\FROM tags
-            \\WHERE category = ?
-            \\ORDER BY name
+            \\FROM tags WHERE category = ? ORDER BY name
         ;
 
-        var stmt = try self.db.prepare(query);
-        defer stmt.deinit();
+        var list = std.ArrayList(Tag).empty;
+        errdefer list.deinit(allocator);
 
-        return try stmt.all(Tag, allocator, .{}, .{category});
+        var rows = try self.db.rows(query, .{category});
+        defer rows.deinit();
+        while (rows.next()) |row| {
+            try list.append(allocator, try rowToTag(row, allocator));
+        }
+        if (rows.err) |err| return err;
+
+        return list.toOwnedSlice(allocator);
     }
 
     pub fn getBookTags(self: *TagRepository, allocator: std.mem.Allocator, book_id: i64) ![]Tag {
@@ -443,34 +507,36 @@ pub const TagRepository = struct {
             \\ORDER BY t.category, t.name
         ;
 
-        var stmt = try self.db.prepare(query);
-        defer stmt.deinit();
+        var list = std.ArrayList(Tag).empty;
+        errdefer list.deinit(allocator);
 
-        return try stmt.all(Tag, allocator, .{}, .{book_id});
+        var rows = try self.db.rows(query, .{book_id});
+        defer rows.deinit();
+        while (rows.next()) |row| {
+            try list.append(allocator, try rowToTag(row, allocator));
+        }
+        if (rows.err) |err| return err;
+
+        return list.toOwnedSlice(allocator);
     }
 
     pub fn getTagByName(self: *TagRepository, allocator: std.mem.Allocator, name: []const u8) !?Tag {
         const query =
             \\SELECT id, name, category, description, color, requires_permission, created_at
-            \\FROM tags
-            \\WHERE name = ?
+            \\FROM tags WHERE name = ?
         ;
 
-        const result = try self.db.oneAlloc(Tag, allocator, query, .{}, .{name});
-        return result;
+        const row = try self.db.row(query, .{name}) orelse return null;
+        defer row.deinit();
+        return try rowToTag(row, allocator);
     }
 
     pub fn addTagToBook(self: *TagRepository, book_id: i64, tag_id: i64, applied_by: ?i64, auto_applied: bool) !void {
-        const query =
+        const now = time_compat.timestamp();
+        try self.db.exec(
             \\INSERT INTO book_tags (book_id, tag_id, applied_by, auto_applied, applied_at)
             \\VALUES (?, ?, ?, ?, ?)
-        ;
-
-        const now = std.time.timestamp();
-        var stmt = try self.db.prepare(query);
-        defer stmt.deinit();
-
-        try stmt.exec(.{}, .{
+        , .{
             book_id,
             tag_id,
             applied_by,
@@ -480,11 +546,9 @@ pub const TagRepository = struct {
     }
 
     pub fn removeTagFromBook(self: *TagRepository, book_id: i64, tag_id: i64) !void {
-        const query = "DELETE FROM book_tags WHERE book_id = ? AND tag_id = ?";
-
-        var stmt = try self.db.prepare(query);
-        defer stmt.deinit();
-
-        try stmt.exec(.{}, .{ book_id, tag_id });
+        try self.db.exec(
+            "DELETE FROM book_tags WHERE book_id = ? AND tag_id = ?",
+            .{ book_id, tag_id },
+        );
     }
 };

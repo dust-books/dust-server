@@ -1,5 +1,6 @@
 const std = @import("std");
 const permissions = @import("permissions.zig");
+const time_compat = @import("../time_compat.zig");
 const Permission = permissions.Permission;
 const Role = permissions.Role;
 const PermissionRepository = @import("permission_repository.zig").PermissionRepository;
@@ -25,17 +26,19 @@ fn freePermissionMap(map: *std.StringHashMap(void), allocator: std.mem.Allocator
 pub const PermissionService = struct {
     repo: *PermissionRepository,
     allocator: std.mem.Allocator,
+    io: std.Io,
     cache: std.AutoHashMap(i64, PermissionCache),
     cache_ttl_seconds: i64,
-    mutex: std.Thread.Mutex,
+    mutex: std.Io.Mutex,
 
-    pub fn init(repo: *PermissionRepository, allocator: std.mem.Allocator) PermissionService {
+    pub fn init(repo: *PermissionRepository, allocator: std.mem.Allocator, io: std.Io) PermissionService {
         return .{
             .repo = repo,
             .allocator = allocator,
+            .io = io,
             .cache = std.AutoHashMap(i64, PermissionCache).init(allocator),
-            .cache_ttl_seconds = 300, // 5 minutes default
-            .mutex = .{},
+            .cache_ttl_seconds = 300,
+            .mutex = std.Io.Mutex.init,
         };
     }
 
@@ -52,8 +55,8 @@ pub const PermissionService = struct {
         // Check cache under lock. We extract the bool we need before releasing
         // the lock so we never hold a reference to cache-owned memory outside it.
         {
-            self.mutex.lock();
-            defer self.mutex.unlock();
+            self.mutex.lockUncancelable(self.io);
+            defer self.mutex.unlock(self.io);
             if (self.getCachedResultLocked(user_id, permission_name)) |result| {
                 return result;
             }
@@ -81,15 +84,15 @@ pub const PermissionService = struct {
         // Write to cache under lock. Evict any entry another thread may have
         // raced to write so we don't leak its allocated strings.
         {
-            self.mutex.lock();
-            defer self.mutex.unlock();
+            self.mutex.lockUncancelable(self.io);
+            defer self.mutex.unlock(self.io);
             if (self.cache.fetchRemove(user_id)) |old| {
                 var old_entry = old.value;
                 old_entry.deinit(self.allocator);
             }
             try self.cache.put(user_id, .{
                 .permissions = perm_set,
-                .cached_at = std.time.timestamp(),
+                .cached_at = time_compat.timestamp(),
             });
         }
 
@@ -101,7 +104,7 @@ pub const PermissionService = struct {
     /// memory after releasing the lock.
     fn getCachedResultLocked(self: *PermissionService, user_id: i64, permission_name: []const u8) ?bool {
         if (self.cache.get(user_id)) |cache_entry| {
-            const now = std.time.timestamp();
+            const now = time_compat.timestamp();
             if (now - cache_entry.cached_at < self.cache_ttl_seconds) {
                 return cache_entry.permissions.contains(permission_name);
             }

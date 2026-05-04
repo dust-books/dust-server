@@ -1,25 +1,19 @@
 const std = @import("std");
 
 pub fn build(b: *std.Build) void {
-    // Standard target options
     const target = b.standardTargetOptions(.{});
-
-    // Standard optimization options
     const optimize = b.standardOptimizeOption(.{});
 
-    // Get httpz dependency
     const httpz = b.dependency("httpz", .{
         .target = target,
         .optimize = optimize,
     });
 
-    // Get sqlite dependency
-    const sqlite = b.dependency("sqlite", .{
+    const zqlite = b.dependency("zqlite", .{
         .target = target,
         .optimize = optimize,
     });
 
-    // Create the executable
     const exe = b.addExecutable(.{
         .name = "dust-server",
         .use_llvm = true,
@@ -27,12 +21,15 @@ pub fn build(b: *std.Build) void {
             .root_source_file = b.path("src/main.zig"),
             .target = target,
             .optimize = optimize,
+            .link_libc = true,
             .imports = &.{
                 .{ .name = "httpz", .module = httpz.module("httpz") },
-                .{ .name = "sqlite", .module = sqlite.module("sqlite") },
+                .{ .name = "zqlite", .module = zqlite.module("zqlite") },
             },
         }),
     });
+
+    exe.root_module.linkSystemLibrary("sqlite3", .{});
 
     const build_zig_zon = b.createModule(.{
         .root_source_file = b.path("build.zig.zon"),
@@ -41,21 +38,17 @@ pub fn build(b: *std.Build) void {
     });
     exe.root_module.addImport("build.zig.zon", build_zig_zon);
 
-    // Install the executable
     b.installArtifact(exe);
 
-    // Create run step
     const run_step = b.step("run", "Run the server");
     const run_cmd = b.addRunArtifact(exe);
     run_step.dependOn(&run_cmd.step);
     run_cmd.step.dependOn(b.getInstallStep());
 
-    // Allow passing arguments to the executable
     if (b.args) |args| {
         run_cmd.addArgs(args);
     }
 
-    // Create test step
     const exe_unit_tests = b.addTest(.{
         .root_module = exe.root_module,
         .test_runner = .{ .path = b.path("test_runner.zig"), .mode = .simple },

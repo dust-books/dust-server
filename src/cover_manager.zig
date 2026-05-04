@@ -20,22 +20,22 @@ pub const CoverManager = struct {
     /// Ensure a cover exists for the provided book. Returns the resolved path if one exists.
     /// If no local cover is found and a download URL is provided, the cover will be downloaded
     /// into the same directory as the book file.
-    pub fn ensureCover(self: *CoverManager, book_path: []const u8, download_url: ?[]const u8) !?[]const u8 {
-        if (try self.findLocalCover(book_path)) |existing| {
+    pub fn ensureCover(self: *CoverManager, io: std.Io, book_path: []const u8, download_url: ?[]const u8) !?[]const u8 {
+        if (try self.findLocalCover(io, book_path)) |existing| {
             return existing;
         }
 
         std.log.debug("Unable to find local cover for {s}", .{book_path});
 
         if (download_url) |url| {
-            return self.downloadCover(book_path, url);
+            return self.downloadCover(io, book_path, url);
         }
 
         return null;
     }
 
     /// Look for an existing cover image alongside the provided book.
-    pub fn findLocalCover(self: *CoverManager, book_path: []const u8) !?[]const u8 {
+    pub fn findLocalCover(self: *CoverManager, io: std.Io, book_path: []const u8) !?[]const u8 {
         const dir_path = std.fs.path.dirname(book_path) orelse {
             std.log.warn("findLocalCover: Could not determine directory for book path: {s}", .{book_path});
             return null;
@@ -53,7 +53,7 @@ pub const CoverManager = struct {
         };
 
         for (static_candidates) |candidate| {
-            if (try self.candidatePathIfExists(dir_path, candidate)) |path| {
+            if (try self.candidatePathIfExists(io, dir_path, candidate)) |path| {
                 return path;
             }
         }
@@ -68,7 +68,7 @@ pub const CoverManager = struct {
                 continue;
             };
             defer self.allocator.free(candidate_name);
-            const maybe_path = self.candidatePathIfExists(dir_path, candidate_name) catch |err| {
+            const maybe_path = self.candidatePathIfExists(io, dir_path, candidate_name) catch |err| {
                 std.log.warn("findLocalCover: Error checking dynamic candidate '{s}' in '{s}': {} ({s})", .{ candidate_name, dir_path, err, @errorName(err) });
                 continue;
             };
@@ -81,19 +81,19 @@ pub const CoverManager = struct {
         return null;
     }
 
-    fn candidatePathIfExists(self: *CoverManager, dir_path: []const u8, candidate: []const u8) !?[]const u8 {
+    fn candidatePathIfExists(self: *CoverManager, io: std.Io, dir_path: []const u8, candidate: []const u8) !?[]const u8 {
         const joined = try std.fs.path.join(self.allocator, &.{ dir_path, candidate });
-        if (try self.pathExists(joined)) {
+        if (try self.pathExists(io, joined)) {
             return joined;
         }
         self.allocator.free(joined);
         return null;
     }
 
-    fn pathExists(_: *CoverManager, absolute_or_relative_path: []const u8) !bool {
+    fn pathExists(_: *CoverManager, io: std.Io, absolute_or_relative_path: []const u8) !bool {
         std.log.debug("Checking if path exists: {s}", .{absolute_or_relative_path});
         if (std.fs.path.isAbsolute(absolute_or_relative_path)) {
-            std.fs.accessAbsolute(absolute_or_relative_path, .{ .mode = .read_write }) catch |err| {
+            std.Io.Dir.accessAbsolute(io, absolute_or_relative_path, .{}) catch |err| {
                 return switch (err) {
                     error.FileNotFound => false,
                     else => err,
@@ -102,7 +102,7 @@ pub const CoverManager = struct {
             return true;
         }
 
-        std.fs.cwd().access(absolute_or_relative_path, .{ .mode = .read_write }) catch |err| {
+        std.Io.Dir.cwd().access(io, absolute_or_relative_path, .{}) catch |err| {
             return switch (err) {
                 error.FileNotFound => false,
                 else => err,
@@ -111,7 +111,7 @@ pub const CoverManager = struct {
         return true;
     }
 
-    fn downloadCover(self: *CoverManager, book_path: []const u8, url: []const u8) !?[]const u8 {
+    fn downloadCover(self: *CoverManager, io: std.Io, book_path: []const u8, url: []const u8) !?[]const u8 {
         const dir_path = std.fs.path.dirname(book_path) orelse return null;
 
         const uri = std.Uri.parse(url) catch {
@@ -119,7 +119,7 @@ pub const CoverManager = struct {
             return null;
         };
 
-        var client = std.http.Client{ .allocator = self.allocator };
+        var client = std.http.Client{ .allocator = self.allocator, .io = io };
         defer client.deinit();
 
         var req = try client.request(.GET, uri, .{});
@@ -146,27 +146,27 @@ pub const CoverManager = struct {
         const filename = try std.fmt.allocPrint(self.allocator, "cover{s}", .{extension});
         defer self.allocator.free(filename);
 
-        var dir = try openDir(dir_path);
-        defer dir.close();
+        var dir = try openDir(io, dir_path);
+        defer dir.close(io);
 
-        var file = try dir.createFile(filename, .{ .truncate = true });
+        var file = try dir.createFile(io, filename, .{ .truncate = true });
         errdefer {
-            file.close();
-            dir.deleteFile(filename) catch {};
+            file.close(io);
+            dir.deleteFile(io, filename) catch {};
         }
 
-        try file.writeAll(body);
-        file.close();
+        try file.writeStreamingAll(io, body);
+        file.close(io);
 
         const cover_path = try std.fs.path.join(self.allocator, &.{ dir_path, filename });
         return cover_path;
     }
 
-    fn openDir(path: []const u8) !std.fs.Dir {
+    fn openDir(io: std.Io, path: []const u8) !std.Io.Dir {
         if (std.fs.path.isAbsolute(path)) {
-            return std.fs.openDirAbsolute(path, .{});
+            return std.Io.Dir.openDirAbsolute(io, path, .{});
         }
-        return std.fs.cwd().openDir(path, .{});
+        return std.Io.Dir.cwd().openDir(io, path, .{});
     }
 
     fn getFilenameWithoutExt(self: *CoverManager, filename: []const u8) []const u8 {

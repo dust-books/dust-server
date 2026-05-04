@@ -38,7 +38,7 @@ pub const Config = struct {
 
         const jwt_secret = try allocator.dupe(u8, environ.get("JWT_SECRET") orelse return error.MissingJWTSecret);
 
-        const database_url = if (environ.get("DATABASE_URL")) |key| allocator.duple(key) else try std.fmt.allocPrint(allocator, "file:dust-{d}.db", .{port});
+        const database_url = if (environ.get("DATABASE_URL")) |key| try allocator.dupe(u8, key) else try std.fmt.allocPrint(allocator, "file:dust-{d}.db", .{port});
 
         return Config{
             .library_directories = library_directories,

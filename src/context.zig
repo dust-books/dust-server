@@ -30,6 +30,7 @@ pub const ServerContext = struct {
     config: Config,
     library_directories: []const []const u8,
     static_server: *const StaticFileServer,
+    io: std.Io,
 
     pub fn notFound(ctx: *ServerContext, req: *httpz.Request, res: *httpz.Response) !void {
         // Try to serve as static file first

@@ -12,7 +12,7 @@ const genres = @import("genres.zig");
 var should_shutdown = std.atomic.Value(bool).init(false);
 
 /// Signal handler to set the shutdown flag
-fn handleShutdown(sig: c_int) callconv(.c) void {
+fn handleShutdown(sig: std.posix.SIG) callconv(.c) void {
     _ = sig;
     should_shutdown.store(true, .seq_cst);
     std.log.debug("Received shutdown signal, cleaning up...", .{});
@@ -27,7 +27,7 @@ pub fn main(init: std.process.Init) !void {
     _ = args.skip(); // Skip program name
 
     var stdout_buffer: [1024]u8 = undefined;
-    var stdout_writer = std.fs.File.stdout().writer(&stdout_buffer);
+    var stdout_writer = std.Io.File.stdout().writer(init.io, &stdout_buffer);
     var stdout = &stdout_writer.interface;
 
     const environ = init.environ_map;
@@ -109,13 +109,13 @@ pub fn main(init: std.process.Init) !void {
     std.log.info("All migrations completed", .{});
 
     // Create typed timer manager for books background tasks
-    const books_timer = try books.createBackgroundTimerManager(allocator, &db.db, cfg);
+    const books_timer = try books.createBackgroundTimerManager(allocator, &db.db, cfg, init.io);
     defer books_timer.deinit();
     defer allocator.destroy(books_timer);
     std.log.info("Background tasks registered", .{});
 
     // Start server
-    var server = try DustServer.init(allocator, cfg.port, &db, cfg, &should_shutdown);
+    var server = try DustServer.init(allocator, init.io, cfg.port, &db, cfg, &should_shutdown);
     defer server.deinit();
 
     std.log.info("Starting HTTP server on port {d}...", .{cfg.port});

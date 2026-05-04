@@ -42,25 +42,26 @@ pub const MetadataExtractor = struct {
     ol_client: ?openlibrary.OpenLibraryClient,
     enable_external_lookup: bool,
 
-    pub fn init(allocator: std.mem.Allocator, enable_external_lookup: bool, config: Config) !MetadataExtractor {
+    pub fn init(allocator: std.mem.Allocator, io: std.Io, enable_external_lookup: bool, config: Config) !MetadataExtractor {
         return .{
             .allocator = allocator,
             .ol_client = if (enable_external_lookup) openlibrary.OpenLibraryClient.init(
                 allocator,
+                io,
                 config.user_agent,
             ) else null,
             .enable_external_lookup = enable_external_lookup,
         };
     }
 
-    pub fn extractMetadata(self: *MetadataExtractor, file_path: []const u8) !BookMetadata {
+    pub fn extractMetadata(self: *MetadataExtractor, io: std.Io, file_path: []const u8) !BookMetadata {
         var metadata = BookMetadata{};
 
         // Get file format from extension
         metadata.file_format = try self.getFileFormat(file_path);
 
         // Get file size
-        metadata.file_size = try self.getFileSize(file_path);
+        metadata.file_size = try self.getFileSize(io, file_path);
 
         // Extract from filename/path (works for all formats as fallback)
         try self.extractFromFilename(file_path, &metadata);
@@ -169,11 +170,11 @@ pub const MetadataExtractor = struct {
         return try self.allocator.dupe(u8, "unknown");
     }
 
-    fn getFileSize(self: *MetadataExtractor, file_path: []const u8) !u64 {
+    fn getFileSize(self: *MetadataExtractor, io: std.Io, file_path: []const u8) !u64 {
         _ = self;
-        const file = try std.fs.cwd().openFile(file_path, .{});
-        defer file.close();
-        const stat = try file.stat();
+        const file = try std.Io.Dir.cwd().openFile(io, file_path, .{});
+        defer file.close(io);
+        const stat = try file.stat(io);
         return stat.size;
     }
 
@@ -419,6 +420,7 @@ const testing = std.testing;
 test "extractISBN extracts 13-digit ISBN with hyphens" {
     var extractor = try MetadataExtractor.init(
         testing.allocator,
+        testing.io,
         false,
         Config.init(),
     );
@@ -432,6 +434,7 @@ test "extractISBN extracts 13-digit ISBN with hyphens" {
 test "extractISBN supports ISBN-10 with X suffix" {
     var extractor = try MetadataExtractor.init(
         testing.allocator,
+        testing.io,
         false,
         Config.init(),
     );
@@ -445,6 +448,7 @@ test "extractISBN supports ISBN-10 with X suffix" {
 test "extractISBN returns null when no ISBN present" {
     var extractor = try MetadataExtractor.init(
         testing.allocator,
+        testing.io,
         false,
         Config.init(),
     );
@@ -456,6 +460,7 @@ test "extractISBN returns null when no ISBN present" {
 test "extractISBN extracts plain 13-digit ISBN" {
     var extractor = try MetadataExtractor.init(
         testing.allocator,
+        testing.io,
         false,
         Config.init(),
     );
@@ -469,6 +474,7 @@ test "extractISBN extracts plain 13-digit ISBN" {
 test "extractISBN extracts ISBN with underscores and spaces" {
     var extractor = try MetadataExtractor.init(
         testing.allocator,
+        testing.io,
         false,
         Config.init(),
     );
@@ -482,6 +488,7 @@ test "extractISBN extracts ISBN with underscores and spaces" {
 test "extractMetadata preserves ISBN through full extraction" {
     var extractor = try MetadataExtractor.init(
         testing.allocator,
+        testing.io,
         false,
         Config.init(),
     );
