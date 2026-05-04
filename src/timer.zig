@@ -26,7 +26,7 @@ pub fn TimerManager(comptime Ctx: type) type {
         running: std.atomic.Value(bool),
         mutex: std.Io.Mutex,
 
-        pub fn init(allocator: std.mem.Allocator, io: std.Io) Self {
+        pub fn init(io: std.Io, allocator: std.mem.Allocator) Self {
             return .{
                 .allocator = allocator,
                 .io = io,

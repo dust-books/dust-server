@@ -301,10 +301,10 @@ pub const BookRepository = struct {
         , .{ reason, id });
     }
 
-    pub fn refreshMetadata(self: *BookRepository, allocator: std.mem.Allocator, io: std.Io, id: i64) !void {
+    pub fn refreshMetadata(self: *BookRepository, io: std.Io, allocator: std.mem.Allocator, id: i64) !void {
         const book = try self.getBookById(allocator, id);
 
-        var metadata_extractor = try MetadataExtractor.init(allocator, io, true, self.config);
+        var metadata_extractor = try MetadataExtractor.init(io, allocator, true, self.config);
 
         var metadata = try metadata_extractor.extractMetadata(io, book.file_path);
         defer metadata.deinit(allocator);

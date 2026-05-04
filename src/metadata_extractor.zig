@@ -42,12 +42,12 @@ pub const MetadataExtractor = struct {
     ol_client: ?openlibrary.OpenLibraryClient,
     enable_external_lookup: bool,
 
-    pub fn init(allocator: std.mem.Allocator, io: std.Io, enable_external_lookup: bool, config: Config) !MetadataExtractor {
+    pub fn init(io: std.Io, allocator: std.mem.Allocator, enable_external_lookup: bool, config: Config) !MetadataExtractor {
         return .{
             .allocator = allocator,
             .ol_client = if (enable_external_lookup) openlibrary.OpenLibraryClient.init(
-                allocator,
                 io,
+                allocator,
                 config.user_agent,
             ) else null,
             .enable_external_lookup = enable_external_lookup,
@@ -419,8 +419,8 @@ const testing = std.testing;
 
 test "extractISBN extracts 13-digit ISBN with hyphens" {
     var extractor = try MetadataExtractor.init(
-        testing.allocator,
         testing.io,
+        testing.allocator,
         false,
         Config.init(),
     );
@@ -433,8 +433,8 @@ test "extractISBN extracts 13-digit ISBN with hyphens" {
 
 test "extractISBN supports ISBN-10 with X suffix" {
     var extractor = try MetadataExtractor.init(
-        testing.allocator,
         testing.io,
+        testing.allocator,
         false,
         Config.init(),
     );
@@ -447,8 +447,8 @@ test "extractISBN supports ISBN-10 with X suffix" {
 
 test "extractISBN returns null when no ISBN present" {
     var extractor = try MetadataExtractor.init(
-        testing.allocator,
         testing.io,
+        testing.allocator,
         false,
         Config.init(),
     );
@@ -459,8 +459,8 @@ test "extractISBN returns null when no ISBN present" {
 
 test "extractISBN extracts plain 13-digit ISBN" {
     var extractor = try MetadataExtractor.init(
-        testing.allocator,
         testing.io,
+        testing.allocator,
         false,
         Config.init(),
     );
@@ -473,8 +473,8 @@ test "extractISBN extracts plain 13-digit ISBN" {
 
 test "extractISBN extracts ISBN with underscores and spaces" {
     var extractor = try MetadataExtractor.init(
-        testing.allocator,
         testing.io,
+        testing.allocator,
         false,
         Config.init(),
     );
@@ -487,8 +487,8 @@ test "extractISBN extracts ISBN with underscores and spaces" {
 
 test "extractMetadata preserves ISBN through full extraction" {
     var extractor = try MetadataExtractor.init(
-        testing.allocator,
         testing.io,
+        testing.allocator,
         false,
         Config.init(),
     );

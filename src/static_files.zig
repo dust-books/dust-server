@@ -6,7 +6,7 @@ pub const StaticFileServer = struct {
     io: std.Io,
     root_dir: []const u8,
 
-    pub fn init(allocator: std.mem.Allocator, io: std.Io, root_dir: []const u8) StaticFileServer {
+    pub fn init(io: std.Io, allocator: std.mem.Allocator, root_dir: []const u8) StaticFileServer {
         return .{
             .allocator = allocator,
             .io = io,

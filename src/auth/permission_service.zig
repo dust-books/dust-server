@@ -31,7 +31,7 @@ pub const PermissionService = struct {
     cache_ttl_seconds: i64,
     mutex: std.Io.Mutex,
 
-    pub fn init(repo: *PermissionRepository, allocator: std.mem.Allocator, io: std.Io) PermissionService {
+    pub fn init(io: std.Io, allocator: std.mem.Allocator, repo: *PermissionRepository) PermissionService {
         return .{
             .repo = repo,
             .allocator = allocator,

@@ -19,7 +19,7 @@ fn scanLibraryDirectories(ctx: *BackgroundTaskContext) void {
 
     std.log.info("Starting background library scan...", .{});
 
-    var scanner = Scanner.init(run_allocator, ctx.io, ctx.db, ctx.config) catch |err| {
+    var scanner = Scanner.init(ctx.io, run_allocator, ctx.db, ctx.config) catch |err| {
         std.log.err("Failed to init Scanner: {}", .{err});
         return;
     };
@@ -98,9 +98,9 @@ fn cleanupBackgroundContext(ctx: *BackgroundTaskContext, allocator: std.mem.Allo
 
 pub const BooksTimerManager = @import("../../timer.zig").TimerManager(BackgroundTaskContext);
 
-pub fn createBackgroundTimerManager(allocator: std.mem.Allocator, db: *zqlite.Conn, cfg: Config, io: std.Io) !*BooksTimerManager {
+pub fn createBackgroundTimerManager(io: std.Io, allocator: std.mem.Allocator, db: *zqlite.Conn, cfg: Config) !*BooksTimerManager {
     const mgr = try allocator.create(BooksTimerManager);
-    mgr.* = BooksTimerManager.init(allocator, io);
+    mgr.* = BooksTimerManager.init(io, allocator);
 
     const scan_ctx = try allocator.create(BackgroundTaskContext);
     scan_ctx.* = .{

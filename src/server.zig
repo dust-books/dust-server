@@ -45,9 +45,9 @@ pub const DustServer = struct {
     should_shutdown: *std.atomic.Value(bool),
 
     /// Initialize the DustServer
-    pub fn init(allocator: std.mem.Allocator, io: std.Io, port: u16, db: *Database, config: Config, should_shutdown: *std.atomic.Value(bool)) !DustServer {
+    pub fn init(io: std.Io, allocator: std.mem.Allocator, port: u16, db: *Database, config: Config, should_shutdown: *std.atomic.Value(bool)) !DustServer {
         const auth_service = try allocator.create(AuthService);
-        auth_service.* = AuthService.init(db, allocator, io);
+        auth_service.* = AuthService.init(io, allocator, db);
 
         const jwt = JWT.init(allocator, config.jwt_secret);
 
@@ -56,7 +56,7 @@ pub const DustServer = struct {
         permission_repo.* = PermissionRepository.init(db, allocator);
 
         const permission_service = try allocator.create(PermissionService);
-        permission_service.* = PermissionService.init(permission_repo, allocator, io);
+        permission_service.* = PermissionService.init(io, allocator, permission_repo);
 
         // Initialize book repositories
         const book_repo = try allocator.create(BookRepository);
@@ -70,7 +70,7 @@ pub const DustServer = struct {
 
         // Initialize static file server
         const static_server = try allocator.create(StaticFileServer);
-        static_server.* = StaticFileServer.init(allocator, io, "client/dist");
+        static_server.* = StaticFileServer.init(io, allocator, "client/dist");
 
         const context_ptr = try allocator.create(ServerContext);
         context_ptr.* = ServerContext{
@@ -104,7 +104,7 @@ pub const DustServer = struct {
             .book_repo = book_repo,
             .author_repo = author_repo,
             .tag_repo = tag_repo,
-            .static_server = StaticFileServer.init(allocator, io, "client/dist"),
+            .static_server = StaticFileServer.init(io, allocator, "client/dist"),
             .should_shutdown = should_shutdown,
         };
     }

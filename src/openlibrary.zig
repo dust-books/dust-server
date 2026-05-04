@@ -43,7 +43,7 @@ pub const OpenLibraryClient = struct {
     base_url: []const u8 = "https://openlibrary.org",
     user_agent: []const u8,
 
-    pub fn init(allocator: std.mem.Allocator, io: std.Io, user_agent: []const u8) OpenLibraryClient {
+    pub fn init(io: std.Io, allocator: std.mem.Allocator, user_agent: []const u8) OpenLibraryClient {
         const trimmed_user_agent = std.mem.trim(u8, user_agent, " ");
         return .{
             .allocator = allocator,
@@ -486,7 +486,7 @@ const sample_lookup_response_with_medium_cover =
 ;
 
 test "OpenLibraryClient parses lookup metadata" {
-    var client = OpenLibraryClient.init(testing.allocator, "");
+    var client = OpenLibraryClient.init(testing.io, testing.allocator, "");
     const parsed = try std.json.parseFromSlice(std.json.Value, testing.allocator, sample_lookup_response_with_large_cover, .{});
     defer parsed.deinit();
 
@@ -506,7 +506,7 @@ test "OpenLibraryClient parses lookup metadata" {
 }
 
 test "OpenLibraryClient handles description objects and cover fallbacks" {
-    var client = OpenLibraryClient.init(testing.allocator, "");
+    var client = OpenLibraryClient.init(testing.io, testing.allocator, "");
     const parsed = try std.json.parseFromSlice(std.json.Value, testing.allocator, sample_lookup_response_with_medium_cover, .{});
     defer parsed.deinit();
 

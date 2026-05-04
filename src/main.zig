@@ -109,13 +109,13 @@ pub fn main(init: std.process.Init) !void {
     std.log.info("All migrations completed", .{});
 
     // Create typed timer manager for books background tasks
-    const books_timer = try books.createBackgroundTimerManager(allocator, &db.db, cfg, init.io);
+    const books_timer = try books.createBackgroundTimerManager(init.io, allocator, &db.db, cfg);
     defer books_timer.deinit();
     defer allocator.destroy(books_timer);
     std.log.info("Background tasks registered", .{});
 
     // Start server
-    var server = try DustServer.init(allocator, init.io, cfg.port, &db, cfg, &should_shutdown);
+    var server = try DustServer.init(init.io, allocator, cfg.port, &db, cfg, &should_shutdown);
     defer server.deinit();
 
     std.log.info("Starting HTTP server on port {d}...", .{cfg.port});

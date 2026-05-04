@@ -36,10 +36,10 @@ pub const Scanner = struct {
     metadata_extractor: MetadataExtractor,
     cover_manager: CoverManager,
 
-    pub fn init(allocator: std.mem.Allocator, io: std.Io, db: *zqlite.Conn, config: Config) !Scanner {
+    pub fn init(io: std.Io, allocator: std.mem.Allocator, db: *zqlite.Conn, config: Config) !Scanner {
         const metadata_extractor = try MetadataExtractor.init(
-            allocator,
             io,
+            allocator,
             true,
             config,
         );

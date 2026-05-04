@@ -34,7 +34,7 @@ pub fn scanLibrary(
     for (config.library_directories) |dir_path| {
         std.log.info("Scanning directory: {s}", .{dir_path});
 
-        var lib_scanner = scanner.Scanner.init(allocator, io, &db.db, config) catch |err| {
+        var lib_scanner = scanner.Scanner.init(io, allocator, &db.db, config) catch |err| {
             std.log.err("Failed to initialize scanner: {}", .{err});
             total_errors += 1;
             continue;
@@ -85,7 +85,7 @@ pub fn refreshBookMetadata(
 
     std.log.info("Refreshing metadata for book ID: {d}", .{book_id});
 
-    book_repo.refreshMetadata(res.arena, io, book_id) catch |err| {
+    book_repo.refreshMetadata(io, res.arena, book_id) catch |err| {
         std.log.err("Failed to refresh metadata for book {d}: {}", .{ book_id, err });
         if (err == error.BookNotFound) {
             res.status = 404;

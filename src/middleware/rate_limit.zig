@@ -19,7 +19,7 @@ pub const RateLimiter = struct {
         window_start: i64,
     };
 
-    pub fn init(allocator: std.mem.Allocator, io: std.Io, config: RateLimitConfig) !*RateLimiter {
+    pub fn init(io: std.Io, allocator: std.mem.Allocator, config: RateLimitConfig) !*RateLimiter {
         const limiter = try allocator.create(RateLimiter);
         limiter.* = .{
             .allocator = allocator,

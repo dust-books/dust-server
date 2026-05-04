@@ -8,7 +8,7 @@ pub const AuthService = struct {
     allocator: std.mem.Allocator,
     io: std.Io,
 
-    pub fn init(db: *Database, allocator: std.mem.Allocator, io: std.Io) AuthService {
+    pub fn init(io: std.Io, allocator: std.mem.Allocator, db: *Database) AuthService {
         return .{
             .user_repo = UserRepository.init(db, allocator),
             .allocator = allocator,

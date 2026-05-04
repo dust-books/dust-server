@@ -61,7 +61,7 @@ pub const ConnectionPool = struct {
     available: std.ArrayList(*zqlite.Conn),
     mutex: std.Io.Mutex,
 
-    pub fn init(allocator: std.mem.Allocator, io: std.Io, database: *Database, max_connections: usize) !ConnectionPool {
+    pub fn init(io: std.Io, allocator: std.mem.Allocator, database: *Database, max_connections: usize) !ConnectionPool {
         var pool = ConnectionPool{
             .database = database,
             .allocator = allocator,
