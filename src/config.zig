@@ -26,6 +26,12 @@ pub const Config = struct {
     pub fn load(allocator: std.mem.Allocator, environ: *const std.process.Environ.Map) !Config {
         const dirs_str = environ.get("DUST_DIRS") orelse "";
         const library_directories = try parseCommaSeparated(allocator, dirs_str);
+        errdefer {
+            for (library_directories) |dir| {
+                allocator.free(dir);
+            }
+            allocator.free(library_directories);
+        }
         const google_books_api_key = if (environ.get("GOOGLE_BOOKS_API_KEY")) |key| try allocator.dupe(u8, key) else null;
         const user_agent_suffix = environ.get("USER_AGENT_SUFFIX");
 
@@ -33,10 +39,12 @@ pub const Config = struct {
             build.version,
             user_agent_suffix orelse "",
         });
+        errdefer allocator.free(user_agent);
         const port_str = environ.get("PORT") orelse "4001";
         const port = try std.fmt.parseInt(u16, port_str, 10);
 
         const jwt_secret = try allocator.dupe(u8, environ.get("JWT_SECRET") orelse return error.MissingJWTSecret);
+        errdefer allocator.free(jwt_secret);
 
         const database_url = if (environ.get("DATABASE_URL")) |key| try allocator.dupe(u8, key) else try std.fmt.allocPrint(allocator, "file:dust-{d}.db", .{port});
 
