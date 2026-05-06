@@ -14,38 +14,38 @@ jobs:
   release:
     name: Release
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
           persist-credentials: false
-      
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 'lts/*'
-      
+
       - name: Install Zig
         uses: mlugg/setup-zig@v2
         with:
-          version: 0.15.2
-      
+          version: 0.16.0
+
       - name: Install dependencies
         run: npm ci
-      
+
       - name: Build client assets
         run: |
           cd client
           npm ci
           npm run build
           cd ..
-      
+
       - name: Build release binaries
         run: |
           mkdir -p dist
-          
+
           # Build for Linux x86_64 (with bundled SQLite)
           zig build -Doptimize=Debug -Dtarget=x86_64-linux-musl
           mkdir -p package
@@ -55,7 +55,7 @@ jobs:
           cp -r client/dist package/client/
           tar -czf dist/dust-server-linux-x86_64.tar.gz -C package .
           rm -rf package
-          
+
           # Build for Linux aarch64 (with bundled SQLite)
           zig build -Doptimize=Debug -Dtarget=aarch64-linux-musl
           mkdir -p package
@@ -65,7 +65,7 @@ jobs:
           cp -r client/dist package/client/
           tar -czf dist/dust-server-linux-aarch64.tar.gz -C package .
           rm -rf package
-          
+
           # Build for macOS x86_64
           zig build -Doptimize=Debug -Dtarget=x86_64-macos
           mkdir -p package
@@ -75,7 +75,7 @@ jobs:
           cp -r client/dist package/client/
           tar -czf dist/dust-server-macos-x86_64.tar.gz -C package .
           rm -rf package
-          
+
           # Build for macOS aarch64 (Apple Silicon)
           zig build -Doptimize=Debug -Dtarget=aarch64-macos
           mkdir -p package
@@ -85,7 +85,7 @@ jobs:
           cp -r client/dist package/client/
           tar -czf dist/dust-server-macos-aarch64.tar.gz -C package .
           rm -rf package
-      
+
       - name: Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
