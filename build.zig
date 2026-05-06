@@ -52,6 +52,7 @@ pub fn build(b: *std.Build) void {
     const exe_unit_tests = b.addTest(.{
         .root_module = exe.root_module,
         .test_runner = .{ .path = b.path("test_runner.zig"), .mode = .simple },
+        .use_llvm = true,
     });
 
     const run_exe_unit_tests = b.addRunArtifact(exe_unit_tests);
