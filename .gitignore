@@ -1,5 +1,5 @@
 # pls dont commit your local db
-dust.db
+*.db
 
 # Zig build artifacts
 zig-cache/
