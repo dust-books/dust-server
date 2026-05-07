@@ -1,44 +1,60 @@
 const std = @import("std");
 const httpz = @import("httpz");
 const Database = @import("../../../database.zig").Database;
-const User = @import("../model.zig").User;
 const JWT = @import("../../../auth/jwt.zig").JWT;
 const middleware_helpers = @import("../../../middleware/helpers.zig");
 const invitation = @import("../invitation.zig");
+
+const AdminUser = struct {
+    id: i64,
+    username: ?[]const u8,
+    email: []const u8,
+    is_admin: bool,
+    created_at: []const u8,
+};
 
 pub fn listUsers(db: *Database, jwt: *const JWT, allocator: std.mem.Allocator, req: *httpz.Request, res: *httpz.Response) !void {
     var auth_user = middleware_helpers.requireAdmin(db, jwt, allocator, req, res) catch |err| {
         return err;
     };
     defer auth_user.deinit(allocator);
-    
-    // TODO: Add pagination support
+
     _ = try req.query();
     const page: u32 = 1;
     const limit: u32 = 20;
     const offset: u32 = (page - 1) * limit;
-    
-    // Get users with pagination
-    var stmt = try db.db.prepare("SELECT id, username, email, is_admin, created_at FROM users ORDER BY created_at DESC LIMIT ? OFFSET ?");
-    defer stmt.deinit();
-    
-    const users_slice = try stmt.all(User, allocator, .{}, .{ limit, offset });
-    
-    // Get total count
-    const CountResult = struct { count: i64 };
-    var count_stmt = try db.db.prepare("SELECT COUNT(*) as count FROM users");
-    defer count_stmt.deinit();
-    const total = (try count_stmt.one(CountResult, .{}, .{})) orelse CountResult{ .count = 0 };
-    
-    defer allocator.free(users_slice);
-    
+
+    var users = std.ArrayList(AdminUser).empty;
+
+    var rows = try db.db.rows(
+        "SELECT id, username, email, is_admin, created_at FROM users ORDER BY created_at DESC LIMIT ? OFFSET ?",
+        .{ limit, offset },
+    );
+    defer rows.deinit();
+    while (rows.next()) |row| {
+        try users.append(res.arena, .{
+            .id = row.int(0),
+            .username = row.nullableText(1),
+            .email = row.text(2),
+            .is_admin = row.int(3) != 0,
+            .created_at = row.text(4),
+        });
+    }
+    if (rows.err) |err| return err;
+
+    const total = blk: {
+        const row = try db.db.row("SELECT COUNT(*) FROM users", .{}) orelse break :blk @as(i64, 0);
+        defer row.deinit();
+        break :blk row.int(0);
+    };
+
     try res.json(.{
-        .users = users_slice,
+        .users = users.items,
         .pagination = .{
             .page = page,
             .limit = limit,
-            .total = total.count,
-            .pages = @divTrunc(total.count + @as(i64, @intCast(limit)) - 1, @as(i64, @intCast(limit))),
+            .total = total,
+            .pages = @divTrunc(total + @as(i64, @intCast(limit)) - 1, @as(i64, @intCast(limit))),
         },
     }, .{});
 }
@@ -48,29 +64,36 @@ pub fn getUser(db: *Database, jwt: *const JWT, allocator: std.mem.Allocator, req
         return err;
     };
     defer auth_user.deinit(allocator);
-    
+
     const user_id = req.param("id") orelse {
         res.status = 400;
         try res.json(.{ .@"error" = "Missing user ID" }, .{});
         return;
     };
-    
+
     const id = std.fmt.parseInt(i64, user_id, 10) catch {
         res.status = 400;
         try res.json(.{ .@"error" = "Invalid user ID" }, .{});
         return;
     };
-    
-    var stmt = try db.db.prepare("SELECT id, username, email, is_admin, created_at FROM users WHERE id = ?");
-    defer stmt.deinit();
-    
-    const found_user = try stmt.oneAlloc(User, allocator, .{}, .{id}) orelse {
+
+    const row = try db.db.row(
+        "SELECT id, username, email, is_admin, created_at FROM users WHERE id = ?",
+        .{id},
+    ) orelse {
         res.status = 404;
         try res.json(.{ .@"error" = "User not found" }, .{});
         return;
     };
-    
-    try res.json(.{ .user = found_user }, .{});
+    defer row.deinit();
+
+    try res.json(.{ .user = AdminUser{
+        .id = row.int(0),
+        .username = row.nullableText(1),
+        .email = row.text(2),
+        .is_admin = row.int(3) != 0,
+        .created_at = row.text(4),
+    } }, .{});
 }
 
 pub fn updateUser(db: *Database, jwt: *const JWT, allocator: std.mem.Allocator, req: *httpz.Request, res: *httpz.Response) !void {
@@ -78,80 +101,70 @@ pub fn updateUser(db: *Database, jwt: *const JWT, allocator: std.mem.Allocator, 
         return err;
     };
     defer auth_user.deinit(allocator);
-    
+
     const user_id = req.param("id") orelse {
         res.status = 400;
         try res.json(.{ .@"error" = "Missing user ID" }, .{});
         return;
     };
-    
+
     const id = std.fmt.parseInt(i64, user_id, 10) catch {
         res.status = 400;
         try res.json(.{ .@"error" = "Invalid user ID" }, .{});
         return;
     };
-    
-    // Parse request body
+
     const body_opt = try req.json(struct {
         username: ?[]const u8 = null,
         email: ?[]const u8 = null,
         is_admin: ?bool = null,
     });
-    
+
     const body = body_opt orelse {
         res.status = 400;
         try res.json(.{ .@"error" = "Invalid request body" }, .{});
         return;
     };
-    
+
     if (body.username == null and body.email == null and body.is_admin == null) {
         res.status = 400;
         try res.json(.{ .@"error" = "No fields to update" }, .{});
         return;
     }
-    
-    // Simple update based on what's provided
+
     if (body.username != null and body.email != null and body.is_admin != null) {
-        var stmt = try db.db.prepare("UPDATE users SET username = ?, email = ?, is_admin = ? WHERE id = ?");
-        defer stmt.deinit();
-        try stmt.exec(.{}, .{ body.username.?, body.email.?, body.is_admin.?, id });
+        try db.db.exec("UPDATE users SET username = ?, email = ?, is_admin = ? WHERE id = ?", .{ body.username.?, body.email.?, body.is_admin.?, id });
     } else if (body.username != null and body.email != null) {
-        var stmt = try db.db.prepare("UPDATE users SET username = ?, email = ? WHERE id = ?");
-        defer stmt.deinit();
-        try stmt.exec(.{}, .{ body.username.?, body.email.?, id });
+        try db.db.exec("UPDATE users SET username = ?, email = ? WHERE id = ?", .{ body.username.?, body.email.?, id });
     } else if (body.username != null and body.is_admin != null) {
-        var stmt = try db.db.prepare("UPDATE users SET username = ?, is_admin = ? WHERE id = ?");
-        defer stmt.deinit();
-        try stmt.exec(.{}, .{ body.username.?, body.is_admin.?, id });
+        try db.db.exec("UPDATE users SET username = ?, is_admin = ? WHERE id = ?", .{ body.username.?, body.is_admin.?, id });
     } else if (body.email != null and body.is_admin != null) {
-        var stmt = try db.db.prepare("UPDATE users SET email = ?, is_admin = ? WHERE id = ?");
-        defer stmt.deinit();
-        try stmt.exec(.{}, .{ body.email.?, body.is_admin.?, id });
+        try db.db.exec("UPDATE users SET email = ?, is_admin = ? WHERE id = ?", .{ body.email.?, body.is_admin.?, id });
     } else if (body.username != null) {
-        var stmt = try db.db.prepare("UPDATE users SET username = ? WHERE id = ?");
-        defer stmt.deinit();
-        try stmt.exec(.{}, .{ body.username.?, id });
+        try db.db.exec("UPDATE users SET username = ? WHERE id = ?", .{ body.username.?, id });
     } else if (body.email != null) {
-        var stmt = try db.db.prepare("UPDATE users SET email = ? WHERE id = ?");
-        defer stmt.deinit();
-        try stmt.exec(.{}, .{ body.email.?, id });
+        try db.db.exec("UPDATE users SET email = ? WHERE id = ?", .{ body.email.?, id });
     } else if (body.is_admin != null) {
-        var stmt = try db.db.prepare("UPDATE users SET is_admin = ? WHERE id = ?");
-        defer stmt.deinit();
-        try stmt.exec(.{}, .{ body.is_admin.?, id });
+        try db.db.exec("UPDATE users SET is_admin = ? WHERE id = ?", .{ body.is_admin.?, id });
     }
-    
-    // Fetch updated user
-    var get_stmt = try db.db.prepare("SELECT id, username, email, is_admin, created_at FROM users WHERE id = ?");
-    defer get_stmt.deinit();
-    
-    const found_user = try get_stmt.oneAlloc(User, allocator, .{}, .{id}) orelse {
+
+    const row = try db.db.row(
+        "SELECT id, username, email, is_admin, created_at FROM users WHERE id = ?",
+        .{id},
+    ) orelse {
         res.status = 404;
         try res.json(.{ .@"error" = "User not found after update" }, .{});
         return;
     };
-    
-    try res.json(.{ .user = found_user }, .{});
+    defer row.deinit();
+
+    try res.json(.{ .user = AdminUser{
+        .id = row.int(0),
+        .username = row.nullableText(1),
+        .email = row.text(2),
+        .is_admin = row.int(3) != 0,
+        .created_at = row.text(4),
+    } }, .{});
 }
 
 pub fn deleteUser(db: *Database, jwt: *const JWT, allocator: std.mem.Allocator, req: *httpz.Request, res: *httpz.Response) !void {
@@ -159,57 +172,40 @@ pub fn deleteUser(db: *Database, jwt: *const JWT, allocator: std.mem.Allocator, 
         return err;
     };
     defer auth_user_token.deinit(allocator);
-    
-    // Get auth user details for self-deletion check
-    const maybe_user = db.db.oneAlloc(User, allocator, "SELECT id, username, email, is_admin, created_at FROM users WHERE id = ?", .{}, .{auth_user_token.user_id}) catch null;
-    const auth_user = maybe_user orelse {
-        res.status = 404;
-        try res.json(.{ .@"error" = "User not found" }, .{});
-        return;
-    };
-    
+
     const user_id = req.param("id") orelse {
         res.status = 400;
         try res.json(.{ .@"error" = "Missing user ID" }, .{});
         return;
     };
-    
+
     const id = std.fmt.parseInt(i64, user_id, 10) catch {
         res.status = 400;
         try res.json(.{ .@"error" = "Invalid user ID" }, .{});
         return;
     };
-    
-    // Prevent deleting yourself
-    if (id == auth_user.id) {
+
+    if (id == auth_user_token.user_id) {
         res.status = 400;
         try res.json(.{ .@"error" = "Cannot delete your own account" }, .{});
         return;
     }
-    
-    // Check if user exists
-    var check_stmt = try db.db.prepare("SELECT id FROM users WHERE id = ?");
-    defer check_stmt.deinit();
-    
-    const exists = try check_stmt.oneAlloc(struct { id: i64 }, allocator, .{}, .{id});
-    if (exists == null) {
+
+    const exists = try db.db.row("SELECT id FROM users WHERE id = ?", .{id});
+    if (exists) |row| {
+        row.deinit();
+    } else {
         res.status = 404;
         try res.json(.{ .@"error" = "User not found" }, .{});
         return;
     }
-    
-    // Delete user
-    var stmt = try db.db.prepare("DELETE FROM users WHERE id = ?");
-    defer stmt.deinit();
-    try stmt.exec(.{}, .{id});
-    
+
+    try db.db.exec("DELETE FROM users WHERE id = ?", .{id});
+
     try res.json(.{ .message = "User deleted successfully" }, .{});
 }
 
-/// Create a one-time invitation token for a given email (admin-only).
-/// The token is derived from the global JWT secret and never stored.
 pub fn createInvitationToken(db: *Database, jwt: *const JWT, allocator: std.mem.Allocator, req: *httpz.Request, res: *httpz.Response) !void {
-    // Require admin access
     var auth_user = middleware_helpers.requireAdmin(db, jwt, allocator, req, res) catch |err| {
         return err;
     };
@@ -240,43 +236,26 @@ pub fn createInvitationToken(db: *Database, jwt: *const JWT, allocator: std.mem.
     };
     defer allocator.free(token);
 
-    try res.json(.{
-        .token = token,
-    }, .{});
+    try res.json(.{ .token = token }, .{});
 }
 
-/// Get current authentication settings for the server (admin-only)
 pub fn getAuthSettings(db: *Database, jwt: *const JWT, allocator: std.mem.Allocator, req: *httpz.Request, res: *httpz.Response) !void {
-    // Require admin access
     var auth_user = middleware_helpers.requireAdmin(db, jwt, allocator, req, res) catch |err| {
         return err;
     };
     defer auth_user.deinit(allocator);
 
-    const SettingsRow = struct {
-        auth_flow: []const u8,
-    };
+    const row = try db.db.row("SELECT auth_flow FROM server_settings WHERE id = 1", .{});
 
-    var stmt = try db.db.prepare("SELECT auth_flow FROM server_settings WHERE id = 1");
-    defer stmt.deinit();
-
-    const row = try stmt.oneAlloc(SettingsRow, allocator, .{}, .{});
-
-    if (row) |settings| {
-        try res.json(.{
-            .auth_flow = settings.auth_flow,
-        }, .{});
+    if (row) |r| {
+        defer r.deinit();
+        try res.json(.{ .auth_flow = r.text(0) }, .{});
     } else {
-        // Fallback to default if settings row is missing for some reason
-        try res.json(.{
-            .auth_flow = "signup",
-        }, .{});
+        try res.json(.{ .auth_flow = "signup" }, .{});
     }
 }
 
-/// Update authentication settings for the server (admin-only)
 pub fn updateAuthSettings(db: *Database, jwt: *const JWT, allocator: std.mem.Allocator, req: *httpz.Request, res: *httpz.Response) !void {
-    // Require admin access
     var auth_user = middleware_helpers.requireAdmin(db, jwt, allocator, req, res) catch |err| {
         return err;
     };
@@ -293,28 +272,19 @@ pub fn updateAuthSettings(db: *Database, jwt: *const JWT, allocator: std.mem.All
         return;
     };
 
-    // Validate auth_flow
     if (!std.mem.eql(u8, body.auth_flow, "signup") and !std.mem.eql(u8, body.auth_flow, "invitation")) {
         res.status = 400;
         try res.json(.{ .@"error" = "Invalid auth_flow value" }, .{});
         return;
     }
 
-    // Upsert settings row so the value is always persisted even if the row is missing
-    const upsert =
+    try db.db.exec(
         \\INSERT INTO server_settings (id, auth_flow, updated_at)
         \\VALUES (1, ?, CURRENT_TIMESTAMP)
         \\ON CONFLICT(id) DO UPDATE SET
         \\  auth_flow = excluded.auth_flow,
         \\  updated_at = excluded.updated_at
-    ;
+    , .{body.auth_flow});
 
-    var stmt = try db.db.prepare(upsert);
-    defer stmt.deinit();
-
-    try stmt.exec(.{}, .{ body.auth_flow });
-
-    try res.json(.{
-        .auth_flow = body.auth_flow,
-    }, .{});
+    try res.json(.{ .auth_flow = body.auth_flow }, .{});
 }

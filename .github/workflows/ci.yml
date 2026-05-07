@@ -1,11 +1,11 @@
 name: CI
 on:
   push:
-    branches: 
-    - main
+    branches:
+      - main
   pull_request:
-    branches: 
-    - main
+    branches:
+      - main
 
 jobs:
   test:
@@ -18,14 +18,15 @@ jobs:
     steps:
       - name: Clone repo
         uses: actions/checkout@v3
-      
+
       - name: Install Zig
         uses: mlugg/setup-zig@v2
         with:
-          version: 0.15.2
-        
+          version: 0.16.0
+
       - name: Build
         run: zig build
-        
+
       - name: Run tests
         run: zig build test
+

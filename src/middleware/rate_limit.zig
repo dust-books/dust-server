@@ -1,5 +1,6 @@
 const std = @import("std");
 const httpz = @import("httpz");
+const time_compat = @import("../time_compat.zig");
 
 pub const RateLimitConfig = struct {
     max_requests: u32 = 100,
@@ -8,22 +9,24 @@ pub const RateLimitConfig = struct {
 
 pub const RateLimiter = struct {
     allocator: std.mem.Allocator,
+    io: std.Io,
     config: RateLimitConfig,
     requests: std.StringHashMap(RequestCount),
-    mutex: std.Thread.Mutex,
+    mutex: std.Io.Mutex,
 
     const RequestCount = struct {
         count: u32,
         window_start: i64,
     };
 
-    pub fn init(allocator: std.mem.Allocator, config: RateLimitConfig) !*RateLimiter {
+    pub fn init(io: std.Io, allocator: std.mem.Allocator, config: RateLimitConfig) !*RateLimiter {
         const limiter = try allocator.create(RateLimiter);
         limiter.* = .{
             .allocator = allocator,
+            .io = io,
             .config = config,
             .requests = std.StringHashMap(RequestCount).init(allocator),
-            .mutex = std.Thread.Mutex{},
+            .mutex = std.Io.Mutex.init,
         };
         return limiter;
     }
@@ -38,10 +41,10 @@ pub const RateLimiter = struct {
     }
 
     pub fn checkLimit(self: *RateLimiter, ip: []const u8) !bool {
-        self.mutex.lock();
-        defer self.mutex.unlock();
+        self.mutex.lockUncancelable(self.io);
+        defer self.mutex.unlock(self.io);
 
-        const now = std.time.timestamp();
+        const now = time_compat.timestamp();
         
         if (self.requests.get(ip)) |count| {
             const window_elapsed = now - count.window_start;
@@ -96,18 +99,18 @@ pub const RateLimiter = struct {
     }
 
     pub fn cleanup(self: *RateLimiter) void {
-        self.mutex.lock();
-        defer self.mutex.unlock();
+        self.mutex.lockUncancelable(self.io);
+        defer self.mutex.unlock(self.io);
 
-        const now = std.time.timestamp();
-        var to_remove = std.ArrayList([]const u8).init(self.allocator);
-        defer to_remove.deinit();
+        const now = time_compat.timestamp();
+        var to_remove = std.ArrayList([]const u8).empty;
+        defer to_remove.deinit(self.allocator);
 
         var it = self.requests.iterator();
         while (it.next()) |entry| {
             const window_elapsed = now - entry.value_ptr.window_start;
             if (window_elapsed >= self.config.window_seconds * 2) {
-                to_remove.append(entry.key_ptr.*) catch {};
+                to_remove.append(self.allocator, entry.key_ptr.*) catch {};
             }
         }
 

@@ -1,6 +1,7 @@
 const std = @import("std");
 const crypto = std.crypto;
 const base64 = std.base64;
+const time_compat = @import("../../time_compat.zig");
 
 /// Invitation tokens are derived purely from the JWT secret and are
 /// never stored in the database. They encode an email address and a
@@ -18,7 +19,7 @@ pub fn generateToken(
     secret: []const u8,
     email: []const u8,
 ) ![]const u8 {
-    const now = std.time.timestamp();
+    const now = time_compat.timestamp();
     const exp = now + (24 * 60 * 60); // 24 hours
 
     // Build payload "email|exp"
@@ -26,7 +27,9 @@ pub fn generateToken(
     defer payload_buf.deinit(allocator);
     try payload_buf.appendSlice(allocator, email);
     try payload_buf.append(allocator, '|');
-    try std.fmt.format(payload_buf.writer(allocator), "{d}", .{exp});
+    var exp_buf: [32]u8 = undefined;
+    const exp_str = try std.fmt.bufPrint(&exp_buf, "{d}", .{exp});
+    try payload_buf.appendSlice(allocator, exp_str);
 
     const payload = payload_buf.items;
 
@@ -108,7 +111,7 @@ pub fn verifyToken(
     if (!std.mem.eql(u8, email_part, email)) return false;
 
     const exp = std.fmt.parseInt(i64, exp_part, 10) catch return false;
-    const now = std.time.timestamp();
+    const now = time_compat.timestamp();
     if (exp < now) return false;
 
     return true;

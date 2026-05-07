@@ -39,13 +39,15 @@ pub const ExternalBookMetadata = struct {
 
 pub const OpenLibraryClient = struct {
     allocator: std.mem.Allocator,
+    io: std.Io,
     base_url: []const u8 = "https://openlibrary.org",
     user_agent: []const u8,
 
-    pub fn init(allocator: std.mem.Allocator, user_agent: []const u8) OpenLibraryClient {
+    pub fn init(io: std.Io, allocator: std.mem.Allocator, user_agent: []const u8) OpenLibraryClient {
         const trimmed_user_agent = std.mem.trim(u8, user_agent, " ");
         return .{
             .allocator = allocator,
+            .io = io,
             .user_agent = trimmed_user_agent,
         };
     }
@@ -81,7 +83,7 @@ pub const OpenLibraryClient = struct {
         std.log.info("📚 Looking up ISBN {s} via OpenLibrary...", .{clean});
 
         // Use Zig 0.15.2's std.http.Client.fetch for a one-shot request
-        var client = std.http.Client{ .allocator = self.allocator };
+        var client = std.http.Client{ .allocator = self.allocator, .io = self.io };
         defer client.deinit();
 
         var body = std.Io.Writer.Allocating.init(self.allocator);
@@ -284,7 +286,7 @@ pub const OpenLibraryClient = struct {
         std.log.info("📚 Searching \"{s}\" by {s} via OpenLibrary...", .{ title, author orelse "unknown author" });
 
         // Make HTTP request
-        var client = std.http.Client{ .allocator = self.allocator };
+        var client = std.http.Client{ .allocator = self.allocator, .io = self.io };
         defer client.deinit();
 
         const uri = try std.Uri.parse(url);
@@ -484,7 +486,7 @@ const sample_lookup_response_with_medium_cover =
 ;
 
 test "OpenLibraryClient parses lookup metadata" {
-    var client = OpenLibraryClient.init(testing.allocator, "");
+    var client = OpenLibraryClient.init(testing.io, testing.allocator, "");
     const parsed = try std.json.parseFromSlice(std.json.Value, testing.allocator, sample_lookup_response_with_large_cover, .{});
     defer parsed.deinit();
 
@@ -504,7 +506,7 @@ test "OpenLibraryClient parses lookup metadata" {
 }
 
 test "OpenLibraryClient handles description objects and cover fallbacks" {
-    var client = OpenLibraryClient.init(testing.allocator, "");
+    var client = OpenLibraryClient.init(testing.io, testing.allocator, "");
     const parsed = try std.json.parseFromSlice(std.json.Value, testing.allocator, sample_lookup_response_with_medium_cover, .{});
     defer parsed.deinit();
 

@@ -1,6 +1,7 @@
 const std = @import("std");
 const base64 = std.base64;
 const crypto = std.crypto;
+const time_compat = @import("../time_compat.zig");
 
 /// JWT Claims structure
 pub const Claims = struct {
@@ -11,7 +12,7 @@ pub const Claims = struct {
     iat: i64, // Issued at timestamp (Unix time)
 
     pub fn init(user_id: i64, email: []const u8, username: ?[]const u8) Claims {
-        const now = std.time.timestamp();
+        const now = time_compat.timestamp();
         return .{
             .user_id = user_id,
             .email = email,
@@ -47,7 +48,7 @@ test "JWT validate rejects expired token" {
 
     var claims = Claims.init(1, "u@e", null);
     // Force expiration in the past
-    claims.exp = std.time.timestamp() - 10;
+    claims.exp = time_compat.timestamp() - 10;
 
     const token = try jwt.create(claims);
     defer allocator.free(token);
@@ -161,7 +162,7 @@ pub const JWT = struct {
         const claims = parsed.value;
 
         // Check expiration
-        const now = std.time.timestamp();
+        const now = time_compat.timestamp();
         if (claims.exp < now) {
             return error.TokenExpired;
         }

@@ -6,20 +6,20 @@ const UserRepository = @import("model.zig").UserRepository;
 pub const AuthService = struct {
     user_repo: UserRepository,
     allocator: std.mem.Allocator,
+    io: std.Io,
 
-    pub fn init(db: *Database, allocator: std.mem.Allocator) AuthService {
+    pub fn init(io: std.Io, allocator: std.mem.Allocator, db: *Database) AuthService {
         return .{
             .user_repo = UserRepository.init(db, allocator),
             .allocator = allocator,
+            .io = io,
         };
     }
 
     /// Hash a password using bcrypt
     pub fn hashPassword(self: *AuthService, password: []const u8) ![128]u8 {
-        _ = self;
-        var hash: [128]u8 = [_]u8{0} ** 128; // Zero-initialize
+        var hash: [128]u8 = [_]u8{0} ** 128;
 
-        // Use bcrypt from std.crypto with crypt encoding for compatibility
         _ = try std.crypto.pwhash.bcrypt.strHash(
             password,
             .{
@@ -31,6 +31,7 @@ pub const AuthService = struct {
                 .encoding = .crypt,
             },
             &hash,
+            self.io,
         );
 
         return hash;

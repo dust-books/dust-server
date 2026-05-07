@@ -20,18 +20,8 @@ pub fn requireAdmin(
     };
     errdefer auth_user.deinit(allocator);
     
-    // Check admin status using a minimal row struct to avoid schema mismatches
-    // This is a fix for a bug that surfaced once we a call to requireAdmin from the admin-users route.
-    const Row = struct {
-        id: i64,
-        is_admin: i64, // since SQLite does not have a BOOLEAN storage class, we use INTEGER 0/1
-    };
-
-    const maybe_row = db.db.oneAlloc(
-        Row,
-        allocator,
+    const maybe_row = db.db.row(
         "SELECT id, is_admin FROM users WHERE id = ?",
-        .{},
         .{auth_user.user_id},
     ) catch |err| {
         std.log.err("requireAdmin: database query failed for user {d}: {s}", .{ auth_user.user_id, @errorName(err) });
@@ -45,8 +35,10 @@ pub fn requireAdmin(
         try res.json(.{ .@"error" = "User not found" }, .{});
         return error.UserNotFound;
     };
+    defer row.deinit();
 
-    if (row.is_admin == 0) {
+    // column 0 = id, column 1 = is_admin
+    if (row.int(1) == 0) {
         res.status = 403;
         try res.json(.{ .@"error" = "Forbidden: Admin access required" }, .{});
         return error.Forbidden;

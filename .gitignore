@@ -1,10 +1,11 @@
 # pls dont commit your local db
-dust.db
+*.db
 
 # Zig build artifacts
 zig-cache/
 zig-out/
 .zig-cache/
+zig-pkg/
 
 # Release artifacts
 dist/

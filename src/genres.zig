@@ -1,7 +1,6 @@
-const sqlite = @import("sqlite");
+const zqlite = @import("zqlite");
 
 // Genres are handled via tags with category='genre'
-// No separate table needed
-pub fn migrate(database: *sqlite.Db) !void {
+pub fn migrate(database: *zqlite.Conn) !void {
     _ = database;
 }

@@ -9,12 +9,13 @@ pub fn scanLibrary(
     db: *Database,
     allocator: std.mem.Allocator,
     config: Config,
+    io: std.Io,
     req: *httpz.Request,
     res: *httpz.Response,
 ) !void {
     _ = req;
 
-    std.log.info("🔍 Library scan initiated for configured directories", .{});
+    std.log.info("Library scan initiated for configured directories", .{});
 
     if (config.library_directories.len == 0) {
         std.log.warn("No library directories configured", .{});
@@ -31,15 +32,15 @@ pub fn scanLibrary(
     var total_errors: usize = 0;
 
     for (config.library_directories) |dir_path| {
-        std.log.info("📂 Scanning directory: {s}", .{dir_path});
+        std.log.info("Scanning directory: {s}", .{dir_path});
 
-        var lib_scanner = scanner.Scanner.init(allocator, &db.db, config) catch |err| {
+        var lib_scanner = scanner.Scanner.init(io, allocator, &db.db, config) catch |err| {
             std.log.err("Failed to initialize scanner: {}", .{err});
             total_errors += 1;
             continue;
         };
 
-        const result = lib_scanner.scanLibrary(dir_path) catch |err| {
+        const result = lib_scanner.scanLibrary(io, dir_path) catch |err| {
             std.log.err("Scan failed for {s}: {}", .{ dir_path, err });
             total_errors += 1;
             continue;
@@ -66,6 +67,7 @@ pub fn scanLibrary(
 
 pub fn refreshBookMetadata(
     book_repo: *BookRepository,
+    io: std.Io,
     req: *httpz.Request,
     res: *httpz.Response,
 ) !void {
@@ -83,7 +85,7 @@ pub fn refreshBookMetadata(
 
     std.log.info("Refreshing metadata for book ID: {d}", .{book_id});
 
-    book_repo.refreshMetadata(res.arena, book_id) catch |err| {
+    book_repo.refreshMetadata(io, res.arena, book_id) catch |err| {
         std.log.err("Failed to refresh metadata for book {d}: {}", .{ book_id, err });
         if (err == error.BookNotFound) {
             res.status = 404;

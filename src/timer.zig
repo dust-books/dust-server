@@ -1,4 +1,5 @@
 const std = @import("std");
+const time_compat = @import("time_compat.zig");
 
 /// TODO:: Rewrite this whole module using IO  async/await model
 /// Generic TimerTask for a specific context type `Ctx`.
@@ -20,16 +21,18 @@ pub fn TimerManager(comptime Ctx: type) type {
         const Task = TimerTask(Ctx);
 
         allocator: std.mem.Allocator,
+        io: std.Io,
         tasks: std.ArrayListUnmanaged(Task),
         running: std.atomic.Value(bool),
-        mutex: std.Thread.Mutex,
+        mutex: std.Io.Mutex,
 
-        pub fn init(allocator: std.mem.Allocator) Self {
+        pub fn init(io: std.Io, allocator: std.mem.Allocator) Self {
             return .{
                 .allocator = allocator,
-                .tasks = .{},
+                .io = io,
+                .tasks = .{ .items = &.{}, .capacity = 0 },
                 .running = std.atomic.Value(bool).init(true),
-                .mutex = .{},
+                .mutex = std.Io.Mutex.init,
             };
         }
 
@@ -51,14 +54,14 @@ pub fn TimerManager(comptime Ctx: type) type {
             cleanup: ?*const fn (*Ctx, std.mem.Allocator) void,
             startFirstTaskImmediately: bool,
         ) !void {
-            self.mutex.lock();
-            defer self.mutex.unlock();
+            self.mutex.lockUncancelable(self.io);
+            defer self.mutex.unlock(self.io);
 
             const task = Task{
                 .func = func,
                 .context = context,
                 .interval_ms = interval_ms,
-                .last_run = if (startFirstTaskImmediately) std.time.milliTimestamp() - @as(i64, @intCast(interval_ms)) else std.time.milliTimestamp(),
+                .last_run = if (startFirstTaskImmediately) time_compat.milliTimestamp() - @as(i64, @intCast(interval_ms)) else time_compat.milliTimestamp(),
                 .cleanup = cleanup,
             };
 
@@ -76,8 +79,8 @@ pub fn TimerManager(comptime Ctx: type) type {
 
             self.running.store(false, .release);
 
-            self.mutex.lock();
-            defer self.mutex.unlock();
+            self.mutex.lockUncancelable(self.io);
+            defer self.mutex.unlock(self.io);
 
             for (self.tasks.items) |task| {
                 if (task.thread) |thread| thread.join();
@@ -88,9 +91,9 @@ pub fn TimerManager(comptime Ctx: type) type {
 
         fn taskLoop(self: *Self, task_index: usize) void {
             while (self.running.load(.acquire)) {
-                const now = std.time.milliTimestamp();
+                const now = time_compat.milliTimestamp();
 
-                self.mutex.lock();
+                self.mutex.lockUncancelable(self.io);
                 const task = &self.tasks.items[task_index];
                 const elapsed = @as(u64, @intCast(now - task.last_run));
 
@@ -98,9 +101,9 @@ pub fn TimerManager(comptime Ctx: type) type {
                     task.func(task.context);
                     task.last_run = now;
                 }
-                self.mutex.unlock();
+                self.mutex.unlock(self.io);
 
-                std.Thread.sleep(std.time.ns_per_s);
+                time_compat.sleep(std.time.ns_per_s);
             }
         }
     };

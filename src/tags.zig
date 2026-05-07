@@ -1,35 +1,26 @@
 const std = @import("std");
-const sqlite = @import("sqlite");
+const zqlite = @import("zqlite");
 
-/// Tag represents a tag entity in the system
 pub const Tag = struct {
     id: i64,
-    /// Name of the tag
     name: []const u8,
-    /// Category of the tag
     category: []const u8,
-    /// Optional description of the tag
     description: ?[]const u8,
-    /// Optional color (string) associated with the tag
     color: ?[]const u8,
-    /// Creation timestamp of the tag
     created_at: []const u8,
 };
 
-/// TagService provides methods to manage and query tags
 pub const TagService = struct {
-    db: *sqlite.Db,
+    db: *zqlite.Conn,
     allocator: std.mem.Allocator,
 
-    /// Initialize the TagService
-    pub fn init(db: *sqlite.Db, allocator: std.mem.Allocator) TagService {
+    pub fn init(db: *zqlite.Conn, allocator: std.mem.Allocator) TagService {
         return .{
             .db = db,
             .allocator = allocator,
         };
     }
 
-    /// Retrieve all tags from the database
     pub fn getAllTags(self: *TagService) ![]Tag {
         const query =
             \\SELECT id, name, category, description, color, created_at
@@ -37,65 +28,70 @@ pub const TagService = struct {
             \\ORDER BY category, name
         ;
 
-        var stmt = try self.db.prepare(query);
-        defer stmt.deinit();
+        var tags = std.ArrayList(Tag).empty;
+        errdefer tags.deinit(self.allocator);
 
-        var tags = std.ArrayList(Tag).init(self.allocator);
-        errdefer {
-            tags.deinit();
+        var rows = try self.db.rows(query, .{});
+        defer rows.deinit();
+        while (rows.next()) |row| {
+            try tags.append(self.allocator, .{
+                .id = row.int(0),
+                .name = row.text(1),
+                .category = row.text(2),
+                .description = row.nullableText(3),
+                .color = row.nullableText(4),
+                .created_at = row.text(5),
+            });
         }
+        if (rows.err) |err| return err;
 
-        var iter = try stmt.iterator(Tag, .{});
-        while (try iter.next(.{})) |tag| {
-            try tags.append(tag);
-        }
-
-        return tags.toOwnedSlice();
+        return tags.toOwnedSlice(self.allocator);
     }
 
-    /// Retrieve tags by category from the database
     pub fn getTagsByCategory(self: *TagService, category: []const u8) ![]Tag {
         const query =
             \\SELECT id, name, category, description, color, created_at
-            \\FROM tags
-            \\WHERE category = ?
-            \\ORDER BY name
+            \\FROM tags WHERE category = ? ORDER BY name
         ;
 
-        var stmt = try self.db.prepare(query);
-        defer stmt.deinit();
+        var tags = std.ArrayList(Tag).empty;
+        errdefer tags.deinit(self.allocator);
 
-        try stmt.bind(1, category);
-
-        var tags = std.ArrayList(Tag).init(self.allocator);
-        errdefer tags.deinit();
-
-        var iter = try stmt.iterator(Tag, .{});
-        while (try iter.next(.{})) |tag| {
-            try tags.append(tag);
+        var rows = try self.db.rows(query, .{category});
+        defer rows.deinit();
+        while (rows.next()) |row| {
+            try tags.append(self.allocator, .{
+                .id = row.int(0),
+                .name = row.text(1),
+                .category = row.text(2),
+                .description = row.nullableText(3),
+                .color = row.nullableText(4),
+                .created_at = row.text(5),
+            });
         }
+        if (rows.err) |err| return err;
 
-        return tags.toOwnedSlice();
+        return tags.toOwnedSlice(self.allocator);
     }
 
-    /// Retrieve a tag by its ID
     pub fn getTagById(self: *TagService, id: i64) !?Tag {
         const query =
             \\SELECT id, name, category, description, color, created_at
-            \\FROM tags
-            \\WHERE id = ?
+            \\FROM tags WHERE id = ?
         ;
 
-        var stmt = try self.db.prepare(query);
-        defer stmt.deinit();
-
-        try stmt.bind(1, id);
-
-        var iter = try stmt.iterator(Tag, .{});
-        return try iter.next(.{});
+        const row = try self.db.row(query, .{id}) orelse return null;
+        defer row.deinit();
+        return Tag{
+            .id = row.int(0),
+            .name = row.text(1),
+            .category = row.text(2),
+            .description = row.nullableText(3),
+            .color = row.nullableText(4),
+            .created_at = row.text(5),
+        };
     }
 
-    /// Retrieve book IDs associated with a given tag name
     pub fn getBooksWithTag(self: *TagService, tag_name: []const u8) ![]i64 {
         const query =
             \\SELECT DISTINCT b.id
@@ -105,78 +101,37 @@ pub const TagService = struct {
             \\WHERE t.name = ?
         ;
 
-        var stmt = try self.db.prepare(query);
-        defer stmt.deinit();
+        var book_ids = std.ArrayList(i64).empty;
+        errdefer book_ids.deinit(self.allocator);
 
-        try stmt.bind(1, tag_name);
-
-        var book_ids = std.ArrayList(i64).init(self.allocator);
-        errdefer book_ids.deinit();
-
-        var iter = try stmt.iterator(struct { id: i64 }, .{});
-        while (try iter.next(.{})) |row| {
-            try book_ids.append(row.id);
+        var rows = try self.db.rows(query, .{tag_name});
+        defer rows.deinit();
+        while (rows.next()) |row| {
+            try book_ids.append(self.allocator, row.int(0));
         }
+        if (rows.err) |err| return err;
 
-        return book_ids.toOwnedSlice();
+        return book_ids.toOwnedSlice(self.allocator);
     }
 
-    /// Get the count of books associated with a given tag ID
     pub fn getBookCountForTag(self: *TagService, tag_id: i64) !i64 {
         const query =
-            \\SELECT COUNT(DISTINCT book_id) as count
-            \\FROM book_tags
-            \\WHERE tag_id = ?
+            \\SELECT COUNT(DISTINCT book_id) FROM book_tags WHERE tag_id = ?
         ;
 
-        var stmt = try self.db.prepare(query);
-        defer stmt.deinit();
-
-        try stmt.bind(1, tag_id);
-
-        var iter = try stmt.iterator(struct { count: i64 }, .{});
-        if (try iter.next(.{})) |row| {
-            return row.count;
-        }
-
-        return 0;
+        const row = try self.db.row(query, .{tag_id}) orelse return 0;
+        defer row.deinit();
+        return row.int(0);
     }
 
-    /// Create a new tag in the database
     pub fn createTag(self: *TagService, name: []const u8, category: []const u8, description: ?[]const u8, color: ?[]const u8) !i64 {
-        const query =
-            \\INSERT INTO tags (name, category, description, color)
-            \\VALUES (?, ?, ?, ?)
-        ;
-
-        var stmt = try self.db.prepare(query);
-        defer stmt.deinit();
-
-        try stmt.bind(1, name);
-        try stmt.bind(2, category);
-        if (description) |desc| {
-            try stmt.bind(3, desc);
-        } else {
-            try stmt.bind(3, null);
-        }
-        if (color) |col| {
-            try stmt.bind(4, col);
-        } else {
-            try stmt.bind(4, null);
-        }
-
-        try stmt.exec();
-        return self.db.getLastInsertRowID();
+        try self.db.exec(
+            \\INSERT INTO tags (name, category, description, color) VALUES (?, ?, ?, ?)
+        , .{ name, category, description, color });
+        return self.db.lastInsertedRowId();
     }
 
-    /// Delete a tag by its ID
     pub fn deleteTag(self: *TagService, id: i64) !void {
-        const query = "DELETE FROM tags WHERE id = ?";
-
-        var stmt = try self.db.prepare(query);
-        defer stmt.deinit();
-
-        try stmt.bind(1, id);
-        try stmt.exec();
+        try self.db.exec("DELETE FROM tags WHERE id = ?", .{id});
     }
 };
