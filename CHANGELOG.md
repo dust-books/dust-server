@@ -1,3 +1,9 @@
+## [0.9.6](https://github.com/dust-books/dust-server/compare/v0.9.5...v0.9.6) (2026-07-11)
+
+### Bug Fixes
+
+* trigger release build for static sqlite linking ([98a339b](https://github.com/dust-books/dust-server/commit/98a339b2b8996ea667655d480bf164faa8ce16b2))
+
 ## [0.9.5](https://github.com/dust-books/dust-server/compare/v0.9.4...v0.9.5) (2026-02-25)
 
 ### Bug Fixes
