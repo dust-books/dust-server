@@ -29,8 +29,6 @@ pub fn build(b: *std.Build) void {
         }),
     });
 
-    exe.root_module.linkSystemLibrary("sqlite3", .{});
-
     const build_zig_zon = b.createModule(.{
         .root_source_file = b.path("build.zig.zon"),
         .target = target,
